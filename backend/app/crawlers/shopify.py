@@ -29,6 +29,7 @@ class ShopifyCrawler(BaseCrawler):
     def _get_json(self, sess: creq.Session, path: str) -> dict:
         url = self.site.url.rstrip("/") + path
         resp = sess.get(url, timeout=30)
+        self.guard(resp.status_code, url)         # 熔断检查
         resp.raise_for_status()
         self.snapshot(path, resp.text)            # 原始响应归档
         return resp.json()

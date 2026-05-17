@@ -16,6 +16,7 @@ import os
 
 from curl_cffi import requests as creq
 
+from ..antiban import BlockedError
 from .base import BaseCrawler, CrawlResult
 
 PAGE_SIZE = 48
@@ -41,6 +42,7 @@ class CostwayCrawler(BaseCrawler):
 
     def _api(self, sess: creq.Session, path: str) -> dict:
         resp = sess.get(self.site.url.rstrip("/") + path, timeout=30)
+        self.guard(resp.status_code, path)        # 熔断检查
         resp.raise_for_status()
         self.snapshot(path, resp.text)            # 原始响应归档
         return resp.json()
@@ -83,6 +85,8 @@ class CostwayCrawler(BaseCrawler):
                     data = self._api(
                         sess, f"/api/products?category_id={cid}"
                         f"&page={page}&pagesize={PAGE_SIZE}")
+                except BlockedError:
+                    raise                          # 熔断 —— 传播到 runner
                 except Exception as exc:
                     result.notes.append(f"分类 {cname} p{page} 失败: {exc}")
                     break

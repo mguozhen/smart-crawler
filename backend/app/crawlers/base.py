@@ -5,14 +5,13 @@
 """
 from __future__ import annotations
 
-import random
-import time
 from abc import ABC, abstractmethod
 
 from ..config import get_settings, user_agents
 from ..models import Site
 from ..proxy import get_proxy
 from .. import snapshot as _snapshot
+from ..antiban import check_blocked, humanized_sleep, ip_record, rate_delay
 
 
 class CrawlResult:
@@ -32,15 +31,23 @@ class BaseCrawler(ABC):
     def __init__(self, site: Site):
         self.site = site
         self.settings = get_settings()
-        self.delay = float(self.settings.get("request_delay", 1.5))
+        # 每站限速档 —— 评论平台远慢于商品站（反封禁）
+        self.delay = rate_delay(self.platform,
+                                float(self.settings.get("request_delay", 1.5)))
         self.proxy = get_proxy(site.proxy_tier)
 
     def ua(self) -> str:
+        import random
         return random.choice(user_agents())
 
     def sleep(self) -> None:
-        """C-011：请求频率控制，带抖动。"""
-        time.sleep(self.delay + random.uniform(0, 0.8))
+        """C-011：拟人请求间隔 —— 随机抖动，不固定频率。"""
+        humanized_sleep(self.delay)
+
+    def guard(self, status: int, where: str = "") -> None:
+        """熔断检查：记录 IP 用量，命中封禁状态码即抛 BlockedError。"""
+        ip_record(self.proxy or "direct")
+        check_blocked(status, where or self.site.site)
 
     def snapshot(self, name: str, content) -> None:
         """归档一份原始响应到大盘（见 app/snapshot.py）。"""

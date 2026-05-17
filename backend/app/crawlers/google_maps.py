@@ -42,12 +42,33 @@ class GoogleMapsCrawler:
                + urllib.parse.quote(self.query))
 
         def scroll_reviews(page):
-            """滚动评论面板加载更多。"""
+            """进入商家页 → 点开「评论」标签 → 滚动评论面板加载更多。"""
             try:
-                page.wait_for_timeout(2500)
-                for _ in range(min(self.max_reviews // 10, 25)):
-                    page.mouse.wheel(0, 3000)
-                    page.wait_for_timeout(900)
+                page.wait_for_timeout(3500)
+                # 点开评论 tab（多语言/多选择器兜底）
+                for sel in ['button[aria-label*="eview"]',
+                            'button[aria-label*="评价"]',
+                            'button[jsaction*="reviewChart"]',
+                            'button[data-tab-index="1"]']:
+                    try:
+                        el = page.query_selector(sel)
+                        if el:
+                            el.click()
+                            break
+                    except Exception:
+                        continue
+                page.wait_for_timeout(3000)
+                # 滚动评论 feed（鼠标悬于面板上滚）
+                for _ in range(min(self.max_reviews // 8, 30)):
+                    try:
+                        feed = page.query_selector(
+                            'div[role="feed"], div[tabindex="-1"]')
+                        if feed:
+                            feed.scroll_into_view_if_needed()
+                        page.mouse.wheel(0, 5000)
+                    except Exception:
+                        page.mouse.wheel(0, 5000)
+                    page.wait_for_timeout(1100)
             except Exception:
                 pass
             return page

@@ -21,6 +21,7 @@ import re
 
 from curl_cffi import requests as creq
 
+from ..antiban import BlockedError
 from .base import BaseCrawler, CrawlResult
 
 API_BASE = "https://b2b.vidaxl.com/api_customer/products"
@@ -113,12 +114,15 @@ class VidaxlCrawler(BaseCrawler):
 
         try:
             idx = sess.get(self.base + "/sitemap_index.xml", timeout=30)
+            self.guard(idx.status_code, self.base)    # 熔断检查
             if idx.status_code != 200:
                 result.notes.append(
                     f"⚠ sitemap_index 不可达（{idx.status_code}）—— "
                     f"{'美国站需住宅代理（路径3）' if self.site.country=='US' else '站点封锁'}")
                 return result
             subs = re.findall(r"<loc>\s*(.*?)\s*</loc>", idx.text)
+        except BlockedError:
+            raise                              # 熔断 —— 传播到 runner
         except Exception as exc:
             result.notes.append(f"⚠ 站点不可达: {exc} —— 建议走路径1 官方 API")
             return result

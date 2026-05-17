@@ -13,6 +13,7 @@ from datetime import datetime
 
 from sqlalchemy import update
 
+from .antiban import BlockedError, in_cooldown, set_cooldown
 from .crawlers.registry import get_crawler
 from .db import session_scope
 from .models import Category, CrawlJob, Product, Promotion, Site
@@ -59,9 +60,28 @@ def execute_job(job_id: int) -> dict:
             job.started_at = datetime.utcnow()
         crawler = get_crawler(site)
 
+    # 站点冷却中 —— 跳过，不再去打（反封禁）
+    if in_cooldown(site_name):
+        with session_scope() as s:
+            job = s.get(CrawlJob, job_id)
+            job.status = "skipped"
+            job.finished_at = datetime.utcnow()
+            job.error = "站点处于封禁冷却期，本次跳过"
+        return {"job_id": job_id, "site": site_name, "status": "skipped"}
+
     started = datetime.utcnow()
     try:
         result = crawler.crawl()
+    except BlockedError as exc:                  # 熔断 —— 站点封锁
+        set_cooldown(site_name)
+        with session_scope() as s:
+            job = s.get(CrawlJob, job_id)
+            job.status = "blocked"
+            job.finished_at = datetime.utcnow()
+            job.duration_sec = (datetime.utcnow() - started).total_seconds()
+            job.error = f"熔断：{exc}（站点已进入冷却期）"
+        return {"job_id": job_id, "site": site_name, "status": "blocked",
+                "error": str(exc)}
     except Exception as exc:                     # 采集失败 —— C-005
         with session_scope() as s:
             job = s.get(CrawlJob, job_id)
