@@ -57,15 +57,17 @@ smart-crawler 把"网页采集"做成 AI Agent 可直接调用的数据服务：
 
 ## Agent 接入（推荐 MCP）
 
-- [MCP 服务器]({BASE_URL}/mcp): streamable-http 传输，{len(_TOOLS)} 个工具，开箱即用
+- [MCP 服务器]({BASE_URL}/mcp): streamable-http 传输，{len(_TOOLS)} 个工具
 - [发现清单]({BASE_URL}/.well-known/mcp.json): MCP 服务器元数据
 - [能力总览]({BASE_URL}/agents.json): 工具 + REST 端点 + 接入方式
+
+鉴权: MCP 与 REST 都用 API Key —— 请求头 `Authorization: Bearer sck_...`
+（MCP）或 `X-API-Key: sck_...`（REST）。密钥在控制台「API 接入」生成。
 
 ## REST API（备选）
 
 - [OpenAPI 规格]({BASE_URL}/openapi.json): OpenAPI 3.1
 - [交互式文档]({BASE_URL}/docs): Swagger UI
-- 鉴权: 请求头 `X-API-Key: sck_...`（在控制台「API 接入」生成）
 - 主要端点: `/api/v1/products` `/api/v1/promotions` `/api/v1/site/{{site}}`
 
 ## MCP 工具
@@ -90,6 +92,10 @@ def well_known_mcp() -> JSONResponse:
         "mcp": {
             "url": f"{BASE_URL}/mcp",
             "transport": "streamable-http",
+            "authentication": {
+                "type": "bearer",
+                "description": "API Key，请求头 Authorization: Bearer sck_...",
+            },
         },
         "tools": _TOOLS,
         "documentation": f"{BASE_URL}/llms.txt",
@@ -130,6 +136,7 @@ def agents_json() -> JSONResponse:
                 "transport": "streamable-http",
                 "recommended": True,
                 "tool_count": len(_TOOLS),
+                "auth": "header Authorization: Bearer sck_...",
             },
             "rest": {
                 "openapi": f"{BASE_URL}/openapi.json",

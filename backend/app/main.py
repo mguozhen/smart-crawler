@@ -20,6 +20,42 @@ from .mcp_server import mcp
 _mcp_app = mcp.http_app(path="/")
 
 
+# MCP 端点 API Key 鉴权 —— 调用需带 `Authorization: Bearer sck_...`（或 X-API-Key）。
+# 复用看板「API 接入」生成的 sck_ 密钥体系。发现层（llms.txt / .well-known）不受影响。
+async def _mcp_auth(request, call_next):
+    from starlette.responses import JSONResponse as _JSON
+    from .apikey import hash_key
+    from .models import ApiKey
+    from .db import SessionLocal
+    auth = request.headers.get("authorization", "")
+    key = (auth[7:].strip() if auth[:7].lower() == "bearer "
+           else request.headers.get("x-api-key", "").strip())
+    if key:
+        db = SessionLocal()
+        try:
+            k = (db.query(ApiKey)
+                 .filter(ApiKey.key_hash == hash_key(key),
+                         ApiKey.active.is_(True)).first())
+            if k:
+                from datetime import datetime
+                k.last_used = datetime.utcnow()
+                k.request_count = (k.request_count or 0) + 1
+                db.commit()
+                return await call_next(request)
+        finally:
+            db.close()
+    return _JSON({
+        "error": "unauthorized",
+        "message": "smart-crawler MCP 需要 API Key。请在请求头加 "
+                   "`Authorization: Bearer sck_...`，密钥在 "
+                   "https://smartcrawler.io/app 的「API 接入」生成。",
+    }, status_code=401)
+
+
+from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
+_mcp_app.add_middleware(BaseHTTPMiddleware, dispatch=_mcp_auth)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
