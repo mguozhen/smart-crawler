@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .config import DATA_DIR
@@ -16,6 +16,16 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 Base = declarative_base()
+
+
+@event.listens_for(engine, "connect")
+def _sqlite_pragmas(conn, _):
+    """WAL 模式 —— 后台采集写入与看板读取并发不互锁。"""
+    cur = conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA busy_timeout=30000")
+    cur.execute("PRAGMA synchronous=NORMAL")
+    cur.close()
 
 
 def init_db() -> None:

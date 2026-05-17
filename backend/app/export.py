@@ -1,4 +1,12 @@
-"""Excel 导出 —— API-006，列结构对标 03-样本数据 的三份报表。"""
+"""Excel 导出 —— 完全对标 03-样本数据 的三份报表，并额外提供更多字段。
+
+对标的样本（甲方原始交付物）：
+  product_analysis_report.xlsx  — 20 列
+  sales_promotion_report.xlsx   — 13 列
+  trend_report.xlsx             — 8 列
+本模块输出的工作簿在「完全复刻这三张表的列名与顺序」之外，额外提供
+「商品全字段」「分类树」「站点概览」三张扩展表 —— 信息只多不少。
+"""
 from __future__ import annotations
 
 import io
@@ -6,91 +14,198 @@ import io
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from .models import Product, Promotion, Trend
+from .models import Category, Product, Promotion, Site, Trend
 
-# 商品报表列（规格 §14.3 产品分析 Tab）
-PRODUCT_COLS = [
-    ("no", "NO."), ("image", "图片"), ("title", "产品标题"), ("sku", "SKU"),
-    ("attributes", "属性"), ("label", "标签"), ("sale_price", "售价"),
-    ("original_price", "原价"), ("thirty_day_sales", "30天销量"),
-    ("thirty_day_revenue", "30天营收"), ("ratings", "评分"),
-    ("review_count", "评论数"), ("status", "状态"), ("category_path", "品类"),
-    ("inventory", "库存"), ("has_video", "视频"), ("has_free_shipping", "免运费"),
-    ("created_time", "创建时间"), ("updated_time", "更新时间"),
+# ---- 对标 product_analysis_report.xlsx 的 20 列（列名/顺序与样本完全一致）----
+PRODUCT_SAMPLE_COLS = [
+    "NO.", "Sku", "Image", "Title", "label", "VariantId", "Attributes",
+    "Sale Price", "Price", "30-Days Sales", "30-Days Revenue", "Ratings",
+    "Reviews", "Status", "Category", "Inventory", "Video", "Free shipping",
+    "Created Time", "Update Time",
 ]
-PROMOTION_COLS = [
-    ("no", "NO."), ("sku", "SKU"), ("detected_time", "更新时间"),
-    ("product_title", "产品标题"), ("product_image", "产品图片"),
-    ("promotion_type", "类型"), ("promotion_name", "活动名称"),
-    ("discount_percent", "折扣"), ("original_price", "原价"),
-    ("promotion_price", "活动价"), ("threshold", "门槛"),
-    ("start_time", "开始时间"), ("end_time", "结束时间"),
+# ---- 对标 sales_promotion_report.xlsx 的 13 列 ----
+PROMO_SAMPLE_COLS = [
+    "NO.", "SKU", "Update Time", "Product Title", "Product Image", "Type",
+    "Name", "Discount", "Orignal-Price", "Post-Price", "Threshold",
+    "Start Time", "End Time",
 ]
-TREND_COLS = [
-    ("date", "日期"), ("sku_count", "SKU数"), ("new_product_count", "新增产品"),
-    ("estimated_sales", "预估销量"), ("estimated_revenue", "预估营收"),
-    ("traffic", "流量"), ("conversion_rate", "转化率"),
+# ---- 对标 trend_report.xlsx 的 8 列 ----
+TREND_SAMPLE_COLS = [
+    "NO.", "Date", "Sku Count", "New Product Count", "Sales", "Revenue",
+    "Traffic", "Conversion Rate",
+]
+# ---- 扩展表：规格 §4.1.2 全部 32 个 SKU 字段 ----
+PRODUCT_FULL_COLS = [
+    "NO.", "site", "brand", "sku", "spu", "variant_id", "title", "description",
+    "category_path", "product_type", "attributes", "tags", "label",
+    "sale_price", "original_price", "currency", "ratings", "review_count",
+    "thirty_day_sales", "thirty_day_revenue", "status", "inventory",
+    "has_video", "has_free_shipping", "mpn", "gtin", "weight", "shipping_time",
+    "return_policy_days", "image_count", "image_urls", "product_url",
+    "is_new", "is_bestseller", "published_at", "created_time", "updated_time",
 ]
 
-
-def _fmt(v):
-    if isinstance(v, dict):
-        return ", ".join(f"{k}:{x}" for k, x in v.items())
-    if isinstance(v, list):
-        return ", ".join(str(x) for x in v)
-    if isinstance(v, bool):
-        return "YES" if v else "NO"
-    return v
+_STATUS = {"on_sale": "on sale", "out_of_stock": "out of stock",
+           "discontinued": "discontinued"}
 
 
-def products_df(session: Session, site: str | None = None) -> pd.DataFrame:
+def _yn(v) -> str:
+    return "YES" if v else "NO"
+
+
+def _attrs(a) -> str:
+    if not a:
+        return ""
+    return " ".join(f"{k}:{v}" for k, v in a.items())
+
+
+def _list(v) -> str:
+    return ", ".join(str(x) for x in v) if v else ""
+
+
+def _dt(v) -> str:
+    return v.strftime("%Y-%m-%d %H:%M:%S") if v else ""
+
+
+# ---------- 对标样本：商品分析报表 ----------
+def products_sample_df(session: Session, site: str | None = None) -> pd.DataFrame:
     q = session.query(Product)
     if site:
         q = q.filter(Product.site == site)
     rows = []
-    for i, p in enumerate(q.all(), start=1):
-        d = {"no": i, "image": (p.image_urls or [None])[0]}
-        for attr, _ in PRODUCT_COLS:
-            if attr in ("no", "image"):
-                continue
-            d[attr] = _fmt(getattr(p, attr, None))
-        rows.append(d)
-    df = pd.DataFrame(rows, columns=[a for a, _ in PRODUCT_COLS])
-    return df.rename(columns=dict(PRODUCT_COLS))
+    for i, p in enumerate(q.order_by(Product.id).all(), start=1):
+        rows.append({
+            "NO.": i, "Sku": p.sku, "Image": (p.image_urls or [""])[0],
+            "Title": p.title, "label": p.label or "", "VariantId": p.variant_id,
+            "Attributes": _attrs(p.attributes), "Sale Price": p.sale_price,
+            "Price": p.original_price, "30-Days Sales": p.thirty_day_sales or 0,
+            "30-Days Revenue": p.thirty_day_revenue or 0.0,
+            "Ratings": p.ratings or 0.0, "Reviews": p.review_count or 0,
+            "Status": _STATUS.get(p.status, p.status), "Category": p.category_path,
+            "Inventory": p.inventory, "Video": _yn(p.has_video),
+            "Free shipping": _yn(p.has_free_shipping),
+            "Created Time": _dt(p.created_time), "Update Time": _dt(p.updated_time),
+        })
+    return pd.DataFrame(rows, columns=PRODUCT_SAMPLE_COLS)
 
 
-def promotions_df(session: Session, site: str | None = None) -> pd.DataFrame:
+# ---------- 对标样本：销售促销报表 ----------
+def promotions_sample_df(session: Session, site: str | None = None) -> pd.DataFrame:
     q = session.query(Promotion)
     if site:
         q = q.filter(Promotion.site == site)
     rows = []
     for i, p in enumerate(q.all(), start=1):
-        d = {"no": i}
-        for attr, _ in PROMOTION_COLS:
-            if attr == "no":
-                continue
-            d[attr] = _fmt(getattr(p, attr, None))
-        rows.append(d)
-    df = pd.DataFrame(rows, columns=[a for a, _ in PROMOTION_COLS])
-    return df.rename(columns=dict(PROMOTION_COLS))
+        rows.append({
+            "NO.": i, "SKU": p.sku, "Update Time": _dt(p.detected_time),
+            "Product Title": p.product_title, "Product Image": p.product_image,
+            "Type": p.promotion_type, "Name": p.promotion_name or p.promotion_type,
+            "Discount": p.discount_percent, "Orignal-Price": p.original_price,
+            "Post-Price": p.promotion_price, "Threshold": p.threshold or "/",
+            "Start Time": _dt(p.start_time), "End Time": _dt(p.end_time),
+        })
+    return pd.DataFrame(rows, columns=PROMO_SAMPLE_COLS)
 
 
-def trends_df(session: Session, site: str | None = None) -> pd.DataFrame:
+# ---------- 对标样本：趋势报表 ----------
+def trends_sample_df(session: Session, site: str | None = None) -> pd.DataFrame:
     q = session.query(Trend)
     if site:
         q = q.filter(Trend.site == site)
     rows = []
-    for t in q.order_by(Trend.date).all():
-        rows.append({attr: _fmt(getattr(t, attr, None)) for attr, _ in TREND_COLS})
-    df = pd.DataFrame(rows, columns=[a for a, _ in TREND_COLS])
-    return df.rename(columns=dict(TREND_COLS))
+    for i, t in enumerate(q.order_by(Trend.date).all(), start=1):
+        rows.append({
+            "NO.": i, "Date": t.date.isoformat() if t.date else "",
+            "Sku Count": t.sku_count, "New Product Count": t.new_product_count,
+            "Sales": t.estimated_sales, "Revenue": t.estimated_revenue,
+            "Traffic": t.traffic if t.traffic is not None else "/",
+            "Conversion Rate": t.conversion_rate
+            if t.conversion_rate is not None else "/",
+        })
+    return pd.DataFrame(rows, columns=TREND_SAMPLE_COLS)
+
+
+# ---------- 扩展表：商品全字段（32 字段，信息只多不少）----------
+def products_full_df(session: Session, site: str | None = None) -> pd.DataFrame:
+    q = session.query(Product)
+    if site:
+        q = q.filter(Product.site == site)
+    rows = []
+    for i, p in enumerate(q.order_by(Product.id).all(), start=1):
+        rows.append({
+            "NO.": i, "site": p.site, "brand": p.brand, "sku": p.sku,
+            "spu": p.spu, "variant_id": p.variant_id, "title": p.title,
+            "description": (p.description or "")[:500], "category_path": p.category_path,
+            "product_type": p.product_type, "attributes": _attrs(p.attributes),
+            "tags": _list(p.tags), "label": p.label, "sale_price": p.sale_price,
+            "original_price": p.original_price, "currency": p.currency,
+            "ratings": p.ratings, "review_count": p.review_count,
+            "thirty_day_sales": p.thirty_day_sales,
+            "thirty_day_revenue": p.thirty_day_revenue, "status": p.status,
+            "inventory": p.inventory, "has_video": _yn(p.has_video),
+            "has_free_shipping": _yn(p.has_free_shipping), "mpn": p.mpn,
+            "gtin": p.gtin, "weight": p.weight, "shipping_time": p.shipping_time,
+            "return_policy_days": p.return_policy_days,
+            "image_count": len(p.image_urls or []), "image_urls": _list(p.image_urls),
+            "product_url": p.product_url, "is_new": _yn(p.is_new),
+            "is_bestseller": _yn(p.is_bestseller), "published_at": _dt(p.published_at),
+            "created_time": _dt(p.created_time), "updated_time": _dt(p.updated_time),
+        })
+    return pd.DataFrame(rows, columns=PRODUCT_FULL_COLS)
+
+
+# ---------- 扩展表：分类树 ----------
+def categories_df(session: Session, site: str | None = None) -> pd.DataFrame:
+    q = session.query(Category)
+    if site:
+        q = q.filter(Category.site == site)
+    rows = []
+    for i, c in enumerate(q.all(), start=1):
+        rows.append({
+            "NO.": i, "site": c.site, "category_id": c.category_id,
+            "category_name": c.category_name, "category_url": c.category_url,
+            "parent_id": c.parent_id, "level": c.level,
+            "product_count": c.product_count, "collected_time": _dt(c.collected_time),
+        })
+    return pd.DataFrame(rows, columns=["NO.", "site", "category_id",
+                        "category_name", "category_url", "parent_id", "level",
+                        "product_count", "collected_time"])
+
+
+# ---------- 扩展表：站点概览 ----------
+def sites_overview_df(session: Session) -> pd.DataFrame:
+    rows = []
+    for i, s in enumerate(session.query(Site).all(), start=1):
+        sku = session.query(Product).filter(Product.site == s.site).count()
+        spu = (session.query(Product.spu)
+               .filter(Product.site == s.site).distinct().count())
+        cats = session.query(Category).filter(Category.site == s.site).count()
+        promo = session.query(Promotion).filter(Promotion.site == s.site).count()
+        rows.append({
+            "NO.": i, "site": s.site, "brand": s.brand, "country": s.country,
+            "url": s.url, "platform": s.platform, "proxy_tier": s.proxy_tier,
+            "SKU数": sku, "SPU数": spu, "分类数": cats, "促销数": promo,
+            "最后采集": _dt(s.last_crawled),
+        })
+    return pd.DataFrame(rows, columns=["NO.", "site", "brand", "country", "url",
+                        "platform", "proxy_tier", "SKU数", "SPU数", "分类数",
+                        "促销数", "最后采集"])
 
 
 def export_workbook(session: Session, site: str | None = None) -> bytes:
-    """导出三 Sheet 的 Excel（商品分析 / 销售促销 / 趋势）。"""
+    """导出 6-Sheet Excel：3 张完全对标样本 + 3 张扩展。"""
     buf = io.BytesIO()
-    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-        products_df(session, site).to_excel(writer, sheet_name="商品分析", index=False)
-        promotions_df(session, site).to_excel(writer, sheet_name="销售促销", index=False)
-        trends_df(session, site).to_excel(writer, sheet_name="趋势报告", index=False)
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        products_sample_df(session, site).to_excel(
+            w, sheet_name="商品分析", index=False)
+        promotions_sample_df(session, site).to_excel(
+            w, sheet_name="销售促销", index=False)
+        trends_sample_df(session, site).to_excel(
+            w, sheet_name="趋势报告", index=False)
+        products_full_df(session, site).to_excel(
+            w, sheet_name="商品全字段(扩展)", index=False)
+        categories_df(session, site).to_excel(
+            w, sheet_name="分类树(扩展)", index=False)
+        sites_overview_df(session).to_excel(
+            w, sheet_name="站点概览(扩展)", index=False)
     return buf.getvalue()

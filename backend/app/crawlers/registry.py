@@ -16,4 +16,7 @@ def get_crawler(site: Site) -> BaseCrawler:
     if platform == "vue_spa":
         from .costway import CostwayCrawler
         return CostwayCrawler(site)
+    if platform == "generic":
+        from .generic import GenericCrawler
+        return GenericCrawler(site)
     raise ValueError(f"未知平台: {platform}")

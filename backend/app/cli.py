@@ -17,6 +17,31 @@ from .export import export_workbook
 from .runner import run_brand, run_site
 
 
+def _report(r: dict) -> None:
+    if r["status"] == "success":
+        recompute(r["site"])
+        print(f"✓ {r['site']}: {r['products']} 商品 / {r['new']} 新品 / "
+              f"{r['promotions']} 促销 / {r['duration_sec']}s")
+        for n in r.get("notes", []):
+            print(f"    {n}")
+    else:
+        print(f"✗ {r['site']}: {r.get('error')}")
+
+
+def _crawl_many(names: list) -> int:
+    """顺序采集多个站点，单站失败不影响其余。"""
+    import time as _t
+    total = len(names)
+    for i, name in enumerate(names, start=1):
+        print(f"\n[{i}/{total}] {name}  {_t.strftime('%H:%M:%S')}", flush=True)
+        try:
+            _report(run_site(name))
+        except Exception as exc:                    # 兜底，保证继续
+            print(f"✗ {name}: 未捕获异常 {exc}")
+    print(f"\n=== 全部完成：{total} 站 ===")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="smart-crawler")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -26,6 +51,7 @@ def main(argv=None) -> int:
     pc = sub.add_parser("crawl", help="采集")
     pc.add_argument("--site")
     pc.add_argument("--brand")
+    pc.add_argument("--all", action="store_true", help="采集全部 46 站")
 
     pe = sub.add_parser("export", help="导出 Excel")
     pe.add_argument("--out", required=True)
@@ -39,24 +65,22 @@ def main(argv=None) -> int:
         return 0
 
     if args.cmd == "crawl":
+        if args.all:
+            from .db import SessionLocal
+            from .models import Site
+            s = SessionLocal()
+            names = [r.site for r in s.query(Site).order_by(Site.id).all()]
+            s.close()
+            return _crawl_many(names)
         if args.site:
-            results = [run_site(args.site)]
-        elif args.brand:
+            return _crawl_many([args.site])
+        if args.brand:
             results = run_brand(args.brand)
-        else:
-            print("需指定 --site 或 --brand", file=sys.stderr)
-            return 2
-        for r in results:
-            if r["status"] == "success":
-                recompute(r["site"])
-                print(f"✓ {r['site']}: {r['products']} 商品 / "
-                      f"{r['new']} 新品 / {r['promotions']} 促销 "
-                      f"/ {r['duration_sec']}s")
-                for n in r.get("notes", []):
-                    print(f"    {n}")
-            else:
-                print(f"✗ {r['site']}: {r.get('error')}")
-        return 0
+            for r in results:
+                _report(r)
+            return 0
+        print("需指定 --site / --brand / --all", file=sys.stderr)
+        return 2
 
     if args.cmd == "export":
         s = SessionLocal()

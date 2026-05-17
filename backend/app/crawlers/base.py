@@ -9,8 +9,9 @@ import random
 import time
 from abc import ABC, abstractmethod
 
-from ..config import get_settings, proxy_for_tier, user_agents
+from ..config import get_settings, user_agents
 from ..models import Site
+from ..proxy import get_proxy
 
 
 class CrawlResult:
@@ -31,7 +32,7 @@ class BaseCrawler(ABC):
         self.site = site
         self.settings = get_settings()
         self.delay = float(self.settings.get("request_delay", 1.5))
-        self.proxy = proxy_for_tier(site.proxy_tier)
+        self.proxy = get_proxy(site.proxy_tier)
 
     def ua(self) -> str:
         return random.choice(user_agents())
