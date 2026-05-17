@@ -17,6 +17,9 @@ services:
       - RESIDENTIAL_PROXY=${RESIDENTIAL_PROXY:-}
       - HOMARY_LIMIT=${HOMARY_LIMIT:-500}
       - COSTWAY_PAGES_PER_CAT=${COSTWAY_PAGES_PER_CAT:-3}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://router.flatkey.ai/v1}
+      - LLM_MODEL=${LLM_MODEL:-gpt-5-mini}
 
   # Cloudflare Tunnel —— 把 smartcrawler.io 接到本容器（需填 TUNNEL_TOKEN）
   # 在 Cloudflare Zero Trust 创建 Tunnel 后，把 token 写入 .env 再启用本段
