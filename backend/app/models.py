@@ -211,6 +211,41 @@ class ApiKey(Base):
     active = Column(Boolean, default=True)
 
 
+class Keyword(Base):
+    """Google Shopping 关键词 —— 模块四，规格 §4.4.1。"""
+
+    __tablename__ = "keywords"
+
+    id = Column(Integer, primary_key=True)
+    keyword = Column(String, unique=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_crawled = Column(DateTime)
+    result_count = Column(Integer, default=0)
+
+
+class ShoppingResult(Base):
+    """Google Shopping 搜索结果商品 —— 模块四，规格 §4.4.4 的 15 字段。"""
+
+    __tablename__ = "shopping_results"
+
+    id = Column(Integer, primary_key=True)
+    keyword = Column(String, index=True)
+    position = Column(Integer)
+    product_title = Column(String)
+    product_image = Column(String)
+    price = Column(Float)
+    currency = Column(String)
+    merchant = Column(String, index=True)
+    merchant_url = Column(String)
+    product_sku = Column(String)
+    review_count = Column(Integer)
+    rating = Column(Float)
+    shipping_info = Column(String)
+    promotion_label = Column(String)
+    product_url = Column(String)
+    crawled_time = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 class CrawlJob(Base):
     """采集任务 —— 同时充当采集队列（C-030 任务看板）。
 

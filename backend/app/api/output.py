@@ -13,8 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import (Category, PriceHistory, Product, Promotion, Review,
-                      Site, Trend)
+from ..models import (Category, Keyword, PriceHistory, Product, Promotion,
+                      Review, ShoppingResult, Site, Trend)
 from .routes import require_user
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_user)],
@@ -199,6 +199,49 @@ def v1_reviews(site: str | None = None, platform: str | None = None,
         "sentiment": r.sentiment, "sku": r.sku,
     } for r in rows]
     return _envelope(data, total, page, page_size)
+
+
+@router.get("/shopping/keywords")
+def v1_keywords(db: Session = Depends(get_db)):
+    """Google Shopping 关键词列表 —— 模块四。"""
+    rows = db.query(Keyword).order_by(Keyword.id).all()
+    return _envelope([{
+        "keyword": k.keyword, "result_count": k.result_count,
+        "last_crawled": _iso(k.last_crawled),
+    } for k in rows])
+
+
+@router.get("/shopping/results")
+def v1_shopping_results(keyword: str | None = None, merchant: str | None = None,
+                        page: int = 1, page_size: int = Query(50, le=200),
+                        db: Session = Depends(get_db)):
+    """Google Shopping 搜索结果商品 —— 模块四。"""
+    q = db.query(ShoppingResult)
+    if keyword:
+        q = q.filter(ShoppingResult.keyword == keyword)
+    if merchant:
+        q = q.filter(ShoppingResult.merchant.ilike(f"%{merchant}%"))
+    total = q.count()
+    rows = (q.order_by(ShoppingResult.keyword, ShoppingResult.position)
+            .offset((page - 1) * page_size).limit(page_size).all())
+    data = [{
+        "keyword": r.keyword, "position": r.position,
+        "title": r.product_title, "image": r.product_image,
+        "price": r.price, "currency": r.currency,
+        "merchant": r.merchant, "rating": r.rating,
+        "review_count": r.review_count, "shipping": r.shipping_info,
+        "promotion": r.promotion_label, "url": r.product_url,
+        "crawled_at": _iso(r.crawled_time),
+    } for r in rows]
+    return _envelope(data, total, page, page_size)
+
+
+@router.get("/shopping/competitor-share")
+def v1_competitor_share(keyword: str | None = None):
+    """竞品商家占有率 —— 规格 F4-031。"""
+    from ..shopping_runner import competitor_share
+    return {"object": "competitor_share", "keyword": keyword,
+            "data": competitor_share(keyword)}
 
 
 @router.get("/site/{site}")

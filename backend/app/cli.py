@@ -69,6 +69,11 @@ def main(argv=None) -> int:
     pi.add_argument("--platform", required=True, help="如 trustedshop")
     pi.add_argument("--site", required=True, help="如 aosom_de")
 
+    ps = sub.add_parser("shopping", help="Google Shopping 采集（模块四）")
+    ps.add_argument("--keyword", help="单个关键词")
+    ps.add_argument("--all", action="store_true", help="采集全部已导入关键词")
+    ps.add_argument("--import-file", help="从 Excel/CSV 导入关键词（首列）")
+
     args = parser.parse_args(argv)
     init_db()
 
@@ -120,6 +125,31 @@ def main(argv=None) -> int:
         print(f"✓ 导入 {args.platform}/{args.site}：{r['rows']} 行 → "
               f"解析 {r['parsed']} / 新增 {r['inserted']} / 更新 {r['updated']}")
         print(f"    列映射: {r['mapped_columns']}")
+        return 0
+
+    if args.cmd == "shopping":
+        from .shopping_runner import (crawl_all_keywords, crawl_keyword,
+                                      import_keywords)
+        if args.import_file:
+            import pandas as pd
+            df = (pd.read_excel(args.import_file)
+                  if args.import_file.lower().endswith((".xlsx", ".xls"))
+                  else pd.read_csv(args.import_file))
+            words = [str(v) for v in df.iloc[:, 0].dropna().tolist()]
+            r = import_keywords(words)
+            print(f"✓ 导入关键词：新增 {r['added']} / 跳过重复 {r['skipped']}")
+            return 0
+        if args.keyword:
+            results = [crawl_keyword(args.keyword)]
+        elif args.all:
+            results = crawl_all_keywords()
+        else:
+            print("需指定 --keyword / --all / --import-file", file=sys.stderr)
+            return 2
+        for r in results:
+            print(f"✓ {r['keyword']}: {r['results']} 个商品")
+            for n in r.get("notes", []):
+                print(f"    {n}")
         return 0
 
     if args.cmd == "analyze":
