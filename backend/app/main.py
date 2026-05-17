@@ -13,6 +13,10 @@ from .api.routes import public_router, router as api_router
 from .api.output import router as v1_router
 from .config import FRONTEND_DIR
 from .db import init_db
+from .mcp_server import mcp
+
+# MCP 服务器 ASGI app —— 供 AI Agent 通过 MCP 协议发现/调用能力
+_mcp_app = mcp.http_app(path="/")
 
 
 @asynccontextmanager
@@ -33,7 +37,9 @@ async def lifespan(app: FastAPI):
             print("[worker] 进程内 worker 线程已启动")
         except Exception as exc:
             print(f"[worker] 未启动: {exc}")
-    yield
+    # MCP 服务器生命周期（嵌套）
+    async with _mcp_app.lifespan(app):
+        yield
 
 
 app = FastAPI(
@@ -48,6 +54,7 @@ app.add_middleware(
 app.include_router(public_router)
 app.include_router(api_router)
 app.include_router(v1_router)
+app.mount("/mcp", _mcp_app)              # AI Agent MCP 入口
 
 
 @app.get("/health")

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>抽卡 · dashboard 升级方案</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#16131f;color:#e8e6ef;
+    font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;padding:34px;}
+  h1{font-size:19px;font-weight:850;}
+  .sub{color:#9b93ad;font-size:13px;margin:7px 0 24px;}
+  .sub b{color:#a78bfa;}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;max-width:1560px;}
+  .opt{background:#fff;border-radius:16px;overflow:hidden;color:#3a3340;}
+  .oh{padding:12px 18px;color:#fff;}
+  .oh .n{font-size:15px;font-weight:850;}
+  .oh .r{font-size:11px;opacity:.85;margin-top:2px;}
+  .ob{padding:16px;}
+  /* mini mockup canvas */
+  .mock{border:1px solid #ece8f0;border-radius:10px;background:#faf8fc;
+    padding:11px;height:340px;overflow:hidden;font-size:10px;}
+  .mtab{display:flex;gap:9px;border-bottom:1px solid #ece8f0;padding-bottom:7px;
+    margin-bottom:9px;color:#a89fb3;font-size:9.5px;}
+  .mtab .on{color:#7c6ce0;font-weight:700;}
+  /* A: 卡片网格 */
+  .cardgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+  .dscard{border-radius:8px;padding:8px 9px;}
+  .dscard .t{font-weight:700;font-size:9.5px;}
+  .dscard .meta{font-size:8px;opacity:.7;margin-top:2px;}
+  .dscard .big{font-size:17px;font-weight:850;margin-top:5px;}
+  .pillbadge{display:inline-block;font-size:7.5px;padding:1px 5px;border-radius:6px;}
+  /* B: dev console */
+  .row2{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;}
+  .codeblk{background:#1e1b2e;color:#c7f7e0;border-radius:6px;padding:8px;
+    font-family:ui-monospace,Menlo,monospace;font-size:8px;line-height:1.5;}
+  .ep{display:flex;gap:5px;align-items:center;font-family:ui-monospace,monospace;
+    font-size:8.5px;padding:3px 0;}
+  .verb{background:#e6f7ef;color:#16a34a;padding:0 4px;border-radius:3px;font-weight:700;}
+  /* C: pipeline */
+  .pipe{display:flex;align-items:center;gap:4px;background:#fff;
+    border:1px solid #ece8f0;border-radius:7px;padding:6px 8px;margin-bottom:6px;}
+  .node{background:#efe9ff;color:#7c6ce0;border-radius:5px;padding:3px 6px;
+    font-size:8px;font-weight:600;}
+  .arrow{color:#c8bfd6;font-size:10px;}
+  .hbar{height:4px;border-radius:3px;background:#e9e3f2;flex:1;overflow:hidden;}
+  .hbar i{display:block;height:100%;background:#3ddc84;}
+  .note{margin-top:13px;font-size:12px;line-height:1.7;color:#6b6470;}
+  .note b{color:#3a3340;}
+  .feat{margin-top:9px;}
+  .feat div{font-size:11px;color:#6b6470;padding:2px 0;}
+  .feat div::before{content:"✓ ";color:#16a34a;font-weight:700;}
+</style>
+</head>
+<body>
+  <h1>🕸 dashboard 升级 · 3 方案抽卡</h1>
+  <div class="sub">都参考成熟开源产品。覆盖：数据源 Tab（卡片）· 每源 sample 数据 + 获取方式 · API Keys · 数据输出。看完告诉我选 <b>A / B / C</b></div>
+  <div class="grid">
+
+    <!-- ===== 方案 A ===== -->
+    <div class="opt">
+      <div class="oh" style="background:linear-gradient(120deg,#7c6ce0,#9d7ce8);">
+        <div class="n">A · 渠道卡片网格</div>
+        <div class="r">参考 NewAPI / one-api 的渠道·模型卡片</div>
+      </div>
+      <div class="ob">
+        <div class="mock">
+          <div class="mtab"><span>总览</span><span class="on">数据源</span><span>产品</span><span>评论</span><span>API 接入</span></div>
+          <div class="cardgrid">
+            <div class="dscard" style="background:#eef0ff;">
+              <div class="t">SONGMICS · US</div>
+              <div class="meta">Shopify · <span class="pillbadge" style="background:#dcfce7;color:#16a34a;">在线</span></div>
+              <div class="big" style="color:#4a4866;">4,153</div>
+              <div class="meta">SKU · 查看样本 ›</div></div>
+            <div class="dscard" style="background:#e6f7ef;">
+              <div class="t">Costway · US</div>
+              <div class="meta">Vue API · <span class="pillbadge" style="background:#dcfce7;color:#16a34a;">在线</span></div>
+              <div class="big" style="color:#3d6b54;">1,584</div>
+              <div class="meta">SKU · 查看样本 ›</div></div>
+            <div class="dscard" style="background:#fde9ef;">
+              <div class="t">Trustpilot · 9 国</div>
+              <div class="meta">评论 · <span class="pillbadge" style="background:#dcfce7;color:#16a34a;">在线</span></div>
+              <div class="big" style="color:#a8466b;">1,346</div>
+              <div class="meta">评论 · 查看样本 ›</div></div>
+            <div class="dscard" style="background:#fdeede;">
+              <div class="t">Vidaxl · US</div>
+              <div class="meta">自建 · <span class="pillbadge" style="background:#ffece8;color:#f53f3f;">需鉴权</span></div>
+              <div class="big" style="color:#a06f33;">—</div>
+              <div class="meta">Basic Auth · 详情 ›</div></div>
+          </div>
+          <div style="margin-top:8px;background:#fff;border:1px solid #ece8f0;border-radius:7px;padding:7px;">
+            <div style="font-weight:700;font-size:9px;">▸ 点开卡片：SONGMICS·US</div>
+            <div style="font-size:8px;color:#8c8479;margin-top:3px;">获取方式：Shopify /products.json 直拉 · 每日 02:00</div>
+            <div style="font-size:8px;color:#8c8479;">样本：TV Stand 70" · $119.99 · 在售 …</div>
+          </div>
+        </div>
+        <div class="note"><b>每个数据源一张彩色卡</b>（延续马卡龙），卡面：平台/状态/计数，点开抽屉看 sample + 获取方式。最贴 NewAPI、和现有看板风格无缝。</div>
+        <div class="feat">
+          <div>数据源 Tab = 卡片网格，一眼看全</div>
+          <div>点卡 → 抽屉展示 sample + 获取方式 + 频率</div>
+          <div>API 接入页沿用（已建）</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 方案 B ===== -->
+    <div class="opt">
+      <div class="oh" style="background:linear-gradient(120deg,#0f172a,#334155);">
+        <div class="n">B · 开发者控制台</div>
+        <div class="r">参考 Stripe / Supabase 的 API 控制台</div>
+      </div>
+      <div class="ob">
+        <div class="mock">
+          <div class="mtab"><span>总览</span><span>数据源</span><span class="on">API & 输出</span><span>密钥</span></div>
+          <div class="row2">
+            <div>
+              <div style="font-weight:700;font-size:9px;margin-bottom:4px;">数据源</div>
+              <div style="font-size:8.5px;color:#6b6470;line-height:1.9;">
+                ● SONGMICS US<br/>● Costway US<br/>● Trustpilot ×9<br/>● Vidaxl EU ×11<br/>● Google Shopping</div>
+              <div style="font-weight:700;font-size:9px;margin:7px 0 3px;">API 密钥</div>
+              <div class="codeblk" style="background:#f3eee6;color:#a06f33;">sck_9x4T···· [撤销]</div>
+            </div>
+            <div>
+              <div style="font-weight:700;font-size:9px;margin-bottom:4px;">v1 数据输出端点</div>
+              <div class="ep"><span class="verb">GET</span> /api/v1/products</div>
+              <div class="ep"><span class="verb">GET</span> /api/v1/reviews</div>
+              <div class="ep"><span class="verb">GET</span> /api/v1/shopping/results</div>
+              <div style="font-weight:700;font-size:8.5px;margin:5px 0 3px;">Sample 响应</div>
+              <div class="codeblk">{<br/>&nbsp;"object":"list",<br/>&nbsp;"total":4153,<br/>&nbsp;"data":[{"sku":"ULGS043",<br/>&nbsp;&nbsp;"price":{"sale":119.99}}]<br/>}</div>
+            </div>
+          </div>
+        </div>
+        <div class="note"><b>API-first 控制台</b>。突出「开发者」区：密钥管理 + v1 端点清单 + 每个端点的 sample request/response，curl 一键复制。给 Agent 接入方看的。</div>
+        <div class="feat">
+          <div>数据源 = 列表 + 每源 sample JSON</div>
+          <div>获取方式写在端点文档里</div>
+          <div>API Keys + 端点 + sample 三合一，最适合"给 Agent 用"</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 方案 C ===== -->
+    <div class="opt">
+      <div class="oh" style="background:linear-gradient(120deg,#0d9488,#22d3ee);">
+        <div class="n">C · 数据管道视图</div>
+        <div class="r">参考 Airbyte / Fivetran 的 connector 管道</div>
+      </div>
+      <div class="ob">
+        <div class="mock">
+          <div class="mtab"><span>总览</span><span class="on">数据源管道</span><span>产品</span><span>API</span></div>
+          <div class="pipe">
+            <span class="node">songmics_us</span><span class="arrow">→</span>
+            <span class="node">Shopify采集</span><span class="arrow">→</span>
+            <span class="node">清洗</span><span class="arrow">→</span>
+            <span class="hbar"><i style="width:100%"></i></span></div>
+          <div style="font-size:7.5px;color:#8c8479;margin:-3px 0 6px 2px;">上次同步 02:00 · 4,153 条 · 健康</div>
+          <div class="pipe">
+            <span class="node">trustpilot ×9</span><span class="arrow">→</span>
+            <span class="node">Scrapling</span><span class="arrow">→</span>
+            <span class="node">NLP</span><span class="arrow">→</span>
+            <span class="hbar"><i style="width:88%"></i></span></div>
+          <div style="font-size:7.5px;color:#8c8479;margin:-3px 0 6px 2px;">上次同步 周一 · 1,346 条 · 88% 已分析</div>
+          <div class="pipe">
+            <span class="node">vidaxl_us</span><span class="arrow">→</span>
+            <span class="node">采集</span><span class="arrow">→</span>
+            <span class="hbar"><i style="width:8%;background:#f53f3f"></i></span></div>
+          <div style="font-size:7.5px;color:#f53f3f;margin:-3px 0 6px 2px;">⚠ Basic Auth 阻断 · 0 条</div>
+          <div style="background:#fff;border:1px solid #ece8f0;border-radius:7px;padding:7px;margin-top:4px;">
+            <div style="font-weight:700;font-size:9px;">songmics_us · sample</div>
+            <div style="font-size:8px;color:#8c8479;">{sku:ULGS043, price:119.99, status:on_sale}</div>
+          </div>
+        </div>
+        <div class="note"><b>把数据源当数据管道</b>。每源一条 源→采集器→清洗→入库 的可视化流水线，带健康度/上次同步/记录数。运维视角最强，一眼看出哪条断了。</div>
+        <div class="feat">
+          <div>管道图直观看"获取方式"全流程</div>
+          <div>健康度 + 同步状态一目了然</div>
+          <div>sample + schema 内嵌每条管道</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

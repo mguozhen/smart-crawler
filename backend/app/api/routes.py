@@ -13,8 +13,9 @@ from ..apikey import generate as gen_key, hash_key, short as key_short
 from ..auth import make_token, verify_password, verify_token
 from ..db import get_db
 from ..export import export_workbook
-from ..models import (ApiKey, Category, CrawlJob, PriceHistory, Product,
-                      Promotion, Site, Trend, User)
+from ..models import (ApiKey, Category, CrawlJob, Keyword, PriceHistory,
+                      Product, Promotion, Review, ShoppingResult, Site,
+                      Trend, User)
 from ..proxy import pool_status
 from ..runner import enqueue
 
@@ -268,6 +269,59 @@ def trigger(site: str | None = None, brand: str | None = None,
     job_ids = [enqueue(n, trigger="manual") for n in names]
     return {"status": "queued", "jobs": job_ids, "count": len(job_ids),
             "queued_at": datetime.utcnow().isoformat()}
+
+
+_PLATFORM_METHOD = {
+    "shopify": "Shopify /products.json 接口直拉，无需浏览器",
+    "vue_spa": "Vue SPA /api/* JSON 接口直连",
+    "nuxt": "Nuxt SSR：sitemap + 商品页 JSON-LD 解析",
+    "generic": "sitemap 发现 + JSON-LD/OpenGraph 多策略解析",
+    "flexispot": "Playwright 取会话 token → /sapi 接口批量调",
+    "vidaxl": "官方 Dropshipping API / sitemap + JSON-LD（欧洲站）",
+    "vonhaus": "sitemap 扫描判别 + OpenGraph meta 解析",
+}
+_REVIEW_METHOD = {
+    "trustpilot": "Scrapling 隐身浏览器突破 WAF + __NEXT_DATA__ 解析",
+    "reviews_io": "Reviews.io 公开商家 API 直连",
+    "google_map": "Scrapling 渲染商家页 + 滚动加载评论",
+}
+
+
+@router.get("/datasources")
+def datasources(db: Session = Depends(get_db)):
+    """数据源总览 —— 每个源的平台/获取方式/状态/计数（看板「数据源」Tab）。"""
+    out = []
+    for s in db.query(Site).all():
+        sku = db.query(Product).filter(Product.site == s.site).count()
+        out.append({
+            "type": "product", "id": s.site,
+            "name": f"{s.brand} · {s.country}", "platform": s.platform,
+            "method": _PLATFORM_METHOD.get(s.platform, "—"),
+            "count": sku, "unit": "SKU",
+            "status": "online" if sku > 0 else "idle",
+            "freq": "每日 02:00",
+            "last_crawled": s.last_crawled.isoformat() if s.last_crawled else None,
+            "url": s.url,
+        })
+    for plat, method in _REVIEW_METHOD.items():
+        n = db.query(Review).filter(Review.platform == plat).count()
+        out.append({
+            "type": "review", "id": f"review_{plat}",
+            "name": {"trustpilot": "Trustpilot", "reviews_io": "Reviews.io",
+                     "google_map": "Google Maps"}[plat],
+            "platform": plat, "method": method, "count": n, "unit": "评论",
+            "status": "online" if n > 0 else "idle", "freq": "每周一",
+            "last_crawled": None, "url": None,
+        })
+    sr = db.query(ShoppingResult).count()
+    out.append({
+        "type": "shopping", "id": "google_shopping", "name": "Google Shopping",
+        "platform": "google_shopping",
+        "method": "Scrapling 渲染 udm=28 购物结果页",
+        "count": sr, "unit": "结果", "status": "online" if sr > 0 else "idle",
+        "freq": "每周一", "last_crawled": None, "url": None,
+    })
+    return out
 
 
 @router.get("/proxy-status")
