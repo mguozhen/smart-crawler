@@ -161,6 +161,21 @@ class User(Base):
     last_login = Column(DateTime)
 
 
+class ApiKey(Base):
+    """API 密钥 —— 供 AI Agent / 外部系统通过密钥调用数据输出 API。"""
+
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)                            # 用途备注
+    key_prefix = Column(String, index=True)          # sck_xxxx 前缀，展示用
+    key_hash = Column(String, index=True)            # 完整 key 的 SHA-256
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_used = Column(DateTime)
+    request_count = Column(Integer, default=0)
+    active = Column(Boolean, default=True)
+
+
 class CrawlJob(Base):
     """采集任务 —— 同时充当采集队列（C-030 任务看板）。
 

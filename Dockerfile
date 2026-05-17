@@ -5,12 +5,15 @@ ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-# 依赖（curl_cffi 需 libssl；采集主力为 curl_cffi，不装 Playwright 浏览器以保持镜像小）
+# 依赖（curl_cffi 需 libssl/ca；Flexispot 等需 Playwright Chromium）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
+
+# Playwright Chromium —— Flexispot 等 React SPA 站点采集所需
+RUN playwright install --with-deps chromium
 
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/

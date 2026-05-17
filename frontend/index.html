@@ -11,6 +11,7 @@
   :root{
     --bg:#faf7f2; --card:#ffffff; --line:#efe9e0; --line2:#f3eee6;
     --txt:#3a3340; --mut:#a89f93; --accent:#7c6ce0; --accent-sl:#efe9ff;
+    --accent2:#d76b8f; --accent2-sl:#fde9ef;
     --green:#3d6b54; --green-bg:#e6f7ef; --red:#a8466b; --red-bg:#fde9ef;
   }
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -112,6 +113,7 @@
   .badge{padding:3px 9px;border-radius:8px;font-size:11px;font-weight:600;}
   .badge.new{background:#e4f1fb;color:#3b6f93;}
   .badge.best{background:#fbf3da;color:#8a7320;}
+  .badge.deal{background:var(--accent2-sl);color:var(--accent2);}
   .badge.on_sale,.badge.success{background:var(--green-bg);color:var(--green);}
   .badge.out_of_stock,.badge.failed{background:var(--red-bg);color:var(--red);}
   .badge.running,.badge.pending,.badge.queued{background:#e4f1fb;color:#3b6f93;}
@@ -277,7 +279,7 @@
               <td><img :src="p.product_image" loading="lazy"
                 referrerpolicy="no-referrer"/></td>
               <td>{{ p.promotion_type }}</td>
-              <td><span class="badge best">-{{ p.discount_percent }}%</span></td>
+              <td><span class="badge deal">-{{ p.discount_percent }}%</span></td>
               <td><span class="price-old">{{ money(p.original_price) }}</span></td>
               <td><span class="price">{{ money(p.promotion_price) }}</span></td>
               <td>{{ fmt(p.detected_time) }}</td>
@@ -324,6 +326,48 @@
         <div class="empty" v-if="!jobs.length">暂无采集任务记录</div>
       </div>
     </div>
+
+    <!-- API 接入 -->
+    <div v-show="tab==='api'">
+      <div class="panel">
+        <h3>数据输出 API <small>面向 AI Agent 的结构化数据接口 · v1</small></h3>
+        <p style="color:var(--mut);font-size:13px;line-height:1.7;">
+          Agent / 外部系统用 <b>API 密钥</b>调用 <code>/api/v1/*</code> 拉取结构化数据，
+          统一信封、稳定 schema。鉴权头：<code>X-API-Key: sck_…</code><br/>
+          常用端点：<code>GET /api/v1/products</code> ·
+          <code>/api/v1/promotions</code> · <code>/api/v1/site/{site}</code> ·
+          完整文档 <a href="/docs" target="_blank">/docs</a></p>
+      </div>
+      <div class="panel">
+        <h3>API 密钥
+          <button class="btn solid" style="float:right" @click="createKey">
+            + 新建密钥</button></h3>
+        <div v-if="newKey" style="background:#e6f7ef;border-radius:10px;
+          padding:12px;margin-bottom:12px;font-size:13px;">
+          ✓ 新密钥（仅此一次显示，请立即保存）：<br/>
+          <code style="color:var(--green);font-weight:700;">{{ newKey }}</code>
+        </div>
+        <table>
+          <thead><tr>
+            <th>#</th><th>名称</th><th>密钥前缀</th><th>状态</th>
+            <th>调用次数</th><th>最后使用</th><th>操作</th>
+          </tr></thead>
+          <tbody>
+            <tr v-for="k in apiKeys" :key="k.id">
+              <td>{{ k.id }}</td><td>{{ k.name }}</td>
+              <td>{{ k.key_prefix }}</td>
+              <td><span class="badge" :class="k.active?'on_sale':'out_of_stock'">
+                {{ k.active?'启用':'已撤销' }}</span></td>
+              <td>{{ k.request_count }}</td>
+              <td>{{ fmt(k.last_used) }}</td>
+              <td><button v-if="k.active" class="btn" @click="revokeKey(k.id)">
+                撤销</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="empty" v-if="!apiKeys.length">暂无 API 密钥</div>
+      </div>
+    </div>
   </div>
   </template>
 </div>
@@ -337,7 +381,9 @@ createApp({
     loginForm:{username:"",password:""}, logging:false, loginErr:"",
     sites:[], currentSite:"", tab:"overview", pTab:"all",
     tabList:[{k:"overview",label:"总体分析"},{k:"products",label:"产品分析"},
-      {k:"promotions",label:"销售促销"},{k:"jobs",label:"采集任务"}],
+      {k:"promotions",label:"销售促销"},{k:"jobs",label:"采集任务"},
+      {k:"api",label:"API 接入"}],
+    apiKeys:[], newKeyName:"", newKey:"",
     ov:{cards:{},trends:[]}, products:[], total:0, page:1, pageSize:20,
     counts:{all:0,bestseller:0,new:0}, search:"", minP:null, maxP:null,
     promotions:[], jobs:[], proxy:{}, triggering:false, chart:null,
@@ -387,7 +433,9 @@ createApp({
       await Promise.all([this.loadOverview(),this.loadCounts(),
         this.loadProducts(1),this.loadPromotions(),this.loadJobs(),this.loadProxy()]);
     },
-    switchTab(k){ this.tab=k; if(k==='overview') this.$nextTick(this.renderChart); },
+    switchTab(k){ this.tab=k;
+      if(k==='overview') this.$nextTick(this.renderChart);
+      if(k==='api') this.loadKeys(); },
     async loadOverview(){
       this.ov=await this.api(`/api/sites/${this.currentSite}/overview`);
       this.$nextTick(this.renderChart);
@@ -417,6 +465,21 @@ createApp({
     async loadJobs(){ this.jobs=await this.api("/api/jobs"); },
     async loadProxy(){ try{ this.proxy=await this.api("/api/proxy-status"); }
       catch(e){ this.proxy={}; } },
+    async loadKeys(){ try{ this.apiKeys=await this.api("/api/keys"); }
+      catch(e){ this.apiKeys=[]; } },
+    async createKey(){
+      const name=prompt("密钥名称（用途备注）：","Agent 接入");
+      if(!name) return;
+      const r=await this.api("/api/keys",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name})});
+      this.newKey=r.key||""; this.loadKeys();
+    },
+    async revokeKey(id){
+      if(!confirm("确认撤销该密钥？撤销后立即失效。")) return;
+      await this.api(`/api/keys/${id}`,{method:"DELETE"});
+      this.loadKeys();
+    },
     async trigger(){
       this.triggering=true;
       await this.api(`/api/jobs/trigger?site=${this.currentSite}`,{method:"POST"});

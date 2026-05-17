@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .api.routes import public_router, router as api_router
+from .api.output import router as v1_router
 from .config import FRONTEND_DIR
 from .db import init_db
 
@@ -46,6 +47,7 @@ app.add_middleware(
 )
 app.include_router(public_router)
 app.include_router(api_router)
+app.include_router(v1_router)
 
 
 @app.get("/health")

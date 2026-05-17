@@ -9,23 +9,35 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..apikey import generate as gen_key, hash_key, short as key_short
 from ..auth import make_token, verify_password, verify_token
 from ..db import get_db
 from ..export import export_workbook
-from ..models import (Category, CrawlJob, PriceHistory, Product, Promotion,
-                      Site, Trend, User)
+from ..models import (ApiKey, Category, CrawlJob, PriceHistory, Product,
+                      Promotion, Site, Trend, User)
 from ..proxy import pool_status
 from ..runner import enqueue
 
 
-# ---------- 鉴权依赖 ----------
-def require_user(authorization: str = Header(default="")) -> str:
-    """校验 Bearer Token，返回用户名；失败 401。"""
+# ---------- 鉴权依赖：接受 Bearer Token 或 X-API-Key ----------
+def require_user(authorization: str = Header(default=""),
+                 x_api_key: str = Header(default="", alias="X-API-Key"),
+                 db: Session = Depends(get_db)) -> str:
+    """校验登录 Token 或 API 密钥，返回调用者标识；失败 401。"""
     token = authorization[7:] if authorization.startswith("Bearer ") else authorization
     username = verify_token(token)
-    if not username:
-        raise HTTPException(401, "未登录或登录已过期")
-    return username
+    if username:
+        return username
+    if x_api_key:
+        k = (db.query(ApiKey)
+             .filter(ApiKey.key_hash == hash_key(x_api_key),
+                     ApiKey.active.is_(True)).first())
+        if k:
+            k.last_used = datetime.utcnow()
+            k.request_count = (k.request_count or 0) + 1
+            db.commit()
+            return f"apikey:{k.name}"
+    raise HTTPException(401, "未登录或 API 密钥无效")
 
 
 # 公开路由（登录，不需鉴权）
@@ -262,6 +274,48 @@ def trigger(site: str | None = None, brand: str | None = None,
 def proxy_status():
     """代理池状态 —— C-010。"""
     return pool_status()
+
+
+# ---------- API 密钥管理（仅登录用户，供 Agent 接入数据 API）----------
+@router.get("/keys")
+def list_keys(user: str = Depends(require_user), db: Session = Depends(get_db)):
+    if user.startswith("apikey:"):
+        raise HTTPException(403, "API 密钥不能管理密钥")
+    rows = db.query(ApiKey).order_by(ApiKey.id.desc()).all()
+    return [{
+        "id": k.id, "name": k.name, "key_prefix": k.key_prefix + "…",
+        "active": k.active, "request_count": k.request_count,
+        "created_at": k.created_at.isoformat() if k.created_at else None,
+        "last_used": k.last_used.isoformat() if k.last_used else None,
+    } for k in rows]
+
+
+@router.post("/keys")
+def create_key(payload: dict, user: str = Depends(require_user),
+               db: Session = Depends(get_db)):
+    """新建 API 密钥 —— 明文仅此一次返回。"""
+    if user.startswith("apikey:"):
+        raise HTTPException(403, "API 密钥不能管理密钥")
+    raw = gen_key()
+    k = ApiKey(name=(payload or {}).get("name") or "未命名",
+               key_prefix=key_short(raw), key_hash=hash_key(raw))
+    db.add(k)
+    db.commit()
+    return {"id": k.id, "name": k.name, "key": raw,
+            "note": "请立即保存，密钥明文不再展示"}
+
+
+@router.delete("/keys/{key_id}")
+def revoke_key(key_id: int, user: str = Depends(require_user),
+               db: Session = Depends(get_db)):
+    if user.startswith("apikey:"):
+        raise HTTPException(403, "API 密钥不能管理密钥")
+    k = db.get(ApiKey, key_id)
+    if not k:
+        raise HTTPException(404, "密钥不存在")
+    k.active = False
+    db.commit()
+    return {"status": "revoked", "id": key_id}
 
 
 @router.get("/scheduler")
