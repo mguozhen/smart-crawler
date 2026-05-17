@@ -3,331 +3,346 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>smart-crawler · 遨森标杆数据采集平台</title>
+<title>SMART-CRAWLER // BENCHMARK FEED</title>
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
   :root{
-    --bg:#0a0d12; --panel:#11161f; --panel2:#0d1117; --line:#1f2733;
-    --txt:#c9d4e0; --mut:#5b6878; --accent:#2ee6c5; --accent2:#38bdf8;
-    --green:#3ddc84; --red:#ff5d6c; --amber:#ffb454;
+    --bg:#0a0b0a; --panel:#0e110e; --panel2:#070807; --line:#1d241d;
+    --txt:#c6d0bf; --mut:#586055; --dim:#3a4138;
+    --red:#ff3b30; --amber:#ffb000; --green:#46ff9b; --cyan:#46d6ff;
   }
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;
-    background:var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased;}
-  body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
-    background:
-      radial-gradient(620px circle at 12% 0%,rgba(46,230,197,.07),transparent 60%),
-      radial-gradient(680px circle at 92% 8%,rgba(56,189,248,.06),transparent 55%);}
+  body{background:var(--bg);color:var(--txt);
+    font-family:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    font-size:13px;-webkit-font-smoothing:antialiased;}
+  /* 扫描线 + CRT 暗角 */
+  body::before{content:"";position:fixed;inset:0;z-index:9;pointer-events:none;
+    background:repeating-linear-gradient(0deg,
+      rgba(0,0,0,0) 0 2px, rgba(0,0,0,.22) 2px 4px);}
+  body::after{content:"";position:fixed;inset:0;z-index:9;pointer-events:none;
+    background:radial-gradient(120% 120% at 50% 50%,transparent 62%,rgba(0,0,0,.55));}
   #app{position:relative;z-index:1;min-height:100vh;}
-  .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;}
-  a{color:var(--accent2);text-decoration:none;}
+  a{color:var(--cyan);text-decoration:none;}
+  ::selection{background:var(--red);color:#000;}
 
   /* ===== 登录 ===== */
   .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;}
-  .login-card{width:380px;background:var(--panel);border:1px solid var(--line);
-    border-radius:14px;padding:38px 34px;box-shadow:0 24px 80px rgba(0,0,0,.6);}
-  .login-card .brand{font-size:22px;font-weight:700;letter-spacing:.5px;}
-  .login-card .brand b{color:var(--accent);}
-  .login-card .sub{color:var(--mut);font-size:12px;margin:6px 0 26px;}
-  .field{margin-bottom:14px;}
-  .field label{display:block;font-size:11px;color:var(--mut);margin-bottom:6px;
-    text-transform:uppercase;letter-spacing:1px;}
-  .field input{width:100%;padding:11px 13px;background:var(--panel2);
-    border:1px solid var(--line);border-radius:8px;color:var(--txt);font-size:14px;}
-  .field input:focus{outline:none;border-color:var(--accent);
-    box-shadow:0 0 0 3px rgba(46,230,197,.12);}
-  .login-btn{width:100%;margin-top:8px;padding:11px;border:none;border-radius:8px;
-    background:linear-gradient(120deg,var(--accent),var(--accent2));
-    color:#04121a;font-weight:700;font-size:14px;cursor:pointer;letter-spacing:.5px;}
-  .login-btn:hover{filter:brightness(1.08);}
-  .login-err{color:var(--red);font-size:12px;margin-top:12px;min-height:16px;}
-  .login-hint{color:var(--mut);font-size:11px;margin-top:18px;text-align:center;}
+  .login-box{width:430px;border:1px solid var(--line);background:var(--panel);}
+  .login-box .bar{background:var(--red);color:#000;font-weight:700;padding:5px 10px;
+    letter-spacing:2px;font-size:11px;display:flex;justify-content:space-between;}
+  .login-body{padding:26px 26px 30px;}
+  .lg{color:var(--green);font-size:23px;font-weight:700;letter-spacing:3px;
+    text-shadow:0 0 14px rgba(70,255,155,.5);}
+  .lg i{color:var(--red);font-style:normal;}
+  .lg-sub{color:var(--mut);font-size:10px;letter-spacing:1.5px;
+    margin:7px 0 22px;}
+  .login-body .row{margin-bottom:12px;}
+  .login-body label{color:var(--mut);font-size:11px;letter-spacing:1px;}
+  .login-body label::before{content:"> ";color:var(--red);}
+  .login-body input{width:100%;margin-top:5px;padding:9px 11px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--txt);font-family:inherit;font-size:13px;}
+  .login-body input:focus{outline:none;border-color:var(--green);
+    box-shadow:0 0 0 2px rgba(70,255,155,.12);}
+  .ln-btn{width:100%;margin-top:8px;padding:10px;border:1px solid var(--green);
+    background:transparent;color:var(--green);font-family:inherit;font-weight:700;
+    letter-spacing:3px;cursor:pointer;font-size:12px;}
+  .ln-btn:hover{background:var(--green);color:#000;}
+  .ln-err{color:var(--red);font-size:11px;margin-top:10px;min-height:15px;}
+  .ln-err::before{content:attr(data-on);}
 
   /* ===== 顶栏 ===== */
-  .topbar{display:flex;align-items:center;gap:16px;padding:13px 22px;
-    background:rgba(13,17,23,.85);border-bottom:1px solid var(--line);
-    backdrop-filter:blur(8px);flex-wrap:wrap;}
-  .logo{font-size:16px;font-weight:700;letter-spacing:.4px;}
-  .logo .sp{color:var(--accent);}
-  .logo small{color:var(--mut);font-weight:400;font-size:11px;margin-left:6px;}
-  select{padding:7px 11px;background:var(--panel);border:1px solid var(--line);
-    border-radius:7px;color:var(--txt);font-size:13px;}
-  select:focus{outline:none;border-color:var(--accent);}
-  .site-url{color:var(--mut);font-size:11px;}
-  .spacer{flex:1;}
-  .pulse{display:inline-block;width:7px;height:7px;border-radius:50%;
-    background:var(--green);box-shadow:0 0 8px var(--green);margin-right:5px;}
-  .updated{color:var(--mut);font-size:11px;}
-  .btn{padding:7px 13px;border:1px solid var(--line);border-radius:7px;
-    background:var(--panel);color:var(--txt);font-size:12px;cursor:pointer;}
-  .btn:hover{border-color:var(--accent);color:var(--accent);}
-  .btn.solid{background:linear-gradient(120deg,var(--accent),var(--accent2));
-    color:#04121a;font-weight:700;border:none;}
-  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .topbar{display:flex;align-items:center;gap:14px;padding:9px 16px;
+    border-bottom:1px solid var(--line);background:var(--panel2);flex-wrap:wrap;}
+  .brand{color:var(--red);font-weight:700;letter-spacing:2px;}
+  .brand b{color:var(--txt);}
+  select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    font-family:inherit;font-size:12px;padding:5px 8px;}
+  select:focus{outline:none;border-color:var(--green);}
+  .url{color:var(--mut);font-size:11px;}
+  .sp{flex:1;}
+  .stat{color:var(--mut);font-size:11px;}
+  .stat .on{color:var(--green);}
+  .live::before{content:"●";color:var(--green);margin-right:4px;
+    animation:bl 1.4s steps(1) infinite;}
+  @keyframes bl{50%{opacity:.25;}}
+  .btn{background:transparent;border:1px solid var(--line);color:var(--txt);
+    font-family:inherit;font-size:11px;padding:5px 10px;cursor:pointer;
+    letter-spacing:1px;}
+  .btn:hover{border-color:var(--red);color:var(--red);}
+  .btn.go:hover{border-color:var(--green);color:var(--green);}
+  .btn:disabled{opacity:.35;cursor:not-allowed;}
 
   /* ===== Tab ===== */
-  .tabs{display:flex;gap:2px;padding:0 22px;background:var(--panel2);
-    border-bottom:1px solid var(--line);}
-  .tab{padding:13px 18px;cursor:pointer;font-size:13px;color:var(--mut);
-    border-bottom:2px solid transparent;}
+  .tabs{display:flex;border-bottom:1px solid var(--line);background:var(--panel2);
+    padding:0 10px;}
+  .tab{padding:9px 14px;cursor:pointer;color:var(--mut);font-size:12px;
+    letter-spacing:1px;border-bottom:2px solid transparent;}
   .tab:hover{color:var(--txt);}
-  .tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
-  .main{padding:20px 22px;}
+  .tab.on{color:var(--red);border-bottom-color:var(--red);}
+  .tab.on::before{content:"▸ ";}
+  .main{padding:14px 16px;}
 
-  /* ===== 指标卡 ===== */
-  .cards{display:grid;grid-template-columns:repeat(6,1fr);gap:13px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;
-    padding:15px 16px;position:relative;overflow:hidden;}
-  .card::after{content:"";position:absolute;left:0;top:0;width:100%;height:2px;
-    background:linear-gradient(90deg,var(--accent),transparent);opacity:.7;}
-  .card .label{color:var(--mut);font-size:11px;text-transform:uppercase;
-    letter-spacing:.8px;}
-  .card .value{font-size:25px;font-weight:700;margin-top:9px;}
-  .card .value.mono{letter-spacing:-.5px;}
-  .card .sub{font-size:10px;color:var(--mut);margin-top:5px;}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:11px;
-    padding:17px;margin-top:15px;}
-  .panel h3{font-size:13px;font-weight:600;margin-bottom:13px;color:var(--txt);}
-  .panel h3 .tag{color:var(--mut);font-weight:400;font-size:11px;}
-  #chart{width:100%;height:350px;}
+  /* ===== 面板 ===== */
+  .panel{border:1px solid var(--line);background:var(--panel);margin-top:12px;}
+  .panel>.ph{border-bottom:1px solid var(--line);padding:5px 10px;
+    color:var(--mut);font-size:11px;letter-spacing:2px;background:var(--panel2);}
+  .panel>.ph b{color:var(--amber);}
+  .panel>.pb{padding:12px;}
 
-  /* ===== 筛选 ===== */
-  .filterbar{display:flex;gap:8px;align-items:center;margin-bottom:13px;flex-wrap:wrap;}
-  .pill{padding:6px 13px;border-radius:15px;background:var(--panel2);
-    border:1px solid var(--line);cursor:pointer;font-size:12px;color:var(--mut);}
-  .pill:hover{color:var(--txt);}
-  .pill.active{background:rgba(46,230,197,.13);color:var(--accent);
-    border-color:var(--accent);}
-  input[type=text],input[type=number]{padding:6px 10px;background:var(--panel2);
-    border:1px solid var(--line);border-radius:7px;font-size:12px;color:var(--txt);}
-  input:focus{outline:none;border-color:var(--accent);}
+  /* 指标卡 —— 点导引样式 */
+  .cards{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
+  .cell{border:1px solid var(--line);background:var(--panel);padding:11px 12px;}
+  .cell .k{color:var(--mut);font-size:10px;letter-spacing:1px;}
+  .cell .v{font-size:23px;font-weight:700;margin-top:7px;color:var(--txt);
+    text-shadow:0 0 10px rgba(198,208,191,.25);}
+  .cell .v.red{color:var(--red);text-shadow:0 0 12px rgba(255,59,48,.4);}
+  .cell .v.grn{color:var(--green);text-shadow:0 0 12px rgba(70,255,155,.4);}
+  .cell .d{color:var(--dim);font-size:10px;margin-top:4px;}
+  #chart{width:100%;height:330px;}
 
-  /* ===== 表格 ===== */
-  table{width:100%;border-collapse:collapse;font-size:12.5px;}
-  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);
-    vertical-align:middle;}
-  th{color:var(--mut);font-weight:500;font-size:11px;text-transform:uppercase;
-    letter-spacing:.5px;white-space:nowrap;}
-  tbody tr:hover{background:rgba(46,230,197,.04);}
-  td img{width:44px;height:44px;object-fit:cover;border-radius:6px;
-    background:var(--panel2);}
-  .badge{padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:600;}
-  .badge.new{background:rgba(56,189,248,.15);color:var(--accent2);}
-  .badge.best{background:rgba(255,180,84,.15);color:var(--amber);}
-  .badge.on_sale,.badge.success{background:rgba(61,220,132,.14);color:var(--green);}
-  .badge.out_of_stock,.badge.failed{background:rgba(255,93,108,.14);color:var(--red);}
-  .badge.running,.badge.queued{background:rgba(56,189,248,.14);color:var(--accent2);}
-  .price{color:var(--accent);font-weight:700;}
-  .price-old{color:var(--mut);text-decoration:line-through;font-size:11px;}
-  .title-cell{max-width:300px;}
-  .title-cell a{color:var(--txt);}
-  .title-cell a:hover{color:var(--accent);}
-  .pager{display:flex;gap:6px;align-items:center;margin-top:13px;
-    justify-content:flex-end;font-size:12px;color:var(--mut);}
-  .pager button{padding:4px 10px;border:1px solid var(--line);border-radius:5px;
-    background:var(--panel2);color:var(--txt);cursor:pointer;}
-  .pager button:disabled{opacity:.35;cursor:not-allowed;}
-  .empty{text-align:center;color:var(--mut);padding:38px;font-size:13px;}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+  /* 筛选 */
+  .filter{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+  .seg{padding:5px 11px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--mut);cursor:pointer;font-size:11px;}
+  .seg:hover{color:var(--txt);}
+  .seg.on{border-color:var(--red);color:var(--red);background:rgba(255,59,48,.08);}
+  input[type=text],input[type=number]{background:var(--panel2);border:1px solid var(--line);
+    color:var(--txt);font-family:inherit;font-size:12px;padding:5px 8px;}
+  input:focus{outline:none;border-color:var(--green);}
+
+  /* 表格 —— ASCII 风 */
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{padding:6px 9px;text-align:left;border-bottom:1px dotted var(--line);
+    white-space:nowrap;}
+  th{color:var(--amber);font-weight:400;font-size:10px;letter-spacing:1px;
+    border-bottom:1px solid var(--line);}
+  td{color:var(--txt);}
+  tbody tr:hover{background:rgba(255,59,48,.05);}
+  td img{width:38px;height:38px;object-fit:cover;border:1px solid var(--line);
+    filter:saturate(.7) brightness(.92);}
+  .tag{padding:1px 5px;font-size:10px;border:1px solid;}
+  .tag.new{color:var(--cyan);border-color:var(--cyan);}
+  .tag.best{color:var(--amber);border-color:var(--amber);}
+  .st-on_sale,.st-success{color:var(--green);}
+  .st-out_of_stock,.st-failed{color:var(--red);}
+  .st-running,.st-pending,.st-queued{color:var(--cyan);}
+  .px{color:var(--red);font-weight:700;}
+  .px-o{color:var(--dim);text-decoration:line-through;}
+  .tc{max-width:300px;overflow:hidden;text-overflow:ellipsis;}
+  .tc a{color:var(--txt);}
+  .tc a:hover{color:var(--red);}
+  .pager{display:flex;gap:6px;align-items:center;justify-content:flex-end;
+    margin-top:10px;font-size:11px;color:var(--mut);}
+  .pager button{background:var(--panel2);border:1px solid var(--line);
+    color:var(--txt);font-family:inherit;cursor:pointer;padding:3px 8px;}
+  .pager button:disabled{opacity:.3;}
+  .empty{text-align:center;color:var(--dim);padding:34px;font-size:12px;}
+  .empty::before{content:"// ";}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 </style>
 </head>
 <body>
 <div id="app">
 
-  <!-- ========== 登录 ========== -->
+  <!-- ========== AUTH ========== -->
   <div v-if="!token" class="login-wrap">
-    <div class="login-card">
-      <div class="brand"><span class="sp">🕷</span> smart<b>·</b>crawler</div>
-      <div class="sub">遨森标杆数据采集平台 · Benchmark Intelligence</div>
-      <div class="field"><label>账号</label>
-        <input type="text" v-model="loginForm.username" @keyup.enter="doLogin"
-               placeholder="username" autofocus /></div>
-      <div class="field"><label>密码</label>
-        <input type="password" v-model="loginForm.password" @keyup.enter="doLogin"
-               placeholder="password" /></div>
-      <button class="login-btn" @click="doLogin" :disabled="logging">
-        {{ logging ? '登录中…' : '登 录' }}</button>
-      <div class="login-err">{{ loginErr }}</div>
-      <div class="login-hint">授权访问 · Aosom Competitive Intelligence</div>
+    <div class="login-box">
+      <div class="bar"><span>SMART-CRAWLER // AUTH</span><span>SECURE</span></div>
+      <div class="login-body">
+<div class="lg">▮ SMART<i>-</i>CRAWLER</div>
+        <div class="lg-sub">// BENCHMARK INTELLIGENCE FEED — AOSOM · v0.1</div>
+        <div class="row"><label>OPERATOR</label>
+          <input type="text" v-model="loginForm.username"
+                 @keyup.enter="doLogin" placeholder="username" autofocus /></div>
+        <div class="row"><label>PASSKEY</label>
+          <input type="password" v-model="loginForm.password"
+                 @keyup.enter="doLogin" placeholder="••••••" /></div>
+        <button class="ln-btn" @click="doLogin" :disabled="logging">
+          {{ logging ? 'AUTHENTICATING…' : '[ ENTER ]' }}</button>
+        <div class="ln-err">{{ loginErr }}</div>
+      </div>
     </div>
   </div>
 
-  <!-- ========== 主体 ========== -->
+  <!-- ========== CONSOLE ========== -->
   <template v-else>
   <div class="topbar">
-    <div class="logo"><span class="sp">🕷</span> smart-crawler
-      <small>BENCHMARK CRAWLER</small></div>
+    <span class="brand">▮ SMART<b>-</b>CRAWLER</span>
     <select v-model="currentSite" @change="loadAll">
       <option v-for="s in sites" :key="s.site" :value="s.site">
-        {{ s.brand }} · {{ s.country }}{{ s.sku_count? '  ('+s.sku_count+')':'' }}
+        {{ s.brand }}/{{ s.country }}{{ s.sku_count? ' ['+s.sku_count+']':'' }}
       </option>
     </select>
-    <span class="site-url mono" v-if="site">{{ site.url }}</span>
-    <div class="spacer"></div>
-    <span class="updated"><span class="pulse"></span>{{ user.display_name }}</span>
-    <span class="updated mono" v-if="site && site.last_crawled">
-      ⟳ {{ fmt(site.last_crawled) }}</span>
-    <button class="btn" @click="exportExcel">⬇ 导出 Excel</button>
-    <button class="btn" @click="logout">退出</button>
+    <span class="url" v-if="site">{{ site.url }}</span>
+    <div class="sp"></div>
+    <span class="stat live">OP: <span class="on">{{ user.display_name }}</span></span>
+    <span class="stat" v-if="site && site.last_crawled">SYNC {{ fmt(site.last_crawled) }}</span>
+    <button class="btn go" @click="exportExcel">[ EXPORT ]</button>
+    <button class="btn" @click="logout">[ LOGOUT ]</button>
   </div>
 
   <div class="tabs">
     <div v-for="t in tabList" :key="t.k" class="tab"
-         :class="{active:tab===t.k}" @click="switchTab(t.k)">{{ t.label }}</div>
+         :class="{on:tab===t.k}" @click="switchTab(t.k)">{{ t.label }}</div>
   </div>
 
   <div class="main">
-    <!-- 总体分析 -->
+    <!-- OVERVIEW -->
     <div v-show="tab==='overview'">
       <div class="cards">
-        <div class="card"><div class="label">在售 SKU</div>
-          <div class="value mono">{{ num(ov.cards.sku_count) }}</div>
-          <div class="sub">站点全部在售 SKU</div></div>
-        <div class="card"><div class="label">新增产品</div>
-          <div class="value mono">{{ num(ov.cards.new_product_count) }}</div>
-          <div class="sub">New Arrivals</div></div>
-        <div class="card"><div class="label">30 天销量</div>
-          <div class="value mono">{{ num(ov.cards.thirty_day_sales) }}</div>
-          <div class="sub">评论增量倒推 · 预估</div></div>
-        <div class="card"><div class="label">30 天收入</div>
-          <div class="value mono">{{ money(ov.cards.thirty_day_revenue) }}</div>
-          <div class="sub">销量 × 售价 · 预估</div></div>
-        <div class="card"><div class="label">30 天流量</div>
-          <div class="value mono">—</div>
-          <div class="sub">需第三方数据接入</div></div>
-        <div class="card"><div class="label">转化率</div>
-          <div class="value mono">—</div>
-          <div class="sub">需第三方数据接入</div></div>
+        <div class="cell"><div class="k">SKU // 在售</div>
+          <div class="v">{{ num(ov.cards.sku_count) }}</div>
+          <div class="d">total live SKU</div></div>
+        <div class="cell"><div class="k">NEW // 新增</div>
+          <div class="v">{{ num(ov.cards.new_product_count) }}</div>
+          <div class="d">new arrivals</div></div>
+        <div class="cell"><div class="k">SALES // 30D</div>
+          <div class="v grn">{{ num(ov.cards.thirty_day_sales) }}</div>
+          <div class="d">est · review delta</div></div>
+        <div class="cell"><div class="k">REV // 30D</div>
+          <div class="v grn">{{ money(ov.cards.thirty_day_revenue) }}</div>
+          <div class="d">est · sales×price</div></div>
+        <div class="cell"><div class="k">TRAFFIC // 30D</div>
+          <div class="v">--</div><div class="d">3rd-party feed</div></div>
+        <div class="cell"><div class="k">CVR // 30D</div>
+          <div class="v">--</div><div class="d">3rd-party feed</div></div>
       </div>
       <div class="panel">
-        <h3>趋势分析 <span class="tag">SKU / 新品 / 预估销量 / 预估营收</span></h3>
-        <div id="chart"></div>
-        <div class="empty" v-if="ov.trends.length<=1">
-          趋势图需多日采集数据积累 · 当前 {{ ov.trends.length }} 个采集日</div>
+        <div class="ph">[ <b>TREND</b> ] SKU / NEW / EST.SALES / EST.REVENUE</div>
+        <div class="pb">
+          <div id="chart"></div>
+          <div class="empty" v-if="ov.trends.length<=1">
+            trend requires multi-day capture · {{ ov.trends.length }} day(s) on record</div>
+        </div>
       </div>
     </div>
 
-    <!-- 产品分析 -->
+    <!-- PRODUCTS -->
     <div v-show="tab==='products'">
       <div class="panel">
-        <div class="filterbar">
-          <span class="pill" :class="{active:pTab==='all'}" @click="setPTab('all')">
-            所有产品 {{ counts.all }}</span>
-          <span class="pill" :class="{active:pTab==='bestseller'}"
-            @click="setPTab('bestseller')">畅销 {{ counts.bestseller }}</span>
-          <span class="pill" :class="{active:pTab==='new'}" @click="setPTab('new')">
-            最新 {{ counts.new }}</span>
-          <input type="text" v-model="search" placeholder="搜索标题 / SKU"
-            @keyup.enter="loadProducts(1)" style="width:190px" />
-          <input type="number" v-model.number="minP" placeholder="最低价" style="width:74px"/>
-          <input type="number" v-model.number="maxP" placeholder="最高价" style="width:74px"/>
-          <button class="btn solid" @click="loadProducts(1)">筛选</button>
-        </div>
-        <table>
-          <thead><tr>
-            <th>#</th><th>图片</th><th>产品标题</th><th>SKU</th><th>属性</th>
-            <th>标签</th><th>售价</th><th>原价</th><th>30天销量</th><th>30天营收</th>
-            <th>评分</th><th>评论</th><th>状态</th><th>品类</th>
-          </tr></thead>
-          <tbody>
-            <tr v-for="(p,i) in products" :key="p.id">
-              <td class="mono">{{ (page-1)*pageSize+i+1 }}</td>
-              <td><img :src="p.image" loading="lazy" referrerpolicy="no-referrer"/></td>
-              <td class="title-cell"><a :href="p.product_url" target="_blank">
-                {{ p.title }}</a></td>
-              <td class="mono">{{ p.sku }}</td>
-              <td>{{ attrText(p.attributes) }}</td>
-              <td><span v-if="p.label" class="badge"
-                :class="p.is_new?'new':'best'">{{ p.label }}</span></td>
-              <td><span class="price">{{ money(p.sale_price) }}</span></td>
-              <td><span v-if="p.original_price>p.sale_price" class="price-old">
-                {{ money(p.original_price) }}</span></td>
-              <td class="mono">{{ p.thirty_day_sales ?? '—' }}</td>
-              <td class="mono">{{ p.thirty_day_revenue?money(p.thirty_day_revenue):'—' }}</td>
-              <td class="mono">{{ p.ratings ?? '—' }}</td>
-              <td class="mono">{{ p.review_count ?? '—' }}</td>
-              <td><span class="badge" :class="p.status">{{ statusText(p.status) }}</span></td>
-              <td>{{ p.category_path || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="empty" v-if="!products.length">暂无数据 · 请先采集该站点</div>
-        <div class="pager">
-          <span class="mono">共 {{ total }} 条</span>
-          <select v-model.number="pageSize" @change="loadProducts(1)">
-            <option :value="20">20</option><option :value="50">50</option>
-            <option :value="100">100</option></select>
-          <button :disabled="page<=1" @click="loadProducts(page-1)">‹ 上一页</button>
-          <span class="mono">{{ page }} / {{ Math.max(1,Math.ceil(total/pageSize)) }}</span>
-          <button :disabled="page>=Math.ceil(total/pageSize)"
-            @click="loadProducts(page+1)">下一页 ›</button>
+        <div class="ph">[ <b>PRODUCT ANALYSIS</b> ]</div>
+        <div class="pb">
+          <div class="filter">
+            <span class="seg" :class="{on:pTab==='all'}" @click="setPTab('all')">
+              ALL [{{ counts.all }}]</span>
+            <span class="seg" :class="{on:pTab==='bestseller'}"
+              @click="setPTab('bestseller')">BEST [{{ counts.bestseller }}]</span>
+            <span class="seg" :class="{on:pTab==='new'}" @click="setPTab('new')">
+              NEW [{{ counts.new }}]</span>
+            <input type="text" v-model="search" placeholder="grep title/sku"
+              @keyup.enter="loadProducts(1)" style="width:180px" />
+            <input type="number" v-model.number="minP" placeholder="min$" style="width:66px"/>
+            <input type="number" v-model.number="maxP" placeholder="max$" style="width:66px"/>
+            <button class="btn go" @click="loadProducts(1)">[ RUN ]</button>
+          </div>
+          <table>
+            <thead><tr>
+              <th>#</th><th>IMG</th><th>TITLE</th><th>SKU</th><th>ATTR</th>
+              <th>FLAG</th><th>SALE</th><th>ORIG</th><th>30D.S</th><th>30D.R</th>
+              <th>RATE</th><th>RVW</th><th>STATUS</th><th>CATEGORY</th>
+            </tr></thead>
+            <tbody>
+              <tr v-for="(p,i) in products" :key="p.id">
+                <td>{{ (page-1)*pageSize+i+1 }}</td>
+                <td><img :src="p.image" loading="lazy" referrerpolicy="no-referrer"/></td>
+                <td class="tc"><a :href="p.product_url" target="_blank">{{ p.title }}</a></td>
+                <td>{{ p.sku }}</td>
+                <td>{{ attrText(p.attributes) }}</td>
+                <td><span v-if="p.label" class="tag"
+                  :class="p.is_new?'new':'best'">{{ p.label }}</span></td>
+                <td><span class="px">{{ money(p.sale_price) }}</span></td>
+                <td><span v-if="p.original_price>p.sale_price" class="px-o">
+                  {{ money(p.original_price) }}</span></td>
+                <td>{{ p.thirty_day_sales ?? '·' }}</td>
+                <td>{{ p.thirty_day_revenue?money(p.thirty_day_revenue):'·' }}</td>
+                <td>{{ p.ratings ?? '·' }}</td>
+                <td>{{ p.review_count ?? '·' }}</td>
+                <td :class="'st-'+p.status">{{ statusText(p.status) }}</td>
+                <td>{{ p.category_path || '·' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="empty" v-if="!products.length">no data · capture site first</div>
+          <div class="pager">
+            <span>{{ total }} rows</span>
+            <select v-model.number="pageSize" @change="loadProducts(1)">
+              <option :value="20">20</option><option :value="50">50</option>
+              <option :value="100">100</option></select>
+            <button :disabled="page<=1" @click="loadProducts(page-1)">[ PREV ]</button>
+            <span>{{ page }}/{{ Math.max(1,Math.ceil(total/pageSize)) }}</span>
+            <button :disabled="page>=Math.ceil(total/pageSize)"
+              @click="loadProducts(page+1)">[ NEXT ]</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 销售促销 -->
+    <!-- PROMOTIONS -->
     <div v-show="tab==='promotions'">
       <div class="panel">
-        <h3>促销活动 <span class="tag">售价低于原价的在售商品</span></h3>
-        <table>
-          <thead><tr>
-            <th>#</th><th>SKU</th><th>产品标题</th><th>图片</th><th>类型</th>
-            <th>折扣</th><th>原价</th><th>活动价</th><th>检测时间</th>
-          </tr></thead>
-          <tbody>
-            <tr v-for="(p,i) in promotions" :key="p.id">
-              <td class="mono">{{ i+1 }}</td><td class="mono">{{ p.sku }}</td>
-              <td class="title-cell">{{ p.product_title }}</td>
-              <td><img :src="p.product_image" loading="lazy"
-                referrerpolicy="no-referrer"/></td>
-              <td>{{ p.promotion_type }}</td>
-              <td><span class="badge best">-{{ p.discount_percent }}%</span></td>
-              <td><span class="price-old">{{ money(p.original_price) }}</span></td>
-              <td><span class="price">{{ money(p.promotion_price) }}</span></td>
-              <td class="mono">{{ fmt(p.detected_time) }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="empty" v-if="!promotions.length">未检测到价格促销</div>
+        <div class="ph">[ <b>PROMOTION FEED</b> ] sale_price &lt; original_price</div>
+        <div class="pb">
+          <table>
+            <thead><tr>
+              <th>#</th><th>SKU</th><th>TITLE</th><th>IMG</th><th>TYPE</th>
+              <th>DISC</th><th>ORIG</th><th>PROMO</th><th>DETECTED</th>
+            </tr></thead>
+            <tbody>
+              <tr v-for="(p,i) in promotions" :key="p.id">
+                <td>{{ i+1 }}</td><td>{{ p.sku }}</td>
+                <td class="tc">{{ p.product_title }}</td>
+                <td><img :src="p.product_image" loading="lazy"
+                  referrerpolicy="no-referrer"/></td>
+                <td>{{ p.promotion_type }}</td>
+                <td><span class="tag best">-{{ p.discount_percent }}%</span></td>
+                <td><span class="px-o">{{ money(p.original_price) }}</span></td>
+                <td><span class="px">{{ money(p.promotion_price) }}</span></td>
+                <td>{{ fmt(p.detected_time) }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="empty" v-if="!promotions.length">no price promotion detected</div>
+        </div>
       </div>
     </div>
 
-    <!-- 采集任务 -->
+    <!-- JOBS -->
     <div v-show="tab==='jobs'">
       <div class="grid2">
-        <div class="card"><div class="label">已配置站点</div>
-          <div class="value mono">{{ sites.length }}</div>
-          <div class="sub">9 品牌 · 12 国</div></div>
-        <div class="card"><div class="label">代理池</div>
-          <div class="value mono">{{ proxy.residential||0 }}+{{ proxy.datacenter||0 }}</div>
-          <div class="sub">住宅 + 数据中心 IP</div></div>
+        <div class="cell"><div class="k">SITES // 已配置</div>
+          <div class="v">{{ sites.length }}</div>
+          <div class="d">9 brands · 12 countries</div></div>
+        <div class="cell"><div class="k">PROXY POOL</div>
+          <div class="v">{{ proxy.residential||0 }}+{{ proxy.datacenter||0 }}</div>
+          <div class="d">residential + datacenter</div></div>
       </div>
       <div class="panel">
-        <h3>采集任务看板
-          <button class="btn solid" style="float:right" @click="trigger"
-            :disabled="triggering">▶ 采集当前站点</button>
-          <button class="btn" style="float:right;margin-right:8px"
-            @click="loadJobs">⟳ 刷新</button></h3>
-        <table>
-          <thead><tr>
-            <th>#</th><th>站点</th><th>状态</th><th>商品数</th><th>新品</th>
-            <th>促销</th><th>成功率</th><th>耗时(s)</th><th>开始时间</th>
-          </tr></thead>
-          <tbody>
-            <tr v-for="j in jobs" :key="j.id">
-              <td class="mono">{{ j.id }}</td><td class="mono">{{ j.site }}</td>
-              <td><span class="badge" :class="j.status">{{ j.status }}</span></td>
-              <td class="mono">{{ j.products_count }}</td>
-              <td class="mono">{{ j.new_count }}</td>
-              <td class="mono">{{ j.promotion_count }}</td>
-              <td class="mono">{{ j.success_rate!=null?j.success_rate+'%':'—' }}</td>
-              <td class="mono">{{ j.duration_sec ?? '—' }}</td>
-              <td class="mono">{{ fmt(j.started_at) }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="empty" v-if="!jobs.length">暂无采集任务记录</div>
+        <div class="ph">[ <b>CRAWL QUEUE</b> ] task board
+          <button class="btn go" style="float:right" @click="trigger"
+            :disabled="triggering">[ ▸ CAPTURE ]</button>
+          <button class="btn" style="float:right;margin-right:6px"
+            @click="loadJobs">[ ⟳ ]</button></div>
+        <div class="pb">
+          <table>
+            <thead><tr>
+              <th>JOB</th><th>SITE</th><th>STATUS</th><th>ITEMS</th><th>NEW</th>
+              <th>PROMO</th><th>RATE</th><th>SEC</th><th>STARTED</th>
+            </tr></thead>
+            <tbody>
+              <tr v-for="j in jobs" :key="j.id">
+                <td>{{ j.id }}</td><td>{{ j.site }}</td>
+                <td :class="'st-'+j.status">[{{ j.status }}]</td>
+                <td>{{ j.products_count }}</td><td>{{ j.new_count }}</td>
+                <td>{{ j.promotion_count }}</td>
+                <td>{{ j.success_rate!=null?j.success_rate+'%':'·' }}</td>
+                <td>{{ j.duration_sec ?? '·' }}</td>
+                <td>{{ fmt(j.started_at) }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="empty" v-if="!jobs.length">queue empty</div>
+        </div>
       </div>
     </div>
   </div>
@@ -342,8 +357,8 @@ createApp({
     user: JSON.parse(localStorage.getItem("sc_user")||"{}"),
     loginForm:{username:"",password:""}, logging:false, loginErr:"",
     sites:[], currentSite:"", tab:"overview", pTab:"all",
-    tabList:[{k:"overview",label:"总体分析"},{k:"products",label:"产品分析"},
-      {k:"promotions",label:"销售促销"},{k:"jobs",label:"采集任务"}],
+    tabList:[{k:"overview",label:"OVERVIEW"},{k:"products",label:"PRODUCTS"},
+      {k:"promotions",label:"PROMOTIONS"},{k:"jobs",label:"QUEUE"}],
     ov:{cards:{},trends:[]}, products:[], total:0, page:1, pageSize:20,
     counts:{all:0,bestseller:0,new:0}, search:"", minP:null, maxP:null,
     promotions:[], jobs:[], proxy:{}, triggering:false, chart:null,
@@ -352,17 +367,17 @@ createApp({
   async mounted(){ if(this.token) await this.boot(); },
   methods:{
     num(v){return (v??0).toLocaleString();},
-    money(v){return v==null?"—":"$"+Number(v).toLocaleString(undefined,
+    money(v){return v==null?"·":"$"+Number(v).toLocaleString(undefined,
       {minimumFractionDigits:2,maximumFractionDigits:2});},
-    fmt(v){return v?v.replace("T"," ").slice(0,16):"—";},
-    attrText(a){return a?Object.entries(a).map(([k,x])=>k+":"+x).join(" / "):"—";},
-    statusText(s){return{on_sale:"在售",out_of_stock:"缺货",
-      discontinued:"下架"}[s]||s;},
+    fmt(v){return v?v.replace("T"," ").slice(0,16):"·";},
+    attrText(a){return a?Object.entries(a).map(([k,x])=>k+":"+x).join("/"):"·";},
+    statusText(s){return{on_sale:"ON_SALE",out_of_stock:"OOS",
+      discontinued:"DISC"}[s]||s;},
     async api(path,opts){
-      const o=opts||{}; o.headers=Object.assign({"Authorization":"Bearer "+this.token},
-        o.headers||{});
+      const o=opts||{}; o.headers=Object.assign(
+        {"Authorization":"Bearer "+this.token},o.headers||{});
       const r=await fetch(path,o);
-      if(r.status===401){ this.logout(); throw new Error("登录已过期"); }
+      if(r.status===401){ this.logout(); throw new Error("session expired"); }
       return r.json();
     },
     async doLogin(){
@@ -371,13 +386,13 @@ createApp({
         const r=await fetch("/api/login",{method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify(this.loginForm)});
-        if(!r.ok){ this.loginErr="账号或密码错误"; return; }
+        if(!r.ok){ this.loginErr="ACCESS DENIED — invalid credentials"; return; }
         const d=await r.json();
         this.token=d.token; this.user={display_name:d.display_name,role:d.role};
         localStorage.setItem("sc_token",d.token);
         localStorage.setItem("sc_user",JSON.stringify(this.user));
         await this.boot();
-      }catch(e){ this.loginErr="登录失败："+e.message; }
+      }catch(e){ this.loginErr="ERR — "+e.message; }
       finally{ this.logging=false; }
     },
     logout(){ this.token=""; localStorage.removeItem("sc_token");
@@ -391,8 +406,7 @@ createApp({
     },
     async loadAll(){
       await Promise.all([this.loadOverview(),this.loadCounts(),
-        this.loadProducts(1),this.loadPromotions(),this.loadJobs(),
-        this.loadProxy()]);
+        this.loadProducts(1),this.loadPromotions(),this.loadJobs(),this.loadProxy()]);
     },
     switchTab(k){ this.tab=k; if(k==='overview') this.$nextTick(this.renderChart); },
     async loadOverview(){
@@ -428,7 +442,7 @@ createApp({
       this.triggering=true;
       await this.api(`/api/jobs/trigger?site=${this.currentSite}`,{method:"POST"});
       setTimeout(()=>{ this.triggering=false; this.loadJobs(); },1500);
-      alert("采集任务已加入后台队列，稍后点「刷新」查看结果。");
+      alert("CAPTURE QUEUED — refresh queue to monitor.");
     },
     exportExcel(){
       window.open(`/api/export/products?site=${this.currentSite}`+
@@ -441,22 +455,27 @@ createApp({
       const t=this.ov.trends;
       this.chart.setOption({
         backgroundColor:"transparent",
-        tooltip:{trigger:"axis",backgroundColor:"#11161f",borderColor:"#1f2733",
-          textStyle:{color:"#c9d4e0"}},
-        legend:{data:["SKU数","新品","预估销量","预估营收"],
-          textStyle:{color:"#5b6878"}},
-        grid:{left:55,right:55,top:42,bottom:36},
+        textStyle:{fontFamily:"ui-monospace,Menlo,monospace",color:"#586055"},
+        tooltip:{trigger:"axis",backgroundColor:"#0e110e",borderColor:"#1d241d",
+          textStyle:{color:"#c6d0bf",fontFamily:"monospace"}},
+        legend:{data:["SKU","NEW","EST.SALES","EST.REV"],
+          textStyle:{color:"#586055",fontFamily:"monospace"}},
+        grid:{left:52,right:52,top:38,bottom:32},
         xAxis:{type:"category",data:t.map(x=>x.date),
-          axisLine:{lineStyle:{color:"#1f2733"}},axisLabel:{color:"#5b6878"}},
-        yAxis:[{type:"value",splitLine:{lineStyle:{color:"#161b22"}},
-          axisLabel:{color:"#5b6878"}},
-          {type:"value",splitLine:{show:false},axisLabel:{color:"#5b6878"}}],
-        color:["#2ee6c5","#38bdf8","#ffb454","#ff5d6c"],
+          axisLine:{lineStyle:{color:"#1d241d"}},axisLabel:{color:"#586055"},
+          axisTick:{show:false}},
+        yAxis:[{type:"value",splitLine:{lineStyle:{color:"#12161210",type:"dashed"}},
+          axisLabel:{color:"#586055"}},
+          {type:"value",splitLine:{show:false},axisLabel:{color:"#586055"}}],
+        color:["#46ff9b","#46d6ff","#ffb000","#ff3b30"],
         series:[
-          {name:"SKU数",type:"line",smooth:true,data:t.map(x=>x.sku_count)},
-          {name:"新品",type:"line",smooth:true,data:t.map(x=>x.new_product_count)},
-          {name:"预估销量",type:"line",smooth:true,data:t.map(x=>x.estimated_sales)},
-          {name:"预估营收",type:"line",smooth:true,yAxisIndex:1,
+          {name:"SKU",type:"line",step:"end",symbol:"none",
+            data:t.map(x=>x.sku_count)},
+          {name:"NEW",type:"line",step:"end",symbol:"none",
+            data:t.map(x=>x.new_product_count)},
+          {name:"EST.SALES",type:"line",step:"end",symbol:"none",
+            data:t.map(x=>x.estimated_sales)},
+          {name:"EST.REV",type:"line",step:"end",symbol:"none",yAxisIndex:1,
             data:t.map(x=>x.estimated_revenue)},
         ],
       });
