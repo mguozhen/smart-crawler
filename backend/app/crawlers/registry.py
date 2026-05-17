@@ -22,4 +22,7 @@ def get_crawler(site: Site) -> BaseCrawler:
     if platform == "flexispot":
         from .flexispot import FlexispotCrawler
         return FlexispotCrawler(site)
+    if platform == "vidaxl":
+        from .vidaxl import VidaxlCrawler
+        return VidaxlCrawler(site)
     raise ValueError(f"未知平台: {platform}")
