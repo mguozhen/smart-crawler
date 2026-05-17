@@ -111,6 +111,7 @@ class GenericCrawler(BaseCrawler):
 
     def _parse(self, sess: creq.Session, url: str) -> dict | None:
         html = sess.get(url, timeout=30).text
+        self.snapshot(self._slug(url), html)       # 原始商品页归档
         tree = HTMLParser(html)
         data = self._from_jsonld(html) or {}
 

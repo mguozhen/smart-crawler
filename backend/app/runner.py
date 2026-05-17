@@ -1,43 +1,82 @@
-"""采集编排 —— 串起：建任务 → 跑采集器 → 清洗入库 → 促销识别 → 收尾。"""
+"""采集编排 + 任务队列。
+
+队列即 crawl_jobs 表：
+  enqueue()     —— 入队一条 pending 任务（scheduler / API 调用）
+  claim_job()   —— worker 原子领取最旧 pending 任务
+  execute_job() —— 执行已领取的任务：采集 → 清洗入库 → 促销识别 → 收尾
+  run_site()    —— 入队 + 立即执行（CLI 同步路径，保持向后兼容）
+"""
 from __future__ import annotations
 
 import traceback
 from datetime import datetime
 
+from sqlalchemy import update
+
 from .crawlers.registry import get_crawler
 from .db import session_scope
 from .models import Category, CrawlJob, Product, Promotion, Site
-from .pipeline import upsert_products
 
 
-def run_site(site_name: str) -> dict:
-    """采集单个站点。返回任务统计 dict。"""
+def enqueue(site_name: str, trigger: str = "manual") -> int:
+    """入队一条采集任务，返回 job_id。"""
     with session_scope() as s:
-        site = s.query(Site).filter(Site.site == site_name).first()
-        if site is None:
+        if not s.query(Site).filter(Site.site == site_name).first():
             raise ValueError(f"站点不存在: {site_name}")
-        job = CrawlJob(site=site_name, status="running", started_at=datetime.utcnow())
+        job = CrawlJob(site=site_name, status="pending", trigger=trigger,
+                       created_at=datetime.utcnow())
         s.add(job)
         s.flush()
-        job_id = job.id
+        return job.id
+
+
+def claim_job(worker_id: str) -> int | None:
+    """worker 原子领取最旧的 pending 任务，返回 job_id 或 None。"""
+    with session_scope() as s:
+        job = (s.query(CrawlJob).filter(CrawlJob.status == "pending")
+               .order_by(CrawlJob.id).first())
+        if job is None:
+            return None
+        # 乐观锁：仅当仍为 pending 时领取，防多 worker 抢同一任务
+        res = s.execute(
+            update(CrawlJob)
+            .where(CrawlJob.id == job.id, CrawlJob.status == "pending")
+            .values(status="running", worker=worker_id,
+                    started_at=datetime.utcnow()))
+        return job.id if res.rowcount == 1 else None
+
+
+def execute_job(job_id: int) -> dict:
+    """执行一条已领取的任务。"""
+    with session_scope() as s:
+        job = s.get(CrawlJob, job_id)
+        if job is None:
+            raise ValueError(f"任务不存在: {job_id}")
+        site = s.query(Site).filter(Site.site == job.site).first()
+        site_name = job.site
+        if job.status != "running":              # CLI 直跑路径：补置 running
+            job.status = "running"
+            job.started_at = datetime.utcnow()
         crawler = get_crawler(site)
 
     started = datetime.utcnow()
     try:
         result = crawler.crawl()
-    except Exception as exc:                       # 采集失败 —— C-005 告警
+    except Exception as exc:                     # 采集失败 —— C-005
         with session_scope() as s:
             job = s.get(CrawlJob, job_id)
             job.status = "failed"
             job.finished_at = datetime.utcnow()
             job.duration_sec = (datetime.utcnow() - started).total_seconds()
             job.error = f"{exc}\n{traceback.format_exc()[-800:]}"
-        return {"job_id": job_id, "site": site_name, "status": "failed", "error": str(exc)}
+        return {"job_id": job_id, "site": site_name, "status": "failed",
+                "error": str(exc)}
 
     with session_scope() as s:
+        from .pipeline import upsert_products
         stats = upsert_products(s, site_name, result.products)
         _save_categories(s, site_name, result.categories)
-        s.flush()                                  # autoflush=False，促销识别前需手动 flush
+        s.flush()
         promo_count = _detect_promotions(s, site_name)
 
         job = s.get(CrawlJob, job_id)
@@ -50,16 +89,23 @@ def run_site(site_name: str) -> dict:
         total = stats["total"] or 1
         job.success_rate = round(
             (stats["inserted"] + stats["updated"]) / total * 100, 1)
+        duration = job.duration_sec
 
         site = s.query(Site).filter(Site.site == site_name).first()
         site.last_crawled = datetime.utcnow()
 
     return {
         "job_id": job_id, "site": site_name, "status": "success",
-        "products": job.products_count, "new": stats["new"],
+        "products": stats["inserted"] + stats["updated"], "new": stats["new"],
         "promotions": promo_count, "notes": result.notes,
-        "duration_sec": round(job.duration_sec, 1),
+        "duration_sec": round(duration, 1),
     }
+
+
+def run_site(site_name: str) -> dict:
+    """入队 + 立即执行（CLI 同步路径）。"""
+    job_id = enqueue(site_name)
+    return execute_job(job_id)
 
 
 def run_brand(brand: str) -> list[dict]:

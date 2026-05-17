@@ -4,20 +4,18 @@ from __future__ import annotations
 import io
 from datetime import datetime
 
-from fastapi import (APIRouter, BackgroundTasks, Depends, Header, HTTPException,
-                     Query)
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..analytics import recompute
 from ..auth import make_token, verify_password, verify_token
 from ..db import get_db
 from ..export import export_workbook
 from ..models import (Category, CrawlJob, PriceHistory, Product, Promotion,
                       Site, Trend, User)
 from ..proxy import pool_status
-from ..runner import run_brand, run_site
+from ..runner import enqueue
 
 
 # ---------- 鉴权依赖 ----------
@@ -241,23 +239,22 @@ def list_jobs(limit: int = 30, db: Session = Depends(get_db)):
     } for j in rows]
 
 
-def _run_and_recompute(site: str | None, brand: str | None):
-    results = run_brand(brand) if brand else [run_site(site)]
-    for r in results:
-        if r["status"] == "success":
-            recompute(r["site"])
-
-
 @router.post("/jobs/trigger")
-def trigger(background: BackgroundTasks, site: str | None = None,
-            brand: str | None = None, db: Session = Depends(get_db)):
-    """手动触发采集 —— C-003。后台异步执行。"""
+def trigger(site: str | None = None, brand: str | None = None,
+            db: Session = Depends(get_db)):
+    """手动触发采集 —— C-003。入队任务，由 worker 执行。"""
     if not site and not brand:
         raise HTTPException(400, "需指定 site 或 brand")
-    if site and not db.query(Site).filter(Site.site == site).first():
-        raise HTTPException(404, "站点不存在")
-    background.add_task(_run_and_recompute, site, brand)
-    return {"status": "queued", "site": site, "brand": brand,
+    if brand:
+        names = [r.site for r in db.query(Site).filter(Site.brand == brand)]
+        if not names:
+            raise HTTPException(404, "品牌不存在")
+    else:
+        if not db.query(Site).filter(Site.site == site).first():
+            raise HTTPException(404, "站点不存在")
+        names = [site]
+    job_ids = [enqueue(n, trigger="manual") for n in names]
+    return {"status": "queued", "jobs": job_ids, "count": len(job_ids),
             "queued_at": datetime.utcnow().isoformat()}
 
 

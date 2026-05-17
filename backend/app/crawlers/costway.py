@@ -42,6 +42,7 @@ class CostwayCrawler(BaseCrawler):
     def _api(self, sess: creq.Session, path: str) -> dict:
         resp = sess.get(self.site.url.rstrip("/") + path, timeout=30)
         resp.raise_for_status()
+        self.snapshot(path, resp.text)            # 原始响应归档
         return resp.json()
 
     def crawl(self) -> CrawlResult:

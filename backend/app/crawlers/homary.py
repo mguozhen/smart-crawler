@@ -85,6 +85,7 @@ class HomaryCrawler(BaseCrawler):
             return None
         pid = m.group(1)
         html = sess.get(url, timeout=30).text
+        self.snapshot(pid, html)                   # 原始商品页归档
         tree = HTMLParser(html)
 
         title = self._meta(tree, "og:title") or ""

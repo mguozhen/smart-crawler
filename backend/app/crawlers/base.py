@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from ..config import get_settings, user_agents
 from ..models import Site
 from ..proxy import get_proxy
+from .. import snapshot as _snapshot
 
 
 class CrawlResult:
@@ -40,6 +41,10 @@ class BaseCrawler(ABC):
     def sleep(self) -> None:
         """C-011：请求频率控制，带抖动。"""
         time.sleep(self.delay + random.uniform(0, 0.8))
+
+    def snapshot(self, name: str, content) -> None:
+        """归档一份原始响应到大盘（见 app/snapshot.py）。"""
+        _snapshot.save(self.site.site, name, content)
 
     @abstractmethod
     def crawl(self) -> CrawlResult:

@@ -10,21 +10,20 @@ import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from .analytics import recompute
 from .config import get_settings, get_sites
-from .runner import run_site
+from .runner import enqueue
 
 logger = logging.getLogger("smart-crawler.scheduler")
 _scheduler: BackgroundScheduler | None = None
 
 
 def _job(site_name: str) -> None:
-    """一次定时采集 + 重算分析。"""
-    logger.info("定时采集开始: %s", site_name)
-    result = run_site(site_name)
-    if result["status"] == "success":
-        recompute(site_name)
-    logger.info("定时采集结束: %s -> %s", site_name, result["status"])
+    """定时触发 —— 把采集任务投递到队列，由 worker 执行。"""
+    try:
+        job_id = enqueue(site_name, trigger="scheduled")
+        logger.info("已入队定时采集: %s (job %s)", site_name, job_id)
+    except Exception as exc:
+        logger.error("入队失败 %s: %s", site_name, exc)
 
 
 def start_scheduler() -> BackgroundScheduler:

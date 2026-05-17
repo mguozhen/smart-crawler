@@ -1,6 +1,8 @@
 """FastAPI 入口 —— 挂载 REST API + 托管前端看板 + 启动调度。"""
 from __future__ import annotations
 
+import os
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -15,11 +17,21 @@ from .db import init_db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    try:
-        from .scheduler import start_scheduler
-        start_scheduler()
-    except Exception as exc:                       # 调度模块可选
-        print(f"[scheduler] 未启动: {exc}")
+    # 单机模式（RUN_SCHEDULER!=0）：进程内起调度 + worker 线程，开箱即用。
+    # 服务化部署时 web 容器设 RUN_SCHEDULER=0，调度/worker 由独立容器承担。
+    if os.environ.get("RUN_SCHEDULER", "1") != "0":
+        try:
+            from .scheduler import start_scheduler
+            start_scheduler()
+        except Exception as exc:
+            print(f"[scheduler] 未启动: {exc}")
+        try:
+            from .worker import run_loop
+            threading.Thread(target=run_loop, daemon=True,
+                             name="sc-worker").start()
+            print("[worker] 进程内 worker 线程已启动")
+        except Exception as exc:
+            print(f"[worker] 未启动: {exc}")
     yield
 
 

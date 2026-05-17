@@ -30,6 +30,7 @@ class ShopifyCrawler(BaseCrawler):
         url = self.site.url.rstrip("/") + path
         resp = sess.get(url, timeout=30)
         resp.raise_for_status()
+        self.snapshot(path, resp.text)            # 原始响应归档
         return resp.json()
 
     def _handles(self, sess: creq.Session, collection: str) -> set[str]:

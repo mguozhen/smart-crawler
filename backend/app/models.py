@@ -162,13 +162,19 @@ class User(Base):
 
 
 class CrawlJob(Base):
-    """采集任务 —— 任务看板 C-030。"""
+    """采集任务 —— 同时充当采集队列（C-030 任务看板）。
+
+    状态机：pending（入队）→ running（worker 领取）→ success / failed
+    """
 
     __tablename__ = "crawl_jobs"
 
     id = Column(Integer, primary_key=True)
     site = Column(String, index=True)
-    status = Column(String, default="queued")        # queued / running / success / failed
+    status = Column(String, default="pending", index=True)
+    trigger = Column(String, default="manual")       # manual / scheduled
+    worker = Column(String)                          # 领取该任务的 worker 标识
+    created_at = Column(DateTime, default=datetime.utcnow)
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
     products_count = Column(Integer, default=0)
