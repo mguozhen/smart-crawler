@@ -128,6 +128,14 @@ class VidaxlCrawler(BaseCrawler):
             return result
 
         prod_sitemaps = [u for u in subs if "custom-product" in u]
+        if not prod_sitemaps:
+            # vidaxl_ca / 部分新站点：sitemap_index 返回 200 但 body 是空
+            # <sitemapindex/>，主页又是 Demandware SPA 骨架屏 —— 纯爬路径走不通。
+            # 不能 return 空 result（runner 会标 success/0 products，掩盖失败）。
+            raise RuntimeError(
+                f"sitemap_index 返回 200 但无 custom-product 子 sitemap "
+                f"（{len(subs)} 个 <loc>，0 个匹配）。站点疑似 Demandware SPA "
+                f"渲染，建议走路径1 官方 API（设 VIDAXL_API_EMAIL/TOKEN）")
         urls: list[str] = []
         for sm in prod_sitemaps:
             if len(urls) >= self.limit:

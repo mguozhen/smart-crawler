@@ -31,4 +31,7 @@ def get_crawler(site: Site) -> BaseCrawler:
     if platform == "magento":
         from .magento import MagentoCrawler
         return MagentoCrawler(site)
+    if platform == "shoper":
+        from .shoper import ShoperCrawler
+        return ShoperCrawler(site)
     raise ValueError(f"未知平台: {platform}")

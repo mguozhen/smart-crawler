@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>smart-crawler · 执行计划 · 2026-05-19</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a212b;
+    --panel-2: #232c38;
+    --border: #2c3848;
+    --text: #e6edf3;
+    --mute: #8b98a8;
+    --p0: #ef4444;
+    --p1: #f59e0b;
+    --p2: #3b82f6;
+    --p3: #8b8b8b;
+    --ok: #22c55e;
+    --warn: #facc15;
+    --bad: #f87171;
+    --accent: #06b6d4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 28px 80px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; margin-bottom: 28px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
+  h1 .sub { color: var(--mute); font-weight: 400; font-size: 16px; margin-left: 12px; }
+  .meta { color: var(--mute); font-size: 13px; }
+  .meta b { color: var(--text); }
+  h2 { font-size: 20px; margin: 40px 0 16px; padding-left: 12px; border-left: 4px solid var(--accent); }
+  h3 { font-size: 15px; margin: 0 0 6px; color: var(--text); }
+
+  /* Status row */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .stat { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  .stat .delta { font-size: 13px; color: var(--ok); font-weight: 500; margin-left: 6px; }
+  .stat .delta.warn { color: var(--warn); }
+  .stat .delta.bad { color: var(--bad); }
+  .label { font-size: 12px; text-transform: uppercase; color: var(--mute); letter-spacing: 0.06em; margin-bottom: 6px; }
+  .footnote { font-size: 12px; color: var(--mute); margin-top: 6px; }
+
+  /* Task cards */
+  .task {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--p2);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 12px 0;
+  }
+  .task.p0 { border-left-color: var(--p0); }
+  .task.p1 { border-left-color: var(--p1); }
+  .task.p2 { border-left-color: var(--p2); }
+  .task.p3 { border-left-color: var(--p3); }
+  .task header { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; flex-wrap: wrap; }
+  .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .tag.p0 { background: rgba(239,68,68,0.18); color: var(--p0); }
+  .tag.p1 { background: rgba(245,158,11,0.18); color: var(--p1); }
+  .tag.p2 { background: rgba(59,130,246,0.18); color: var(--p2); }
+  .tag.p3 { background: rgba(139,139,139,0.22); color: #b5b5b5; }
+  .eta { font-size: 12px; color: var(--mute); margin-left: auto; }
+  .task h3 { font-size: 16px; margin: 0; }
+  .meta-row { display: flex; gap: 18px; flex-wrap: wrap; margin: 8px 0 4px; font-size: 13px; }
+  .meta-row span { color: var(--mute); }
+  .meta-row span b { color: var(--text); font-weight: 600; }
+  .why, .action { margin: 10px 0 4px; font-size: 14px; }
+  .why::before { content: "现状  "; color: var(--mute); font-size: 12px; letter-spacing: 0.08em; }
+  .action::before { content: "行动  "; color: var(--accent); font-size: 12px; letter-spacing: 0.08em; }
+  .risk::before { content: "风险  "; color: var(--bad); font-size: 12px; letter-spacing: 0.08em; }
+  .risk { margin: 6px 0; font-size: 13px; color: #d4d4d4; }
+  code {
+    background: var(--panel-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+  }
+  pre {
+    background: var(--panel-2);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    overflow-x: auto;
+    margin: 8px 0 4px;
+  }
+
+  /* Site table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--mute); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  td.ok { color: var(--ok); }
+  td.bad { color: var(--bad); }
+  td.warn { color: var(--warn); }
+  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; }
+
+  /* Bar chart */
+  .bar { display: flex; gap: 4px; align-items: flex-end; height: 80px; margin-top: 12px; }
+  .bar-col { flex: 1; background: var(--panel-2); border-radius: 3px 3px 0 0; position: relative; min-width: 16px; }
+  .bar-col span { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--mute); }
+  .bar-col em { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--mute); font-style: normal; }
+  .bar-col.ok { background: linear-gradient(180deg, #22c55e, #16a34a); }
+  .bar-col.warn { background: linear-gradient(180deg, #f59e0b, #d97706); }
+  .bar-col.bad { background: linear-gradient(180deg, #ef4444, #dc2626); }
+
+  .legend { display: inline-flex; gap: 14px; font-size: 12px; color: var(--mute); margin-top: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  /* Footer */
+  footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--mute); font-size: 13px; }
+  footer code { background: var(--panel); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>smart-crawler 执行计划<span class="sub">2026-05-19</span></h1>
+    <div class="meta">基于 NAS 实测全量摸底 · 生产域名 <b>smartcrawler.io</b> · 数据库 <b>PostgreSQL 16</b></div>
+  </div>
+</header>
+
+<!-- ===================== 1. 当前状态 ===================== -->
+<h2>当前状态</h2>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">商品</div>
+    <div class="stat">62,926<span class="delta">+4,530</span></div>
+    <div class="footnote">较 HANDOFF 时增量；43/46 站有数据</div>
+  </div>
+  <div class="card">
+    <div class="label">评论</div>
+    <div class="stat">8,602<span class="delta">+7,256 / 6.4×</span></div>
+    <div class="footnote">trustpilot 1,346 + reviews_io 1,672 + google_map 5,584</div>
+  </div>
+  <div class="card">
+    <div class="label">促销</div>
+    <div class="stat">37,591<span class="delta">+1,591</span></div>
+    <div class="footnote">价格历史 343,456 行（核心增量价值）</div>
+  </div>
+  <div class="card">
+    <div class="label">Shopping</div>
+    <div class="stat">522<span class="delta">15 KW</span></div>
+    <div class="footnote">已跑 15 个关键词，shopping_results 522 行</div>
+  </div>
+</div>
+
+<div class="grid" style="margin-top: 12px;">
+  <div class="card">
+    <div class="label">生产容器</div>
+    <div class="stat" style="font-size:22px;">smart-crawler · pg · tunnel</div>
+    <div class="footnote">全部 Up；smart-crawler 137MB / 0.3% CPU；pg 192MB；NAS 磁盘 15TB 仅用 42G (0.3%)</div>
+  </div>
+  <div class="card">
+    <div class="label">PG 迁移</div>
+    <div class="stat" style="font-size:22px; color: var(--ok);">已完成 ✅</div>
+    <div class="footnote">DATABASE_URL=postgresql+psycopg://...；SQLite 171MB 文件 stale（5/17 后未动）</div>
+  </div>
+  <div class="card">
+    <div class="label">空站</div>
+    <div class="stat" style="color: var(--warn);">3 / 46<span class="delta warn">HANDOFF 时 4</span></div>
+    <div class="footnote">vidaxl_us · vidaxl_ca · costway_pl（flexispot_pl 已通）</div>
+  </div>
+  <div class="card">
+    <div class="label">异常</div>
+    <div class="stat" style="color: var(--bad);">3 stuck</div>
+    <div class="footnote">vidaxl_uk · vidaxl_ro · homary_de 三个 running job 从 5/18 卡到现在</div>
+  </div>
+</div>
+
+<!-- 近 3 天采集 -->
+<div class="card" style="margin-top: 18px;">
+  <div class="label">近 3 天采集量（条/天）</div>
+  <div class="bar">
+    <div class="bar-col ok" style="height: 95%;"><span>143</span><em>5/17</em></div>
+    <div class="bar-col warn" style="height: 30%;"><span>44 + 3 fail</span><em>5/18</em></div>
+    <div class="bar-col ok" style="height: 40%;"><span>58</span><em>5/19</em></div>
+  </div>
+  <div class="legend">
+    <span><i style="background: var(--ok);"></i>success</span>
+    <span><i style="background: var(--warn);"></i>有失败</span>
+  </div>
+  <div class="footnote" style="margin-top: 20px;">5/19 日还在累加（当天 12:21 还跑了一批 manual 任务，58 已成 5/5 success）</div>
+</div>
+
+<!-- ===================== 2. P0 立即可做 ===================== -->
+<h2>P0 · 立即可做（&lt; 30 分钟，无风险）</h2>
+
+<div class="task p0">
+  <header>
+    <span class="tag p0">P0</span>
+    <h3>清理 3 个 stuck running jobs</h3>
+    <span class="eta">~5 分钟</span>
+  </header>
+  <div class="meta-row">
+    <span>影响：<b>crawl_jobs 表脏数据</b></span>
+    <span>风险：<b>无</b></span>
+  </div>
+  <div class="why">vidaxl_uk / vidaxl_ro / homary_de 三个 job 从 2026-05-18 起 status=running 但没在跑（容器 5/19 02:42 重启过）。占着 row，让"最近运行"看板失真。</div>
+  <div class="action">
+    <pre>docker exec smart-crawler-pg psql -U smart_crawler -d smart_crawler -c "
+UPDATE crawl_jobs
+SET status='failed', error='zombie: container restart',
+    finished_at=now()
+WHERE status='running' AND started_at &lt; now() - interval '6 hours';"</pre>
+  </div>
+</div>
+
+<div class="task p0">
+  <header>
+    <span class="tag p0">P0</span>
+    <h3>删除 stale SQLite 文件</h3>
+    <span class="eta">~2 分钟</span>
+  </header>
+  <div class="meta-row">
+    <span>磁盘回收：<b>171 MB</b></span>
+    <span>风险：<b>低</b>（建议先冷备 1 份）</span>
+  </div>
+  <div class="why"><code>/volume1/docker/smart-crawler/app/data/smart_crawler.db</code> 自 5/17 19:51 后未变动；应用已切到 PG（容器 env 实测 <code>DATABASE_URL=postgresql+psycopg://...</code>）。</div>
+  <div class="action">
+    <pre># 1. 先冷备 (压缩后 ~30MB)
+ssh solvea@192.168.1.80 'cd /volume1/docker/smart-crawler/app/data && \
+  gzip -k smart_crawler.db && \
+  mv smart_crawler.db.gz smart_crawler_2026-05-17_pre-pg.db.gz'
+# 2. 确认 PG 数据完整后删原文件
+ssh solvea@192.168.1.80 'rm /volume1/docker/smart-crawler/app/data/smart_crawler.db'</pre>
+  </div>
+</div>
+
+<div class="task p0">
+  <header>
+    <span class="tag p0">P0</span>
+    <h3>更新 HANDOFF.md</h3>
+    <span class="eta">~10 分钟</span>
+  </header>
+  <div class="meta-row">
+    <span>受众：<b>下次接手者</b></span>
+    <span>风险：<b>无</b></span>
+  </div>
+  <div class="why">HANDOFF 里写"PG 迁移就绪未执行"、"评论 1,346"、"空站 4 个"，全部过时。应反映：PG 已切完 / reviews 6.4× / 空站 3 个 / Hunter 在 origin 上有未合的 review 重构（与本地 6235bb1 等价但实现不同）。</div>
+  <div class="action">改 <code>HANDOFF.md</code>「线上状态」表 + 「待办」段。同时在 <code>deliverables/</code> 留一份本计划网页存档。</div>
+</div>
+
+<!-- ===================== 3. P1 业务核心 ===================== -->
+<h2>P1 · 修 3 个空站（业务核心 ROI）</h2>
+
+<table>
+<thead>
+<tr><th>站点</th><th>状态</th><th>根因</th><th>策略</th><th>预估</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td class="mono">vidaxl_ca</td>
+  <td class="bad">0 products</td>
+  <td>sitemap_index.xml HTTP 200 但 body 是空 <code>&lt;sitemapindex/&gt;</code></td>
+  <td>换发现路径：抓 <code>sitemap.xml</code> 或类别页 fallback</td>
+  <td>1.5h</td>
+</tr>
+<tr>
+  <td class="mono">vidaxl_us</td>
+  <td class="bad">0 products</td>
+  <td>HTTP 401 Auth 墙（Demandware）</td>
+  <td>客户提供 <code>VIDAXL_API_EMAIL/TOKEN</code> 走路径1官方 API；或加住宅代理走路径3</td>
+  <td>30min（拿到凭据后）</td>
+</tr>
+<tr>
+  <td class="mono">costway_pl</td>
+  <td class="bad">0 products</td>
+  <td>待复现（其他 costway 欧洲站全通）</td>
+  <td>容器内 <code>python -c "from app.crawlers.registry import get; get('magento')(site).crawl()"</code> 跑一次抓堆栈</td>
+  <td>1h</td>
+</tr>
+</tbody>
+</table>
+
+<div class="task p1">
+  <header>
+    <span class="tag p1">P1.1</span>
+    <h3>vidaxl_ca — sitemap 空，换发现策略</h3>
+    <span class="eta">1.5 小时</span>
+  </header>
+  <div class="meta-row">
+    <span>已确认：<b>en.vidaxl.ca 主页 309KB HTTP 200，sitemap_index.xml 124B 空索引</b></span>
+  </div>
+  <div class="why">从 NAS 实测：<code>https://en.vidaxl.ca/sitemap_index.xml</code> 返回 200，但 body 只有自闭合标签 <code>&lt;sitemapindex xmlns="..."/&gt;</code>，没列任何子 sitemap。所以 vidaxl.py 第 130 行 <code>prod_sitemaps = [u for u in subs if "custom-product" in u]</code> 永远为空。</div>
+  <div class="action">两条路：<br>
+  <b>A.</b> 试 <code>/sitemap.xml</code>（单文件版）或 <code>/sitemap-products.xml</code><br>
+  <b>B.</b> 若都空，改用类别页发现：vidaxl 主页含 nav 链接 → 进类别页 → 抓商品列表 → 拼商品 URL。<br>
+  改 <code>vidaxl.py:_crawl_storefront</code>，添加 fallback：sitemap 空 → 抓 <code>{base}</code> 主页 → 解析 nav menu → 进类别页（pagination）→ 拿 <code>{base}/p/...</code> 链接。</div>
+  <div class="risk">vidaxl_ca 的"路径2 (sitemap)"逻辑暂时绕不开，只能改加 fallback。其他 10 个 vidaxl 站 sitemap 正常，不会受影响。</div>
+</div>
+
+<div class="task p1">
+  <header>
+    <span class="tag p1">P1.2</span>
+    <h3>vidaxl_us — 需要 API 凭据决策</h3>
+    <span class="eta">取决于客户</span>
+  </header>
+  <div class="meta-row">
+    <span>已确认：<b>HTTP 401 Auth 墙，路径2/3 都过不去</b></span>
+  </div>
+  <div class="why">vidaxl_us 站点配置 <code>proxy_tier: residential</code> 但即使带代理也是 HTTP 401（Demandware Basic Auth 墙）。代码里路径1 已就绪：环境变量 <code>VIDAXL_API_EMAIL</code> + <code>VIDAXL_API_TOKEN</code> → 走官方 Dropshipping API <code>b2b.vidaxl.com/api_customer/products</code>。</div>
+  <div class="action">问客户能否拿到 vidaxl Dropshipping 账号（B2B 注册免费）。拿到后写进 NAS 的 <code>.env</code>，重启容器即可。<b>若客户不愿走 API</b>，则放弃 vidaxl_us（Demandware 反爬难以纯爬攻克）。</div>
+</div>
+
+<div class="task p1">
+  <header>
+    <span class="tag p1">P1.3</span>
+    <h3>costway_pl — 复现根因</h3>
+    <span class="eta">1 小时</span>
+  </header>
+  <div class="meta-row">
+    <span>对比：<b>costway 美/加/欧洲 9 站都正常</b>（costway_us 1,593 / costway_ca 1,591）</span>
+  </div>
+  <div class="why">platform=magento，跟其他 costway 站一致。波兰站独有问题，可能是：a) URL 格式 <code>costway.pl</code> 跟其他不同；b) sitemap 用波兰语命名；c) JSON-LD 字段差异。</div>
+  <div class="action"><pre># 进容器实跑取堆栈
+docker exec -it smart-crawler python -c "
+import logging; logging.basicConfig(level=logging.DEBUG)
+from app.db import SessionLocal
+from app.crawlers.registry import get_crawler
+from app.models import Site
+db = SessionLocal()
+site = db.query(Site).filter_by(site='costway_pl').first()
+crawler = get_crawler('magento')(site)
+result = crawler.crawl()
+print('products:', len(result.products))
+print('notes:', result.notes)
+"</pre></div>
+</div>
+
+<!-- ===================== 4. P2 git / 验证 ===================== -->
+<h2>P2 · git 收尾 &amp; 验证</h2>
+
+<div class="task p2">
+  <header>
+    <span class="tag p2">P2.1</span>
+    <h3>验证 79fa6f2 Google Shopping 双路实战</h3>
+    <span class="eta">30 分钟</span>
+  </header>
+  <div class="meta-row">
+    <span>commit：<b>79fa6f2</b>（已 push 到 backup 分支）</span>
+    <span>风险：<b>已 commit 但未跑过</b></span>
+  </div>
+  <div class="why">我重写了 google_shopping.py 为「Google stealth (scrapling) + Bing Shopping (curl_cffi) 双路合并去重」。NAS 容器里 scrapling 0.4.8 + curl_cffi 0.15.0 已装。但<b>这套代码从未跑过</b> — shopping_results 522 条都是上一版（patchright + selectolax）的产物。</div>
+  <div class="action"><pre># 跑一个关键词验证
+docker exec smart-crawler python -c "
+from app.crawlers.google_shopping import GoogleShoppingCrawler
+c = GoogleShoppingCrawler('standing desk', max_results=20)
+results = c.crawl()
+print('total:', len(results))
+print('notes:', c.notes)
+for r in results[:3]: print(r.get('product_title'), r.get('price'), r.get('merchant'))
+"</pre>预期：Google 路径大概率被 reCAPTCHA 拦 → Bing 路径兜底拿 10-20 条。如果 Bing 也空，需要看 <code>_parse_bing</code> 的 CSS 选择器在当前 Bing 页面是否还匹配。</div>
+</div>
+
+<div class="task p2">
+  <header>
+    <span class="tag p2">P2.2</span>
+    <h3>决策 origin/main 上 Hunter 的 review 重构是否要合</h3>
+    <span class="eta">30 分钟讨论</span>
+  </header>
+  <div class="meta-row">
+    <span>分叉：<b>origin (Hunter 3 commits) vs 本地 main (我 3 commits)</b></span>
+    <span>NAS 跑的：<b>本地 main 版本</b></span>
+  </div>
+  <div class="why">两边在 5/17-5/18 独立修了同一个 bug（"site 多平台 next() 只命中第一个"）。本地 <code>6235bb1</code> 用「site+platform 双键消歧」；Hunter <code>7b583f3</code> 用「渠道 dict 直传」—— 实现不同接口不同，但**功能等价**（NAS 上跑的本地版本拿到了 reviews_io 1672 + google_map 5584，跟 Hunter 那边数据吻合）。</div>
+  <div class="action">三选一：<br>
+  <b>A.</b>(保守) 暂不合并 origin/main，继续跑本地 main 版本；origin 留作 Hunter 实验分支。<br>
+  <b>B.</b>(干净) 把 origin/main 的 <code>7b583f3</code> review_runner 重构 cherry-pick 过来，丢弃本地 <code>6235bb1</code>，让代码跟 origin 一致。<br>
+  <b>C.</b>(规范) 开 PR 让 Hunter review 本地 backup 分支 <code>local/may19-nas-snapshot</code>，他来决定要不要 merge。<br>
+  建议 <b>C</b> — 让做 review 重构那个人来主导合并方案。</div>
+</div>
+
+<!-- ===================== 5. P3 长期 ===================== -->
+<h2>P3 · 长期规划</h2>
+
+<div class="task p3">
+  <header>
+    <span class="tag p3">P3.1</span>
+    <h3>MCP 注册中心提交</h3>
+    <span class="eta">2 小时</span>
+  </header>
+  <div class="meta-row">
+    <span>前置：<b>仓库需先转 public</b></span>
+  </div>
+  <div class="why">代码已就绪：<code>deliverables/mcp-registry-submission.md</code> + <code>scripts/publish.sh</code>（用 publish-mcp 技能）+ <code>server.json</code>。但 GitHub 仓库目前 private，注册中心要 public 才能引用。</div>
+  <div class="action">1) 跟客户确认仓库可否转 public（涉及商务条款）。2) 转 public 后跑 <code>./scripts/publish.sh</code>。3) 同步提交 mcp.so 等第三方注册中心。</div>
+</div>
+
+<div class="task p3">
+  <header>
+    <span class="tag p3">P3.2</span>
+    <h3>模块三：商品属性提取 + 看板评论 Tab</h3>
+    <span class="eta">2-3 天</span>
+  </header>
+  <div class="why">交付清单里的"模块三"未做。属性提取（材质 / 尺寸 / 颜色 / 风格）需 LLM 抽取 pipeline；看板评论 Tab 是前端工作。</div>
+  <div class="action">先做属性提取（更高价值）：取 100 条商品 → LLM 抽 attribute → 入新表 <code>product_attributes</code> → MCP 暴露 <code>get_product_attributes(sku)</code>。</div>
+</div>
+
+<div class="task p3">
+  <header>
+    <span class="tag p3">P3.3</span>
+    <h3>评论扩量：google_map / reviews_io 复用到其他品牌</h3>
+    <span class="eta">1-2 天</span>
+  </header>
+  <div class="why">目前 Google Maps 5,584 + reviews_io 1,672 都集中在 aosom_uk 一个 site。其他 45 个站的 review 渠道完全没扩。</div>
+  <div class="action">在 <code>review_channels.yaml</code> 给每个品牌（Costway / Songmics / Homary / Yaheetech / Bcp / Vidaxl / Flexispot）加 reviews_io + google_map 渠道，跑一遍。预计 reviews 总量能再涨 5-10×。</div>
+</div>
+
+<hr>
+
+<!-- ===================== 推荐顺序 ===================== -->
+<h2>推荐执行顺序</h2>
+<ol style="line-height: 1.9;">
+  <li>先扫 <b>P0 三项</b>（合计 ~20 分钟）→ 把 stuck job / stale 文件 / HANDOFF 收拾干净</li>
+  <li>再做 <b>P1.1 vidaxl_ca</b>（最高 ROI，且根因已查清，可独立动手）</li>
+  <li>问客户拿 vidaxl API 凭据 → 触发 <b>P1.2</b>（异步等回复）</li>
+  <li>P1.3 costway_pl 直接进容器抓堆栈 → 大概率小修</li>
+  <li>跑 <b>P2.1 Google Shopping 验证</b>（确认我刚 commit 的代码真的能产数据）</li>
+  <li>P2.2 跟 Hunter 对一下 origin 分叉怎么合（约会议）</li>
+  <li>P3 留给后续 sprint</li>
+</ol>
+
+<footer>
+基于 NAS <code>solvea@192.168.1.80</code>（hostname=vocserver）实测全量摸底生成 ·
+本地仓库 <code>/Users/guozhen/MailOutbound/smart-crawler</code> ·
+backup 分支 <code>origin/local/may19-nas-snapshot</code> (HEAD = 79fa6f2) ·
+生成时间 2026-05-19
+</footer>
+
+</div>
+</body>
+</html>

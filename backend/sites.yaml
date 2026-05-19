@@ -30,7 +30,7 @@ sites:
   - {site: costway_es, brand: Costway, country: ES, url: "https://www.costway.es/", platform: magento, proxy_tier: none, max_products: 400}
   - {site: costway_fr, brand: Costway, country: FR, url: "https://www.costway.fr/", platform: magento, proxy_tier: none, max_products: 400}
   - {site: costway_nl, brand: Costway, country: NL, url: "https://nl.costway.com/", platform: magento, proxy_tier: none, max_products: 400}
-  - {site: costway_pl, brand: Costway, country: PL, url: "https://costway.pl/", platform: magento, proxy_tier: none, max_products: 400}
+  - {site: costway_pl, brand: Costway, country: PL, url: "https://costway.pl/", platform: shoper, proxy_tier: none, max_products: 400}
 
   # ========== Homary（爆米科技, P0）— Nuxt SSR ==========
   - {site: homary_us, brand: Homary, country: US, url: "https://www.homary.com/", platform: nuxt, proxy_tier: none}
