@@ -102,7 +102,7 @@ class ShopifyCrawler(BaseCrawler):
                 "category_path": prod.get("product_type") or None,
                 "sale_price": sale,
                 "original_price": compare or sale,
-                "currency": None,                       # products.json 不含币种
+                "currency": _country_to_currency(self.site.country),
                 "variant_id": str(v.get("id")),
                 "attributes": attrs or None,
                 "status": "on_sale" if v.get("available") else "out_of_stock",
@@ -144,3 +144,17 @@ class ShopifyCrawler(BaseCrawler):
         except Exception:
             pass
         return cats
+
+
+def _country_to_currency(country: str | None) -> str | None:
+    """按国别推断币种。Shopify products.json 不含 currency 字段。"""
+    if not country:
+        return None
+    m = {
+        "US": "USD", "CA": "CAD",
+        "UK": "GBP", "GB": "GBP", "IE": "EUR",
+        "DE": "EUR", "FR": "EUR", "IT": "EUR", "ES": "EUR",
+        "NL": "EUR", "PT": "EUR", "BE": "EUR", "AT": "EUR",
+        "PL": "PLN", "RO": "RON", "JP": "JPY", "AU": "AUD",
+    }
+    return m.get(country.upper())

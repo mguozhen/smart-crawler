@@ -153,7 +153,33 @@ class HomaryCrawler(BaseCrawler):
 
     @staticmethod
     def _to_price(text: str | None):
+        """智能价格解析 —— 自适应欧式 / 美式数字格式。
+
+        欧式: `94,99 €` (= €94.99) / `9.999,99 €` (= €9999.99)
+        美式: `$94.99` / `$9,999.99`
+        规则: 同时含 `,` 和 `.` → 取最右一个为小数点；
+              仅含 `,` 且后跟 ≤ 2 位 → 视作小数点；否则千分位。
+        """
         if not text:
             return None
-        m = _PRICE_RE.search(text.replace(",", ""))
-        return float(m.group()) if m else None
+        import re as _re
+        m = _re.search(r"[\d.,]+", str(text))
+        if not m:
+            return None
+        s = m.group()
+        if "," in s and "." in s:
+            # 最右的分隔符是小数点
+            if s.rfind(",") > s.rfind("."):
+                s = s.replace(".", "").replace(",", ".")    # 欧式 9.999,99
+            else:
+                s = s.replace(",", "")                       # 美式 9,999.99
+        elif "," in s:
+            tail = s.rsplit(",", 1)[-1]
+            if len(tail) <= 2:
+                s = s.replace(",", ".")                       # 欧式 94,99
+            else:
+                s = s.replace(",", "")                        # 美式 94,995
+        try:
+            return float(s)
+        except ValueError:
+            return None
