@@ -385,14 +385,86 @@ def scheduler_jobs():
 # ---------- Excel 导出（API-006，Token 走 query 参数以支持浏览器直接下载）----------
 @public_router.get("/export/products")
 def export_products(token: str, site: str | None = None,
+                    categories: str | None = None,
                     db: Session = Depends(get_db)):
     if not verify_token(token):
         raise HTTPException(401, "未登录或登录已过期")
-    data = export_workbook(db, site)
-    fname = f"smart-crawler_{site or 'all'}_{datetime.now():%Y%m%d}.xlsx"
+    cat_list = [c.strip() for c in categories.split("|")
+                if c.strip()] if categories else None
+    data = export_workbook(db, site, categories=cat_list)
+    suffix = "_".join(c.replace("/","-") for c in (cat_list or []))[:40]
+    fname = (f"smart-crawler_{site or 'all'}"
+             f"{('_'+suffix) if suffix else ''}_{datetime.now():%Y%m%d}.xlsx")
     return StreamingResponse(
         io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument."
                    "spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+# ---------- 数据覆盖率（3B 仪表盘）----------
+# 估算全量 SKU 数（基于 sitemap 实测或经验）；为 0 表示未知
+_FULL_ESTIMATES: dict[str, int] = {
+    # Vidaxl: sitemap 实测每站 26 个 product sitemap × ~20k URL ≈ 30-50 万
+    "vidaxl_de": 500000, "vidaxl_uk": 450000, "vidaxl_fr": 450000,
+    "vidaxl_es": 400000, "vidaxl_it": 400000, "vidaxl_nl": 350000,
+    "vidaxl_pl": 350000, "vidaxl_pt": 350000, "vidaxl_ro": 300000,
+    "vidaxl_ie": 300000, "vidaxl_us": 300000, "vidaxl_ca": 0,  # 业务暂停
+    # SONGMICS: Shopify 一次拉完，已是全量
+    # Costway: API 分页采集，已接近全量
+    # 其他：缺数据，0 = 不计入覆盖率
+}
+
+
+@router.get("/coverage")
+def data_coverage(db: Session = Depends(get_db)):
+    """每站点数据覆盖率：当前 SKU / 估算全量。"""
+    from ..models import Site as SiteModel
+    rows = []
+    for s in db.query(SiteModel).all():
+        cur = db.query(Product).filter(Product.site == s.site).count()
+        est = _FULL_ESTIMATES.get(s.site, 0)
+        pct = round(cur / est * 100, 2) if est > 0 else None
+        if est == 0:
+            # 没有估算时，假定当前就是全量
+            est = cur
+            pct = 100.0 if cur > 0 else 0.0
+        # 健康度分级
+        if pct is None or cur == 0:
+            status = "empty"
+        elif pct < 5:
+            status = "critical"
+        elif pct < 50:
+            status = "warning"
+        else:
+            status = "healthy"
+        rows.append({
+            "site": s.site, "brand": s.brand, "country": s.country,
+            "url": s.url, "platform": s.platform,
+            "current": cur, "estimated_full": est, "coverage_pct": pct,
+            "status": status,
+            "last_crawled": s.last_crawled.isoformat() if s.last_crawled else None,
+        })
+    rows.sort(key=lambda x: (x["status"] != "critical", x["coverage_pct"] or 0))
+
+    # 汇总
+    total_current = sum(r["current"] for r in rows)
+    total_est = sum(r["estimated_full"] for r in rows)
+    critical = sum(1 for r in rows if r["status"] == "critical")
+    warning = sum(1 for r in rows if r["status"] == "warning")
+    healthy = sum(1 for r in rows if r["status"] == "healthy")
+
+    return {
+        "sites": rows,
+        "summary": {
+            "total_sites": len(rows),
+            "total_current_sku": total_current,
+            "total_estimated_full": total_est,
+            "overall_coverage_pct": round(total_current / total_est * 100, 2)
+                                   if total_est > 0 else 0,
+            "critical_count": critical,
+            "warning_count": warning,
+            "healthy_count": healthy,
+        },
+    }

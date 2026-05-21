@@ -90,6 +90,88 @@
   .panel h3 small{color:var(--mut);font-weight:400;margin-left:6px;}
   #chart{width:100%;height:350px;}
 
+  /* ===== NEW: 数据覆盖率 tab ===== */
+  .cov-hero{background:linear-gradient(135deg,#1a1a2e,#0f3460);color:#fff;border-radius:14px;
+    padding:24px 28px;margin-bottom:16px;display:flex;align-items:center;gap:24px;position:relative;overflow:hidden;}
+  .cov-hero::before{content:'';position:absolute;top:-50px;right:-50px;width:200px;height:200px;
+    background:radial-gradient(circle,rgba(247,183,49,.2),transparent 70%);}
+  .cov-hero-num{font-size:3.2rem;font-weight:800;line-height:1;
+    background:linear-gradient(135deg,#fbbf24,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;position:relative;z-index:1;}
+  .cov-hero h3{font-size:1.2rem;font-weight:700;margin-bottom:5px;position:relative;z-index:1;}
+  .cov-hero p{color:#a5b4cb;font-size:0.9rem;position:relative;z-index:1;}
+  .cov-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
+  .cov-sum-card{background:#fff;border:1px solid #eee;border-radius:10px;padding:14px 16px;}
+  .cov-sum-lbl{font-size:0.74rem;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+  .cov-sum-val{font-size:1.5rem;font-weight:800;line-height:1;}
+  .cov-sum-val.green{color:#059669;}.cov-sum-val.warn{color:#d97706;}.cov-sum-val.red{color:#dc2626;}
+  .cov-filter-row{display:flex;gap:8px;margin-bottom:14px;}
+  .cov-filter-row .pill.crit{background:#fee2e2;color:#991b1b;}
+  .cov-filter-row .pill.warn{background:#fef3c7;color:#92400e;}
+  .cov-filter-row .pill.healthy{background:#d1fae5;color:#065f46;}
+  .cov-row{display:grid;grid-template-columns:180px 100px 100px 1fr 110px;align-items:center;gap:14px;
+    padding:11px 18px;border-bottom:1px solid #f3f4f6;background:#fff;}
+  .cov-row:first-child{border-radius:10px 10px 0 0;}
+  .cov-row.header{background:#f9fafb;font-size:0.74rem;color:#999;
+    text-transform:uppercase;letter-spacing:1px;font-weight:600;}
+  .cov-row.critical{background:rgba(254,226,226,.4);border-left:3px solid #dc2626;padding-left:15px;}
+  .cov-row.warning{background:rgba(254,243,199,.3);}
+  .cov-site-name{font-size:0.88rem;font-weight:600;}
+  .cov-site-url{font-size:0.72rem;color:#9ca3af;}
+  .cov-num{font-family:'SF Mono',monospace;font-size:0.84rem;color:#374151;}
+  .cov-bar-wrap{position:relative;}
+  .cov-bar{height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden;}
+  .cov-bar-fill{height:100%;border-radius:4px;transition:width .3s;}
+  .cov-pct{position:absolute;top:-1px;right:0;font-size:0.74rem;font-weight:700;}
+  .cov-status-tag{font-size:0.74rem;font-weight:600;}
+  .cov-status-tag.critical{color:#dc2626;}.cov-status-tag.warning{color:#d97706;}
+  .cov-status-tag.healthy{color:#059669;}.cov-status-tag.empty{color:#9ca3af;}
+
+  /* ===== NEW: 批量下载抽屉 ===== */
+  .drawer-mask{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;}
+  .drawer{position:fixed;top:0;right:0;width:480px;max-width:100vw;height:100vh;background:#fff;
+    box-shadow:-12px 0 36px rgba(0,0,0,.18);z-index:51;display:flex;flex-direction:column;}
+  .drawer-head{padding:18px 22px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;}
+  .drawer-head h3{flex:1;font-size:1.05rem;font-weight:700;}
+  .drawer-head .close{cursor:pointer;font-size:1.4rem;color:#999;width:30px;height:30px;
+    display:flex;align-items:center;justify-content:center;border-radius:6px;}
+  .drawer-head .close:hover{background:#f3f4f6;}
+  .drawer-body{flex:1;overflow-y:auto;padding:18px 22px;}
+  .drawer-section{margin-bottom:20px;}
+  .drawer-section-label{font-size:0.74rem;color:#6b7280;text-transform:uppercase;
+    letter-spacing:1px;font-weight:600;margin-bottom:9px;display:flex;align-items:center;gap:8px;}
+  .drawer-section-label .ct{margin-left:auto;background:#7c6ce0;color:#fff;padding:1px 8px;border-radius:9px;font-size:0.7rem;letter-spacing:0;text-transform:none;}
+  .cat-search{width:100%;padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;
+    font-size:0.85rem;margin-bottom:9px;outline:none;}
+  .cat-search:focus{border-color:#7c6ce0;}
+  .cat-list{background:#f9fafb;border:1px solid #e5e7eb;border-radius:9px;padding:8px;
+    max-height:340px;overflow-y:auto;}
+  .cat-item{padding:7px 11px;display:flex;align-items:center;gap:9px;cursor:pointer;
+    border-radius:5px;font-size:0.85rem;}
+  .cat-item:hover{background:#fff;}
+  .cat-item.checked{background:#f0eaff;color:#7c6ce0;font-weight:600;}
+  .cat-item input{accent-color:#7c6ce0;}
+  .cat-item .cnt{margin-left:auto;font-size:0.72rem;color:#9ca3af;background:#fff;padding:1px 7px;border-radius:9px;}
+  .drawer-summary{background:linear-gradient(135deg,#f0eaff,#e9defa);border:1px solid #d4c5f7;
+    border-radius:10px;padding:14px 16px;}
+  .drawer-sum-row{display:flex;justify-content:space-between;padding:3px 0;font-size:0.85rem;}
+  .drawer-sum-row strong{color:#1f2937;}
+  .drawer-sum-row.total{margin-top:7px;padding-top:9px;border-top:1px solid #d4c5f7;font-size:0.95rem;font-weight:700;color:#7c6ce0;}
+  .drawer-foot{padding:14px 22px;border-top:1px solid #eee;display:flex;gap:10px;}
+  .drawer-foot .btn{flex:1;justify-content:center;}
+
+  .btn-bulk{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1f2937;
+    font-weight:700;display:inline-flex;align-items:center;gap:6px;}
+  .tab-badge{background:linear-gradient(90deg,#7c6ce0,#a78bfa);color:#fff;
+    padding:1px 7px;border-radius:8px;font-size:0.62rem;font-weight:700;margin-left:5px;letter-spacing:0.5px;}
+  .ts-cell{font-size:0.82rem;color:#9ca3af;white-space:nowrap;}
+
+  /* drawer transitions */
+  .slide-enter-active,.slide-leave-active{transition:transform .25s ease;}
+  .slide-enter-from,.slide-leave-to{transform:translateX(100%);}
+  .fade-enter-active,.fade-leave-active{transition:opacity .2s;}
+  .fade-enter-from,.fade-leave-to{opacity:0;}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;}
+
   /* ===== 筛选 ===== */
   .filterbar{display:flex;gap:9px;align-items:center;margin-bottom:15px;
     flex-wrap:wrap;}
@@ -201,7 +283,8 @@
 
   <div class="tabs">
     <div v-for="t in tabList" :key="t.k" class="tab"
-         :class="{active:tab===t.k}" @click="switchTab(t.k)">{{ t.label }}</div>
+         :class="{active:tab===t.k}" @click="switchTab(t.k)">{{ t.label
+      }}<span v-if="t.badge" class="tab-badge">{{ t.badge }}</span></div>
   </div>
 
   <div class="main">
@@ -250,12 +333,14 @@
           <input type="number" v-model.number="minP" placeholder="最低价" style="width:78px"/>
           <input type="number" v-model.number="maxP" placeholder="最高价" style="width:78px"/>
           <button class="btn solid" @click="loadProducts(1)">筛选</button>
+          <button class="btn btn-bulk" @click="openBulkDownload"
+            style="margin-left:auto" title="按品类批量下载">📦 批量下载</button>
         </div>
         <table>
           <thead><tr>
             <th>#</th><th>图片</th><th>产品标题</th><th>SKU</th><th>属性</th>
             <th>标签</th><th>售价</th><th>原价</th><th>30天销量</th><th>30天营收</th>
-            <th>评分</th><th>评论</th><th>状态</th><th>品类</th>
+            <th>评分</th><th>评论</th><th>状态</th><th>品类</th><th>落库时间</th>
           </tr></thead>
           <tbody>
             <tr v-for="(p,i) in products" :key="p.id">
@@ -276,6 +361,7 @@
               <td>{{ p.review_count ?? '—' }}</td>
               <td><span class="badge" :class="p.status">{{ statusText(p.status) }}</span></td>
               <td>{{ p.category_path || '—' }}</td>
+              <td class="ts-cell" :title="p.created_time">{{ fmt(p.created_time) }}</td>
             </tr>
           </tbody>
         </table>
@@ -317,6 +403,62 @@
           </tbody>
         </table>
         <div class="empty" v-if="!promotions.length">当前站点未检测到价格促销</div>
+      </div>
+    </div>
+
+    <!-- 数据覆盖率 (NEW) -->
+    <div v-show="tab==='coverage'">
+      <div class="cov-hero">
+        <div class="cov-hero-num">{{ (coverage.summary && coverage.summary.overall_coverage_pct) || 0 }}%</div>
+        <div style="flex:1">
+          <h3>整体数据覆盖率</h3>
+          <p>已采集 <strong style="color:#fff">{{ num(coverage.summary && coverage.summary.total_current_sku) }}</strong> SKU /
+             估算全站 <strong style="color:#fff">{{ num(coverage.summary && coverage.summary.total_estimated_full) }}</strong> SKU</p>
+          <p style="margin-top:5px"><strong style="color:#fb7185">⚠ {{ (coverage.summary && coverage.summary.critical_count) || 0 }} 个关键站点</strong> · 覆盖率 &lt;5%（多为 Vidaxl 12 站）</p>
+        </div>
+      </div>
+
+      <div class="cov-summary">
+        <div class="cov-sum-card"><div class="cov-sum-lbl">总站点</div>
+          <div class="cov-sum-val">{{ (coverage.summary && coverage.summary.total_sites) || 0 }}</div></div>
+        <div class="cov-sum-card"><div class="cov-sum-lbl">健康 &ge;50%</div>
+          <div class="cov-sum-val green">{{ (coverage.summary && coverage.summary.healthy_count) || 0 }}</div></div>
+        <div class="cov-sum-card"><div class="cov-sum-lbl">警告 5-50%</div>
+          <div class="cov-sum-val warn">{{ (coverage.summary && coverage.summary.warning_count) || 0 }}</div></div>
+        <div class="cov-sum-card"><div class="cov-sum-lbl">关键 &lt;5%</div>
+          <div class="cov-sum-val red">{{ (coverage.summary && coverage.summary.critical_count) || 0 }}</div></div>
+      </div>
+
+      <div class="panel" style="padding:14px 0">
+        <div class="cov-filter-row" style="padding:0 18px">
+          <span class="pill" :class="{active:coverageFilter==='all'}" @click="coverageFilter='all'">所有 {{ coverage.summary && coverage.summary.total_sites || 0 }}</span>
+          <span class="pill crit" :class="{active:coverageFilter==='critical'}" @click="coverageFilter='critical'">关键 {{ coverage.summary && coverage.summary.critical_count || 0 }}</span>
+          <span class="pill warn" :class="{active:coverageFilter==='warning'}" @click="coverageFilter='warning'">警告 {{ coverage.summary && coverage.summary.warning_count || 0 }}</span>
+          <span class="pill healthy" :class="{active:coverageFilter==='healthy'}" @click="coverageFilter='healthy'">健康 {{ coverage.summary && coverage.summary.healthy_count || 0 }}</span>
+        </div>
+
+        <div class="cov-row header">
+          <div>站点</div><div>当前 SKU</div><div>估算全量</div><div>覆盖率</div><div>状态</div>
+        </div>
+        <div v-for="s in coverageFiltered()" :key="s.site" class="cov-row" :class="s.status">
+          <div>
+            <div class="cov-site-name">{{ s.brand }} · {{ s.country }}</div>
+            <div class="cov-site-url">{{ s.site }}</div>
+          </div>
+          <div class="cov-num">{{ num(s.current) }}</div>
+          <div class="cov-num">{{ num(s.estimated_full) }}</div>
+          <div class="cov-bar-wrap">
+            <div class="cov-bar"><div class="cov-bar-fill" :style="{width:Math.min(100,s.coverage_pct||0)+'%',background:coverageBarColor(s)}"></div></div>
+            <span class="cov-pct" :style="{color:s.status==='critical'?'#dc2626':s.status==='warning'?'#d97706':'#059669'}">{{ s.coverage_pct == null ? '—' : s.coverage_pct+'%' }}</span>
+          </div>
+          <div class="cov-status-tag" :class="s.status">
+            <span v-if="s.status==='critical'">⚠ 关键</span>
+            <span v-else-if="s.status==='warning'">⚠ 警告</span>
+            <span v-else-if="s.status==='healthy'">✅ 健康</span>
+            <span v-else>— 未知</span>
+          </div>
+        </div>
+        <div class="empty" v-if="!coverageFiltered().length" style="padding:30px">无站点匹配此筛选</div>
       </div>
     </div>
 
@@ -441,6 +583,59 @@
       </div>
     </div>
   </div>
+
+  <!-- 批量下载抽屉 -->
+  <transition name="fade">
+    <div v-if="drawerOpen" class="drawer-mask" @click="closeBulkDownload"></div>
+  </transition>
+  <transition name="slide">
+    <div v-if="drawerOpen" class="drawer">
+      <div class="drawer-head">
+        <h3>📦 批量按品类下载</h3>
+        <span style="font-size:0.78rem;color:#999;background:#f3f4f6;padding:2px 9px;border-radius:10px">{{ currentSite }}</span>
+        <span class="close" @click="closeBulkDownload">×</span>
+      </div>
+      <div class="drawer-body">
+        <div class="drawer-section">
+          <div class="drawer-section-label">① 选择品类
+            <span class="ct" v-if="drawerCatsSelected.length">已选 {{ drawerCatsSelected.length }}</span>
+          </div>
+          <input class="cat-search" v-model="drawerCatFilter" placeholder="🔍 搜索品类名..."/>
+          <div class="cat-list">
+            <div v-if="drawerLoading" style="padding:18px;text-align:center;color:#999">加载品类中...</div>
+            <div v-else-if="!drawerCats.length" style="padding:18px;text-align:center;color:#999">该站点暂无品类数据，请先采集</div>
+            <div v-else>
+              <div v-for="c in drawerFilteredCats()" :key="c.category_id||c.name"
+                class="cat-item" :class="{checked:drawerCatChecked(c.name)}"
+                @click="toggleDrawerCat(c.name)">
+                <input type="checkbox" :checked="drawerCatChecked(c.name)" @click.stop="toggleDrawerCat(c.name)"/>
+                <span>{{ c.name }}</span>
+                <span class="cnt">{{ num(c.product_count) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-section-label">② 下载预览</div>
+          <div class="drawer-summary">
+            <div class="drawer-sum-row"><span>选中品类</span><strong>{{ drawerCatsSelected.length }} 个</strong></div>
+            <div class="drawer-sum-row"><span>预估 SKU 数</span><strong>{{ num(drawerSelectedSkuEstimate()) }}</strong></div>
+            <div class="drawer-sum-row total"><span>导出格式</span><strong>Excel · 6 Sheet</strong></div>
+          </div>
+          <div style="margin-top:10px;font-size:0.74rem;color:#999;line-height:1.55">
+            💡 导出包含：商品分析 / 销售促销 / 趋势报告 / 商品全字段 / 分类树 / 站点概览（6 Sheet）。<br>
+            按品类过滤会同时过滤商品 + 促销表。
+          </div>
+        </div>
+      </div>
+      <div class="drawer-foot">
+        <button class="btn" @click="closeBulkDownload">取消</button>
+        <button class="btn solid" @click="confirmBulkDownload"
+          :disabled="!drawerCatsSelected.length">⬇ 开始下载</button>
+      </div>
+    </div>
+  </transition>
   </template>
 </div>
 
@@ -453,13 +648,19 @@ createApp({
     loginForm:{username:"",password:""}, logging:false, loginErr:"",
     sites:[], currentSite:"", tab:"overview", pTab:"all",
     tabList:[{k:"overview",label:"总体分析"},{k:"products",label:"产品分析"},
-      {k:"promotions",label:"销售促销"},{k:"datasources",label:"数据源"},
+      {k:"promotions",label:"销售促销"},{k:"coverage",label:"数据覆盖率",badge:"NEW"},
+      {k:"datasources",label:"数据源"},
       {k:"jobs",label:"采集任务"},{k:"api",label:"API 接入"}],
     datasources:[], dsTab:"all",
     apiKeys:[], newKeyName:"", newKey:"",
     ov:{cards:{},trends:[]}, products:[], total:0, page:1, pageSize:20,
     counts:{all:0,bestseller:0,new:0}, search:"", minP:null, maxP:null,
     promotions:[], jobs:[], proxy:{}, triggering:false, chart:null,
+    // 批量下载抽屉
+    drawerOpen:false, drawerCats:[], drawerCatsSelected:[], drawerLoading:false,
+    drawerCatFilter:"",
+    // 覆盖率仪表盘
+    coverage:{sites:[],summary:{}}, coverageLoaded:false, coverageFilter:"all",
   };},
   computed:{
     site(){ return this.sites.find(s=>s.site===this.currentSite); },
@@ -515,7 +716,8 @@ createApp({
     switchTab(k){ this.tab=k;
       if(k==='overview') this.$nextTick(this.renderChart);
       if(k==='api') this.loadKeys();
-      if(k==='datasources'&&!this.datasources.length) this.loadDatasources(); },
+      if(k==='datasources'&&!this.datasources.length) this.loadDatasources();
+      if(k==='coverage'&&!this.coverageLoaded) this.loadCoverage(); },
     dsCount(t){ return this.datasources.filter(d=>d.type===t).length; },
     async loadDatasources(){
       try{ this.datasources=await this.api("/api/datasources"); }
@@ -574,6 +776,65 @@ createApp({
     exportExcel(){
       window.open(`/api/export/products?site=${this.currentSite}`+
         `&token=${encodeURIComponent(this.token)}`,"_blank");
+    },
+
+    // ====== 批量按品类下载抽屉 ======
+    async openBulkDownload(){
+      this.drawerOpen=true;
+      if(!this.drawerCats.length){
+        this.drawerLoading=true;
+        try{
+          this.drawerCats = await this.api(`/api/categories?site=${this.currentSite}`);
+        }catch(e){ this.drawerCats=[]; }
+        this.drawerLoading=false;
+      }
+    },
+    closeBulkDownload(){ this.drawerOpen=false; },
+    toggleDrawerCat(name){
+      const i=this.drawerCatsSelected.indexOf(name);
+      if(i>=0) this.drawerCatsSelected.splice(i,1);
+      else this.drawerCatsSelected.push(name);
+    },
+    drawerCatChecked(name){ return this.drawerCatsSelected.includes(name); },
+    drawerFilteredCats(){
+      const f=this.drawerCatFilter.toLowerCase();
+      const cats=this.drawerCats||[];
+      if(!f) return cats;
+      return cats.filter(c=>(c.name||"").toLowerCase().includes(f));
+    },
+    drawerSelectedSkuEstimate(){
+      let n=0;
+      for(const c of this.drawerCats){
+        if(this.drawerCatsSelected.includes(c.name)) n+=(c.product_count||0);
+      }
+      return n;
+    },
+    confirmBulkDownload(){
+      if(!this.drawerCatsSelected.length){ alert("请至少选 1 个品类"); return; }
+      const cats=encodeURIComponent(this.drawerCatsSelected.join("|"));
+      window.open(`/api/export/products?site=${this.currentSite}`+
+        `&categories=${cats}&token=${encodeURIComponent(this.token)}`,"_blank");
+      // 关闭抽屉
+      setTimeout(()=>this.closeBulkDownload(),300);
+    },
+
+    // ====== 数据覆盖率 ======
+    async loadCoverage(){
+      try{
+        this.coverage=await this.api("/api/coverage");
+        this.coverageLoaded=true;
+      }catch(e){ this.coverage={sites:[],summary:{}}; }
+    },
+    coverageFiltered(){
+      const f=this.coverageFilter;
+      if(f==='all') return this.coverage.sites||[];
+      return (this.coverage.sites||[]).filter(s=>s.status===f);
+    },
+    coverageBarColor(s){
+      if(s.status==='critical') return 'linear-gradient(90deg,#fb7185,#dc2626)';
+      if(s.status==='warning') return 'linear-gradient(90deg,#fbbf24,#f59e0b)';
+      if(s.status==='healthy') return 'linear-gradient(90deg,#10b981,#059669)';
+      return '#9ca3af';
     },
     renderChart(){
       const el=document.getElementById("chart");

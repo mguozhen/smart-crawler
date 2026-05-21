@@ -20,7 +20,9 @@ from ..antiban import BlockedError
 from .base import BaseCrawler, CrawlResult
 
 PAGE_SIZE = 48
-PAGES_PER_CAT = int(os.environ.get("COSTWAY_PAGES_PER_CAT", "3"))
+# 客户反馈 Costway CA 实际 >1W 商品，调高每分类页数上限
+# 230 分类 × 30 页 × 48 = 33 万 cap，实际按各分类 total 提前 break
+PAGES_PER_CAT = int(os.environ.get("COSTWAY_PAGES_PER_CAT", "30"))
 
 _CURRENCY = {"US": "USD", "UK": "GBP", "CA": "CAD", "DE": "EUR", "IT": "EUR",
              "ES": "EUR", "FR": "EUR", "NL": "EUR", "PL": "PLN"}
