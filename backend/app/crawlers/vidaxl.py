@@ -140,17 +140,25 @@ class VidaxlCrawler(BaseCrawler):
                 f"已知原因（vidaxl_ca）：VidaXL 已暂停该市场运营，"
                 f"类别页显示 'pausing orders until further notice'，"
                 f"无商品可采集，需等业务重开。")
+        # 累积所有 sitemap URLs 后去重（vidaxl 多个 sub-sitemap 经常重复同一 SKU）
+        urls_seen: set[str] = set()
         urls: list[str] = []
         for sm in prod_sitemaps:
-            if len(urls) >= self.limit:
-                break
             try:
                 raw = sess.get(sm, timeout=40).content
                 xml = (gzip.decompress(raw) if sm.endswith(".gz")
                        else raw).decode("utf-8", "ignore")
-                urls.extend(re.findall(r"<loc>\s*(.*?)\s*</loc>", xml))
+                for u in re.findall(r"<loc>\s*(.*?)\s*</loc>", xml):
+                    if u in urls_seen:
+                        continue
+                    urls_seen.add(u)
+                    urls.append(u)
+                    if len(urls) >= self.limit:
+                        break
             except Exception:
                 continue
+            if len(urls) >= self.limit:
+                break
         targets = urls[: self.limit]
         result.notes.append(
             f"路径2 storefront：{len(prod_sitemaps)} 个商品 sitemap，"
