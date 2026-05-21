@@ -76,12 +76,23 @@ def _apply_cat_filter(q, model_class, categories: list[str] | None):
                           for c in categories]))
 
 
+def _apply_site_filter(q, model_class, site):
+    """对 query 加站点过滤。site 可以是 str / list[str] / None。"""
+    if site is None:
+        return q
+    if isinstance(site, str):
+        return q.filter(model_class.site == site)
+    if isinstance(site, (list, tuple)) and site:
+        if len(site) == 1:
+            return q.filter(model_class.site == site[0])
+        return q.filter(model_class.site.in_(site))
+    return q
+
+
 # ---------- 对标样本：商品分析报表 ----------
-def products_sample_df(session: Session, site: str | None = None,
+def products_sample_df(session: Session, site=None,
                        categories: list[str] | None = None) -> pd.DataFrame:
-    q = session.query(Product)
-    if site:
-        q = q.filter(Product.site == site)
+    q = _apply_site_filter(session.query(Product), Product, site)
     q = _apply_cat_filter(q, Product, categories)
     rows = []
     for i, p in enumerate(q.order_by(Product.id).all(), start=1):
@@ -101,11 +112,9 @@ def products_sample_df(session: Session, site: str | None = None,
 
 
 # ---------- 对标样本：销售促销报表 ----------
-def promotions_sample_df(session: Session, site: str | None = None,
+def promotions_sample_df(session: Session, site=None,
                          categories: list[str] | None = None) -> pd.DataFrame:
-    q = session.query(Promotion)
-    if site:
-        q = q.filter(Promotion.site == site)
+    q = _apply_site_filter(session.query(Promotion), Promotion, site)
     if categories:
         # Promotion 没 category_path，通过 Product join 过滤
         from sqlalchemy import or_
@@ -129,10 +138,8 @@ def promotions_sample_df(session: Session, site: str | None = None,
 
 
 # ---------- 对标样本：趋势报表 ----------
-def trends_sample_df(session: Session, site: str | None = None) -> pd.DataFrame:
-    q = session.query(Trend)
-    if site:
-        q = q.filter(Trend.site == site)
+def trends_sample_df(session: Session, site=None) -> pd.DataFrame:
+    q = _apply_site_filter(session.query(Trend), Trend, site)
     rows = []
     for i, t in enumerate(q.order_by(Trend.date).all(), start=1):
         rows.append({
@@ -147,11 +154,9 @@ def trends_sample_df(session: Session, site: str | None = None) -> pd.DataFrame:
 
 
 # ---------- 扩展表：商品全字段（32 字段，信息只多不少）----------
-def products_full_df(session: Session, site: str | None = None,
+def products_full_df(session: Session, site=None,
                      categories: list[str] | None = None) -> pd.DataFrame:
-    q = session.query(Product)
-    if site:
-        q = q.filter(Product.site == site)
+    q = _apply_site_filter(session.query(Product), Product, site)
     q = _apply_cat_filter(q, Product, categories)
     rows = []
     for i, p in enumerate(q.order_by(Product.id).all(), start=1):
@@ -178,10 +183,8 @@ def products_full_df(session: Session, site: str | None = None,
 
 
 # ---------- 扩展表：分类树 ----------
-def categories_df(session: Session, site: str | None = None) -> pd.DataFrame:
-    q = session.query(Category)
-    if site:
-        q = q.filter(Category.site == site)
+def categories_df(session: Session, site=None) -> pd.DataFrame:
+    q = _apply_site_filter(session.query(Category), Category, site)
     rows = []
     for i, c in enumerate(q.all(), start=1):
         rows.append({
@@ -215,7 +218,7 @@ def sites_overview_df(session: Session) -> pd.DataFrame:
                         "促销数", "最后采集"])
 
 
-def export_workbook(session: Session, site: str | None = None,
+def export_workbook(session: Session, site=None,
                     categories: list[str] | None = None) -> bytes:
     """导出 6-Sheet Excel：3 张完全对标样本 + 3 张扩展。
     categories: 可选品类过滤列表（OR 模糊匹配 category_path），用于批量按品类下载。"""

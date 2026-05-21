@@ -591,48 +591,86 @@
   <transition name="slide">
     <div v-if="drawerOpen" class="drawer">
       <div class="drawer-head">
-        <h3>📦 批量按品类下载</h3>
-        <span style="font-size:0.78rem;color:#999;background:#f3f4f6;padding:2px 9px;border-radius:10px">{{ currentSite }}</span>
+        <h3>📦 批量按站点 + 品类下载</h3>
+        <span style="font-size:0.78rem;color:#999;background:#f3f4f6;padding:2px 9px;border-radius:10px">{{ drawerSites.length }} 站</span>
         <span class="close" @click="closeBulkDownload">×</span>
       </div>
       <div class="drawer-body">
+
+        <!-- ① 选站点 -->
         <div class="drawer-section">
-          <div class="drawer-section-label">① 选择品类
+          <div class="drawer-section-label">① 选择站点
+            <span class="ct" v-if="drawerSites.length">已选 {{ drawerSites.length }}</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;max-height:160px;overflow-y:auto;
+                       background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:9px">
+            <span v-for="s in sites" :key="s.site"
+              @click="toggleDrawerSite(s.site)"
+              :style="{
+                padding:'5px 12px',borderRadius:'14px',fontSize:'0.78rem',cursor:'pointer',
+                background: drawerSiteChecked(s.site) ? '#7c6ce0' : '#fff',
+                color: drawerSiteChecked(s.site) ? '#fff' : '#374151',
+                border: '1px solid '+(drawerSiteChecked(s.site)?'#7c6ce0':'#e5e7eb'),
+                fontWeight: drawerSiteChecked(s.site)?'600':'500'
+              }">
+              {{ s.site }} <span :style="{opacity:0.6,fontSize:'0.7rem',marginLeft:'4px'}">{{ num(s.sku_count) }}</span>
+            </span>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:8px;font-size:0.74rem">
+            <a href="#" @click.prevent="drawerSites=sites.map(s=>s.site);loadDrawerCats()" style="color:#7c6ce0">全选</a>
+            <a href="#" @click.prevent="drawerSites=[];loadDrawerCats()" style="color:#9ca3af">清空</a>
+            <a href="#" @click.prevent="drawerSites=sites.filter(s=>s.brand==='Vidaxl').map(s=>s.site);loadDrawerCats()" style="color:#7c6ce0">所有 Vidaxl</a>
+            <a href="#" @click.prevent="drawerSites=sites.filter(s=>s.brand==='Costway').map(s=>s.site);loadDrawerCats()" style="color:#7c6ce0">所有 Costway</a>
+          </div>
+        </div>
+
+        <!-- ② 选品类 -->
+        <div class="drawer-section">
+          <div class="drawer-section-label">② 选择品类（可选）
             <span class="ct" v-if="drawerCatsSelected.length">已选 {{ drawerCatsSelected.length }}</span>
           </div>
-          <input class="cat-search" v-model="drawerCatFilter" placeholder="🔍 搜索品类名..."/>
+          <input class="cat-search" v-model="drawerCatFilter" placeholder="🔍 跨站合并的品类，搜索关键词..."/>
           <div class="cat-list">
             <div v-if="drawerLoading" style="padding:18px;text-align:center;color:#999">加载品类中...</div>
-            <div v-else-if="!drawerCats.length" style="padding:18px;text-align:center;color:#999">该站点暂无品类数据，请先采集</div>
+            <div v-else-if="!drawerSites.length" style="padding:18px;text-align:center;color:#999">请先选站点</div>
+            <div v-else-if="!drawerAllCats().length" style="padding:18px;text-align:center;color:#999">
+              <div>选中的 {{ drawerSites.length }} 个站点都无品类数据</div>
+              <div style="font-size:0.74rem;margin-top:4px;color:#bbb">将下载这些站点的全部商品（无品类过滤）</div>
+            </div>
             <div v-else>
-              <div v-for="c in drawerFilteredCats()" :key="c.category_id||c.name"
+              <div v-for="c in drawerFilteredCats()" :key="c.name"
                 class="cat-item" :class="{checked:drawerCatChecked(c.name)}"
                 @click="toggleDrawerCat(c.name)">
                 <input type="checkbox" :checked="drawerCatChecked(c.name)" @click.stop="toggleDrawerCat(c.name)"/>
                 <span>{{ c.name }}</span>
-                <span class="cnt">{{ num(c.product_count) }}</span>
+                <span class="cnt" :title="c.sites.join(', ')">{{ num(c.product_count) }} <span v-if="c.sites&&c.sites.length>1" style="opacity:.6">×{{c.sites.length}}站</span></span>
               </div>
             </div>
           </div>
+          <div v-if="drawerNoCatsSites().length" style="margin-top:8px;font-size:0.74rem;color:#d97706;line-height:1.5">
+            ⚠️ {{ drawerNoCatsSites().length }} 个站点无品类数据（{{ drawerNoCatsSites().slice(0,3).join(', ') }}{{drawerNoCatsSites().length>3?'...':''}}），将不应用品类过滤，下载全部商品
+          </div>
         </div>
 
+        <!-- ③ 预览 -->
         <div class="drawer-section">
-          <div class="drawer-section-label">② 下载预览</div>
+          <div class="drawer-section-label">③ 下载预览</div>
           <div class="drawer-summary">
-            <div class="drawer-sum-row"><span>选中品类</span><strong>{{ drawerCatsSelected.length }} 个</strong></div>
-            <div class="drawer-sum-row"><span>预估 SKU 数</span><strong>{{ num(drawerSelectedSkuEstimate()) }}</strong></div>
+            <div class="drawer-sum-row"><span>选中站点</span><strong>{{ drawerSites.length }} 个</strong></div>
+            <div class="drawer-sum-row"><span>选中品类</span><strong>{{ drawerCatsSelected.length || '不过滤' }}</strong></div>
+            <div class="drawer-sum-row"><span>预估 SKU 数</span><strong>{{ num(drawerEstimateTotal()) }}</strong></div>
             <div class="drawer-sum-row total"><span>导出格式</span><strong>Excel · 6 Sheet</strong></div>
           </div>
           <div style="margin-top:10px;font-size:0.74rem;color:#999;line-height:1.55">
-            💡 导出包含：商品分析 / 销售促销 / 趋势报告 / 商品全字段 / 分类树 / 站点概览（6 Sheet）。<br>
-            按品类过滤会同时过滤商品 + 促销表。
+            💡 6 Sheet：商品分析 / 销售促销 / 趋势报告 / 商品全字段 / 分类树 / 站点概览。<br>
+            按品类过滤会同时影响商品 + 促销表。无品类站点降级为全站下载。
           </div>
         </div>
       </div>
       <div class="drawer-foot">
         <button class="btn" @click="closeBulkDownload">取消</button>
         <button class="btn solid" @click="confirmBulkDownload"
-          :disabled="!drawerCatsSelected.length">⬇ 开始下载</button>
+          :disabled="!drawerSites.length">⬇ 开始下载</button>
       </div>
     </div>
   </transition>
@@ -657,8 +695,11 @@ createApp({
     counts:{all:0,bestseller:0,new:0}, search:"", minP:null, maxP:null,
     promotions:[], jobs:[], proxy:{}, triggering:false, chart:null,
     // 批量下载抽屉
-    drawerOpen:false, drawerCats:[], drawerCatsSelected:[], drawerLoading:false,
-    drawerCatFilter:"",
+    drawerOpen:false, drawerLoading:false,
+    drawerSites:[],          // 选中的站点（数组，默认 [currentSite]）
+    drawerCatsBySite:{},     // {site: [{name, product_count, source}]} 跨站合并
+    drawerCatsSelected:[],   // 选中的品类名（统一去重）
+    drawerCatFilter:"",      // 品类搜索框
     // 覆盖率仪表盘
     coverage:{sites:[],summary:{}}, coverageLoaded:false, coverageFilter:"all",
   };},
@@ -778,43 +819,86 @@ createApp({
         `&token=${encodeURIComponent(this.token)}`,"_blank");
     },
 
-    // ====== 批量按品类下载抽屉 ======
+    // ====== 批量按品类下载抽屉（支持多站点 + 多品类）======
     async openBulkDownload(){
       this.drawerOpen=true;
-      if(!this.drawerCats.length){
-        this.drawerLoading=true;
-        try{
-          this.drawerCats = await this.api(`/api/categories?site=${this.currentSite}`);
-        }catch(e){ this.drawerCats=[]; }
-        this.drawerLoading=false;
-      }
+      // 默认选当前站
+      if(!this.drawerSites.length) this.drawerSites=[this.currentSite];
+      await this.loadDrawerCats();
     },
     closeBulkDownload(){ this.drawerOpen=false; },
+    async loadDrawerCats(){
+      this.drawerLoading=true;
+      try{
+        if(!this.drawerSites.length){ this.drawerCatsBySite={}; return; }
+        const sites=this.drawerSites.join(",");
+        this.drawerCatsBySite=await this.api(`/api/categories/cross?sites=${sites}`);
+      }catch(e){ this.drawerCatsBySite={}; }
+      this.drawerLoading=false;
+    },
+    toggleDrawerSite(site){
+      const i=this.drawerSites.indexOf(site);
+      if(i>=0) this.drawerSites.splice(i,1);
+      else this.drawerSites.push(site);
+      this.loadDrawerCats();
+    },
+    drawerSiteChecked(site){ return this.drawerSites.includes(site); },
     toggleDrawerCat(name){
       const i=this.drawerCatsSelected.indexOf(name);
       if(i>=0) this.drawerCatsSelected.splice(i,1);
       else this.drawerCatsSelected.push(name);
     },
     drawerCatChecked(name){ return this.drawerCatsSelected.includes(name); },
+    drawerAllCats(){
+      // 合并所有选中站的品类（按 name 去重，product_count 累加）
+      const m={};
+      for(const site in this.drawerCatsBySite){
+        for(const c of this.drawerCatsBySite[site]||[]){
+          if(!c.name) continue;
+          if(!m[c.name]) m[c.name]={name:c.name,product_count:0,sites:[]};
+          m[c.name].product_count+=(c.product_count||0);
+          m[c.name].sites.push(site);
+        }
+      }
+      return Object.values(m).sort((a,b)=>b.product_count-a.product_count);
+    },
     drawerFilteredCats(){
       const f=this.drawerCatFilter.toLowerCase();
-      const cats=this.drawerCats||[];
+      const cats=this.drawerAllCats();
       if(!f) return cats;
       return cats.filter(c=>(c.name||"").toLowerCase().includes(f));
     },
+    drawerNoCatsSites(){
+      // 没有品类数据的选中站
+      return this.drawerSites.filter(s=>!(this.drawerCatsBySite[s]||[]).length);
+    },
     drawerSelectedSkuEstimate(){
+      // 选中品类的预估 SKU
+      const cats=this.drawerAllCats();
       let n=0;
-      for(const c of this.drawerCats){
-        if(this.drawerCatsSelected.includes(c.name)) n+=(c.product_count||0);
+      for(const c of cats){
+        if(this.drawerCatsSelected.includes(c.name)) n+=c.product_count;
+      }
+      return n;
+    },
+    drawerEstimateTotal(){
+      // 总预估：选中品类 SKU + 无品类站点的全站 SKU
+      let n=this.drawerSelectedSkuEstimate();
+      for(const s of this.drawerNoCatsSites()){
+        const site=this.sites.find(x=>x.site===s);
+        if(site) n+=(site.sku_count||0);
       }
       return n;
     },
     confirmBulkDownload(){
-      if(!this.drawerCatsSelected.length){ alert("请至少选 1 个品类"); return; }
-      const cats=encodeURIComponent(this.drawerCatsSelected.join("|"));
-      window.open(`/api/export/products?site=${this.currentSite}`+
-        `&categories=${cats}&token=${encodeURIComponent(this.token)}`,"_blank");
-      // 关闭抽屉
+      if(!this.drawerSites.length){ alert("请至少选 1 个站点"); return; }
+      const sites=encodeURIComponent(this.drawerSites.join("|"));
+      let url=`/api/export/products?sites=${sites}`+
+              `&token=${encodeURIComponent(this.token)}`;
+      if(this.drawerCatsSelected.length){
+        url+=`&categories=${encodeURIComponent(this.drawerCatsSelected.join("|"))}`;
+      }
+      window.open(url,"_blank");
       setTimeout(()=>this.closeBulkDownload(),300);
     },
 

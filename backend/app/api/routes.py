@@ -385,22 +385,68 @@ def scheduler_jobs():
 # ---------- Excel 导出（API-006，Token 走 query 参数以支持浏览器直接下载）----------
 @public_router.get("/export/products")
 def export_products(token: str, site: str | None = None,
+                    sites: str | None = None,
                     categories: str | None = None,
                     db: Session = Depends(get_db)):
+    """导出 Excel。
+    - site=foo：单站点
+    - sites=a,b,c：多站点（| 或 , 分隔）
+    - categories=cat1|cat2：品类过滤（| 分隔），无品类时下载站内全部
+    """
     if not verify_token(token):
         raise HTTPException(401, "未登录或登录已过期")
+    # 兼容 site 单数 / sites 复数
+    site_list = None
+    if sites:
+        site_list = [s.strip() for s in sites.replace(",", "|").split("|") if s.strip()]
+    elif site:
+        site_list = [site]
     cat_list = [c.strip() for c in categories.split("|")
                 if c.strip()] if categories else None
-    data = export_workbook(db, site, categories=cat_list)
-    suffix = "_".join(c.replace("/","-") for c in (cat_list or []))[:40]
-    fname = (f"smart-crawler_{site or 'all'}"
-             f"{('_'+suffix) if suffix else ''}_{datetime.now():%Y%m%d}.xlsx")
+    data = export_workbook(db, site_list, categories=cat_list)
+    site_suffix = (site_list[0] if site_list and len(site_list) == 1
+                   else f"{len(site_list)}sites" if site_list else "all")
+    cat_suffix = "_".join(c.replace("/","-") for c in (cat_list or []))[:40]
+    fname = (f"smart-crawler_{site_suffix}"
+             f"{('_'+cat_suffix) if cat_suffix else ''}_{datetime.now():%Y%m%d}.xlsx")
     return StreamingResponse(
         io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument."
                    "spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+# ---------- 跨站点品类列表（drawer 用）----------
+@router.get("/categories/cross")
+def categories_cross(sites: str = "", db: Session = Depends(get_db)):
+    """跨站点品类汇总。优先从 Category 表取，缺数据时降级到 Product.category_path 去重。
+    返回 {site: [{name, product_count, source}], ...}。
+    没品类数据的站点返回空列表（前端降级到「全站下载」）。
+    """
+    site_list = [s.strip() for s in sites.replace(",", "|").split("|") if s.strip()]
+    if not site_list:
+        return {}
+    result: dict[str, list] = {}
+    for s in site_list:
+        # 优先 Category 表
+        cats = db.query(Category).filter(Category.site == s).all()
+        if cats:
+            result[s] = [{
+                "name": c.category_name or "(unnamed)",
+                "product_count": c.product_count or 0,
+                "source": "category-tree",
+            } for c in cats if c.category_name]
+        else:
+            # 降级：从 Product.category_path distinct
+            rows = db.query(Product.category_path, func.count(Product.id)).filter(
+                Product.site == s,
+                Product.category_path.isnot(None)).group_by(
+                Product.category_path).all()
+            result[s] = [{
+                "name": p, "product_count": n, "source": "product-path"
+            } for p, n in rows if p]
+    return result
 
 
 # ---------- 数据覆盖率（3B 仪表盘）----------
