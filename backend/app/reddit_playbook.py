@@ -21,11 +21,9 @@ PLAYBOOK_MODEL = os.environ.get("LLM_PLAYBOOK_MODEL",
 
 
 def _llm_client():
-    from openai import OpenAI
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        raise RuntimeError("未配置 OPENAI_API_KEY（flatkey.ai 密钥）")
-    return OpenAI(base_url=GATEWAY, api_key=key)
+    """LLM 客户端 —— 统一走 app.llm 适配层（Anthropic SDK + flatkey.ai）。"""
+    from .llm import get_client
+    return get_client()
 
 
 _SYSTEM_PLAYBOOK = """\

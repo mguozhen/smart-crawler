@@ -35,11 +35,9 @@ _SYSTEM = (
 
 
 def _client():
-    from openai import OpenAI
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        raise RuntimeError("未配置 OPENAI_API_KEY（flatkey.ai 密钥）")
-    return OpenAI(base_url=GATEWAY, api_key=key)
+    """LLM 客户端 —— 统一走 app.llm 适配层（Anthropic SDK + flatkey.ai 网关）。"""
+    from .llm import get_client
+    return get_client()
 
 
 def analyze_text(content: str, title: str | None = None) -> dict:
