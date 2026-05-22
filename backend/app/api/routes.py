@@ -449,6 +449,23 @@ def categories_cross(sites: str = "", db: Session = Depends(get_db)):
     return result
 
 
+# ---------- 代理池状态 ----------
+@router.get("/proxy/status")
+def proxy_status_endpoint():
+    """代理池状态：总数 / 可用 / 各代理失败率。"""
+    from ..proxy_pool import pool_status
+    return pool_status()
+
+
+@router.post("/proxy/reload")
+def proxy_reload():
+    """热重载 proxies.txt（添加/删除代理后调用）。"""
+    from ..proxy_pool import reload_pool
+    reload_pool()
+    from ..proxy_pool import pool_status
+    return {"reloaded": True, "status": pool_status()}
+
+
 # ---------- 数据覆盖率（3B 仪表盘）----------
 # 估算全量 SKU 数（基于 sitemap 实测或经验）；为 0 表示未知
 _FULL_ESTIMATES: dict[str, int] = {

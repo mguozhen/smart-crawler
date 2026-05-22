@@ -164,19 +164,37 @@ class VidaxlCrawler(BaseCrawler):
             f"路径2 storefront：{len(prod_sitemaps)} 个商品 sitemap，"
             f"本次抓取 {len(targets)} 个商品")
 
+        # 走代理池：失败时 report 让 proxy_pool 自动剔除
+        from .. import proxy_pool
         ok = 0
+        fail = 0
         for url in targets:
             try:
-                html = sess.get(url, timeout=30).text
+                resp = sess.get(url, timeout=30)
+                if resp.status_code in (429, 403):
+                    # 被封：硬剔除当前代理，重新拿
+                    proxy_pool.report_failure(self.proxy, hard=True)
+                    self.proxy = proxy_pool.get_proxy("residential",
+                                                      site=self.site.site)
+                    if self.proxy:
+                        sess.proxies = {"http": self.proxy, "https": self.proxy}
+                    fail += 1
+                    result.notes.append(f"⚠ 代理被封 → 切换 ({fail})")
+                    continue
+                html = resp.text
                 self.snapshot(url.rstrip("/").split("/")[-1], html)
                 row = self._parse_jsonld(html, url)
                 if row:
                     result.products.append(row)
                     ok += 1
+                proxy_pool.report_success(self.proxy)
             except Exception as exc:
+                proxy_pool.report_failure(self.proxy)
+                fail += 1
                 result.notes.append(f"跳过 {url[:50]}: {exc}")
             self.sleep()
-        result.notes.append(f"成功解析 {ok}/{len(targets)} 个商品")
+        result.notes.append(
+            f"成功解析 {ok}/{len(targets)} 个商品 · 代理失败 {fail} 次")
         return result
 
     def _parse_jsonld(self, html: str, url: str) -> dict | None:

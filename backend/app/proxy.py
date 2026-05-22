@@ -59,10 +59,19 @@ def _ensure_loaded() -> None:
         _loaded = True
 
 
-def get_proxy(tier: str) -> str | None:
-    """按 tier 取一个代理 URL（轮换）。tier=none 或无代理时返回 None。"""
+def get_proxy(tier: str, site: str | None = None) -> str | None:
+    """按 tier 取一个代理 URL。委托给新版 proxy_pool（含失败追踪 + 粘性会话）。"""
     if tier in (None, "none", ""):
         return None
+    # 优先用新版 proxy_pool（带健康检查）；旧版作为 fallback
+    try:
+        from . import proxy_pool
+        url = proxy_pool.get_proxy(tier, site=site)
+        if url is not None:
+            return url
+    except Exception:
+        pass
+    # Fallback: 旧版简单轮换
     _ensure_loaded()
     pool = _pools.get(tier)
     if pool is None:
