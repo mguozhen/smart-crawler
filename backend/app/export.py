@@ -14,7 +14,8 @@ import io
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from .models import Category, Product, Promotion, Site, Trend
+from .models import (Category, PriceHistory, Product, Promotion,
+                      Review, Site, Trend)
 
 # ---- 对标 product_analysis_report.xlsx 的 20 列（列名/顺序与样本完全一致）----
 PRODUCT_SAMPLE_COLS = [
@@ -219,9 +220,19 @@ def sites_overview_df(session: Session) -> pd.DataFrame:
 
 
 def export_workbook(session: Session, site=None,
-                    categories: list[str] | None = None) -> bytes:
-    """导出 6-Sheet Excel：3 张完全对标样本 + 3 张扩展。
-    categories: 可选品类过滤列表（OR 模糊匹配 category_path），用于批量按品类下载。"""
+                    categories: list[str] | None = None,
+                    include_price_history: bool = False,
+                    include_voc: bool = False,
+                    include_images: bool = True,
+                    split_by_category: bool = False) -> bytes:
+    """导出 Excel。
+    基础 6 Sheet + 可选「价格曲线」「评论 VOC」 + 按品类拆分子表。
+
+    - include_price_history: True 时新增「价格曲线(90天)」sheet
+    - include_voc: True 时新增「评论 VOC」sheet
+    - include_images: False 时商品全字段表去掉 image_urls 列（节省体积）
+    - split_by_category: True 时每个品类一个独立 sheet
+    """
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as w:
         products_sample_df(session, site, categories).to_excel(
@@ -230,10 +241,166 @@ def export_workbook(session: Session, site=None,
             w, sheet_name="销售促销", index=False)
         trends_sample_df(session, site).to_excel(
             w, sheet_name="趋势报告", index=False)
-        products_full_df(session, site, categories).to_excel(
-            w, sheet_name="商品全字段(扩展)", index=False)
+        full_df = products_full_df(session, site, categories)
+        if not include_images and "image_urls" in full_df.columns:
+            full_df = full_df.drop(columns=["image_urls", "image_count"],
+                                   errors="ignore")
+        full_df.to_excel(w, sheet_name="商品全字段(扩展)", index=False)
         categories_df(session, site).to_excel(
             w, sheet_name="分类树(扩展)", index=False)
         sites_overview_df(session).to_excel(
             w, sheet_name="站点概览(扩展)", index=False)
+
+        # 可选 sheets
+        if include_price_history:
+            price_history_df(session, site, categories).to_excel(
+                w, sheet_name="价格曲线(90天)", index=False)
+        if include_voc:
+            reviews_voc_df(session, site, categories).to_excel(
+                w, sheet_name="评论 VOC", index=False)
+
+        # 按品类拆分子表
+        if split_by_category:
+            cat_groups = _group_skus_by_category(session, site, categories)
+            for cat_name, sku_list in list(cat_groups.items())[:30]:
+                if not sku_list:
+                    continue
+                sub_df = full_df[full_df["sku"].isin(sku_list)].copy()
+                if sub_df.empty:
+                    continue
+                sheet = ("品类·" + cat_name)[:31]  # excel sheet name ≤ 31
+                sub_df.to_excel(w, sheet_name=sheet, index=False)
+
     return buf.getvalue()
+
+
+def export_csv(session: Session, site=None,
+               categories: list[str] | None = None) -> bytes:
+    """导出 CSV（商品全字段表，UTF-8 BOM 兼容 Excel）。"""
+    df = products_full_df(session, site, categories)
+    return ("﻿" + df.to_csv(index=False)).encode("utf-8")
+
+
+def export_json(session: Session, site=None,
+                categories: list[str] | None = None) -> bytes:
+    """导出 JSON（dict array of full products）。"""
+    df = products_full_df(session, site, categories)
+    return df.to_json(orient="records", force_ascii=False,
+                      indent=2).encode("utf-8")
+
+
+def export_zip(session: Session, sites: list[str],
+               categories: list[str] | None = None,
+               **workbook_kwargs) -> bytes:
+    """导出 ZIP：每个 site 一个 xlsx 文件。"""
+    import zipfile
+    buf = io.BytesIO()
+    site_list = sites if isinstance(sites, list) else [sites] if sites else []
+    if not site_list:
+        # 无站点指定时降级为单个 all xlsx
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("smart-crawler_all.xlsx",
+                        export_workbook(session, None, categories,
+                                        **workbook_kwargs))
+        return buf.getvalue()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for s in site_list:
+            data = export_workbook(session, s, categories, **workbook_kwargs)
+            zf.writestr(f"smart-crawler_{s}.xlsx", data)
+    return buf.getvalue()
+
+
+# ---------- 新增 sheet builders（Step 2 toggle） ----------
+def price_history_df(session: Session, site=None,
+                     categories: list[str] | None = None,
+                     days: int = 90) -> pd.DataFrame:
+    """价格曲线：最近 N 天每 SKU 多行（site/sku/date/sale_price/original_price）。"""
+    from datetime import date, timedelta
+    cutoff = date.today() - timedelta(days=days)
+    skus = _get_filtered_skus(session, site, categories)
+    if not skus:
+        return pd.DataFrame(columns=["NO.", "site", "sku", "date",
+                                     "sale_price", "original_price"])
+    q = session.query(PriceHistory).filter(
+        PriceHistory.date >= cutoff,
+        PriceHistory.sku.in_(skus))
+    rows = []
+    for i, p in enumerate(q.order_by(PriceHistory.site, PriceHistory.sku,
+                                     PriceHistory.date).all(), start=1):
+        rows.append({
+            "NO.": i, "site": p.site, "sku": p.sku,
+            "date": p.date.isoformat() if p.date else "",
+            "sale_price": p.sale_price,
+            "original_price": p.original_price,
+            "discount_pct": (
+                round((1 - p.sale_price / p.original_price) * 100, 1)
+                if p.sale_price and p.original_price and p.original_price > 0
+                else None
+            ),
+        })
+    return pd.DataFrame(rows)
+
+
+def reviews_voc_df(session: Session, site=None,
+                   categories: list[str] | None = None,
+                   limit_per_sku: int = 10) -> pd.DataFrame:
+    """评论 VOC：每 SKU 最多 N 条评论，含 sentiment / nlp_topics。"""
+    skus = _get_filtered_skus(session, site, categories)
+    if not skus:
+        return pd.DataFrame(columns=["NO.", "platform", "site", "sku",
+                                     "rating", "sentiment", "content"])
+    # 按 sku 分组取 top N（简单实现：先全取再 client-side limit）
+    q = session.query(Review).filter(Review.sku.in_(skus))
+    if site:
+        q = _apply_site_filter(q, Review, site)
+    rows = []
+    sku_counts: dict[str, int] = {}
+    for r in q.order_by(Review.sku, Review.review_date.desc()).all():
+        c = sku_counts.get(r.sku, 0)
+        if c >= limit_per_sku:
+            continue
+        sku_counts[r.sku] = c + 1
+        rows.append({
+            "platform": r.platform, "site": r.site, "sku": r.sku,
+            "rating": r.rating, "sentiment": r.sentiment,
+            "sentiment_score": r.sentiment_score,
+            "reviewer_name": r.reviewer_name,
+            "review_date": (r.review_date.isoformat()
+                            if r.review_date else ""),
+            "content": (r.content or "")[:500],
+            "nlp_topics": _list(r.nlp_topics) if r.nlp_topics else "",
+        })
+    for i, row in enumerate(rows, start=1):
+        row["NO."] = i
+    return pd.DataFrame(rows, columns=["NO.", "platform", "site", "sku",
+                                       "rating", "sentiment",
+                                       "sentiment_score", "reviewer_name",
+                                       "review_date", "content",
+                                       "nlp_topics"])
+
+
+def _get_filtered_skus(session: Session, site,
+                       categories: list[str] | None) -> list[str]:
+    """获取符合过滤的 SKU 列表（用于 PriceHistory / Review join）。"""
+    from sqlalchemy import or_
+    q = _apply_site_filter(session.query(Product.sku), Product, site)
+    if categories:
+        q = q.filter(or_(*[Product.category_path.ilike(f"%{c}%")
+                           for c in categories]))
+    return [r[0] for r in q.all() if r[0]]
+
+
+def _group_skus_by_category(session: Session, site,
+                            categories: list[str] | None) -> dict[str, list[str]]:
+    """按 category_path 一级分组 SKU（split_by_category 用）。"""
+    q = _apply_site_filter(session.query(Product.sku, Product.category_path),
+                           Product, site)
+    q = _apply_cat_filter(q, Product, categories)
+    groups: dict[str, list[str]] = {}
+    for sku, path in q.all():
+        if not path or not sku:
+            continue
+        # 取一级品类（按 / 分割）
+        top = path.split("/")[0].strip() or path
+        groups.setdefault(top, []).append(sku)
+    return groups

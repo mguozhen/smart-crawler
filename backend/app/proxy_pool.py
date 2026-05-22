@@ -98,22 +98,21 @@ class ProxyPool:
             self._sticky.clear()
 
     def get(self, tier: str | None = None,
-            site: str | None = None) -> str | None:
+            site: str | None = None,
+            force_rotate: bool = False) -> str | None:
         """取一个可用代理。
         - tier='residential' / 'datacenter' / None=不限
-        - site 非 None: 粘性会话，同 site 复用同一代理直到失败
+        - site 非 None: 默认**不**粘性，每次轮换；force_rotate=True 时清除当前粘性
+        - 旧粘性行为已废弃 → 默认每次都轮换，否则 10 代理只用 1 个
         """
         if tier in (None, "none", ""):
             return None
         self._ensure_loaded()
         with self._lock:
-            # 粘性：site 已绑定过代理，且仍可用
-            if site and site in self._sticky:
-                sticky_url = self._sticky[site]
-                for p in self._proxies:
-                    if p.url == sticky_url and p.is_available:
-                        p.last_used = time.time()
-                        return p.url
+            # 显式 force_rotate：解除当前 site 粘性绑定
+            if site and force_rotate:
+                self._sticky.pop(site, None)
+            # 注：默认不再检查 _sticky（之前的粘性把所有请求压到 1 个代理）
 
             # 找候选：tier 匹配 + 可用
             candidates = [p for p in self._proxies
@@ -121,13 +120,12 @@ class ProxyPool:
             if not candidates:
                 return None
 
-            # round-robin：从全局 index 选下一个候选
+            # round-robin：从全局 index 选下一个候选（每次都换，不再粘性）
             n = len(candidates)
             self._index = (self._index + 1) % n
             chosen = candidates[self._index]
             chosen.last_used = time.time()
-            if site:
-                self._sticky[site] = chosen.url
+            # 不再写入 _sticky，让每次调用都轮换
             return chosen.url
 
     def report_success(self, url: str):

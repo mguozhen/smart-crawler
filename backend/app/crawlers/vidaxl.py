@@ -164,20 +164,19 @@ class VidaxlCrawler(BaseCrawler):
             f"路径2 storefront：{len(prod_sitemaps)} 个商品 sitemap，"
             f"本次抓取 {len(targets)} 个商品")
 
-        # 走代理池：失败时 report 让 proxy_pool 自动剔除
+        # 走代理池：每个 SKU 都轮换代理（避免单代理被压死）
         from .. import proxy_pool
         ok = 0
         fail = 0
         for url in targets:
+            # 每个请求重新取一个代理（轮换，10 代理均衡）
+            cur_proxy = proxy_pool.get_proxy("residential")
+            if cur_proxy:
+                sess.proxies = {"http": cur_proxy, "https": cur_proxy}
             try:
                 resp = sess.get(url, timeout=30)
                 if resp.status_code in (429, 403):
-                    # 被封：硬剔除当前代理，重新拿
-                    proxy_pool.report_failure(self.proxy, hard=True)
-                    self.proxy = proxy_pool.get_proxy("residential",
-                                                      site=self.site.site)
-                    if self.proxy:
-                        sess.proxies = {"http": self.proxy, "https": self.proxy}
+                    proxy_pool.report_failure(cur_proxy, hard=True)
                     fail += 1
                     result.notes.append(f"⚠ 代理被封 → 切换 ({fail})")
                     continue
@@ -187,9 +186,9 @@ class VidaxlCrawler(BaseCrawler):
                 if row:
                     result.products.append(row)
                     ok += 1
-                proxy_pool.report_success(self.proxy)
+                proxy_pool.report_success(cur_proxy)
             except Exception as exc:
-                proxy_pool.report_failure(self.proxy)
+                proxy_pool.report_failure(cur_proxy)
                 fail += 1
                 result.notes.append(f"跳过 {url[:50]}: {exc}")
             self.sleep()

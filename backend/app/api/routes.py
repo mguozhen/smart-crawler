@@ -387,15 +387,22 @@ def scheduler_jobs():
 def export_products(token: str, site: str | None = None,
                     sites: str | None = None,
                     categories: str | None = None,
+                    format: str = "xlsx",
+                    include_price_history: bool = False,
+                    include_voc: bool = False,
+                    include_images: bool = True,
+                    split_by_category: bool = False,
                     db: Session = Depends(get_db)):
-    """导出 Excel。
-    - site=foo：单站点
-    - sites=a,b,c：多站点（| 或 , 分隔）
-    - categories=cat1|cat2：品类过滤（| 分隔），无品类时下载站内全部
+    """导出产品数据，支持多格式 + 4 个 toggle。
+    - site=foo：单站点；sites=a,b,c：多站点（| 或 , 分隔）
+    - categories=cat1|cat2：品类过滤（无品类则全站）
+    - format=xlsx|csv|json|zip
+    - include_price_history / include_voc：xlsx 额外加 sheet
+    - include_images：xlsx 全字段表是否含 image_urls 列
+    - split_by_category：xlsx 是否按品类拆 sheet
     """
     if not verify_token(token):
         raise HTTPException(401, "未登录或登录已过期")
-    # 兼容 site 单数 / sites 复数
     site_list = None
     if sites:
         site_list = [s.strip() for s in sites.replace(",", "|").split("|") if s.strip()]
@@ -403,17 +410,49 @@ def export_products(token: str, site: str | None = None,
         site_list = [site]
     cat_list = [c.strip() for c in categories.split("|")
                 if c.strip()] if categories else None
-    data = export_workbook(db, site_list, categories=cat_list)
+
+    from ..export import export_workbook, export_csv, export_json, export_zip
     site_suffix = (site_list[0] if site_list and len(site_list) == 1
                    else f"{len(site_list)}sites" if site_list else "all")
     cat_suffix = "_".join(c.replace("/","-") for c in (cat_list or []))[:40]
-    fname = (f"smart-crawler_{site_suffix}"
-             f"{('_'+cat_suffix) if cat_suffix else ''}_{datetime.now():%Y%m%d}.xlsx")
+    base_name = (f"smart-crawler_{site_suffix}"
+                 f"{('_'+cat_suffix) if cat_suffix else ''}_{datetime.now():%Y%m%d}")
+
+    fmt = (format or "xlsx").lower()
+    workbook_kwargs = dict(
+        include_price_history=include_price_history,
+        include_voc=include_voc,
+        include_images=include_images,
+        split_by_category=split_by_category,
+    )
+
+    if fmt == "csv":
+        data = export_csv(db, site_list, categories=cat_list)
+        return StreamingResponse(
+            io.BytesIO(data), media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}.csv"'},
+        )
+    if fmt == "json":
+        data = export_json(db, site_list, categories=cat_list)
+        return StreamingResponse(
+            io.BytesIO(data), media_type="application/json; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}.json"'},
+        )
+    if fmt == "zip":
+        data = export_zip(db, site_list or [], categories=cat_list,
+                          **workbook_kwargs)
+        return StreamingResponse(
+            io.BytesIO(data), media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}.zip"'},
+        )
+
+    # 默认 xlsx
+    data = export_workbook(db, site_list, categories=cat_list, **workbook_kwargs)
     return StreamingResponse(
         io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument."
                    "spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        headers={"Content-Disposition": f'attachment; filename="{base_name}.xlsx"'},
     )
 
 
@@ -421,32 +460,119 @@ def export_products(token: str, site: str | None = None,
 @router.get("/categories/cross")
 def categories_cross(sites: str = "", db: Session = Depends(get_db)):
     """跨站点品类汇总。优先从 Category 表取，缺数据时降级到 Product.category_path 去重。
-    返回 {site: [{name, product_count, source}], ...}。
-    没品类数据的站点返回空列表（前端降级到「全站下载」）。
+    返回 {site: [{name, product_count, source, parent_id, level, category_id}], ...}。
+    parent_id / level / category_id 用于前端建树（无 Category 表数据时为 null）。
     """
     site_list = [s.strip() for s in sites.replace(",", "|").split("|") if s.strip()]
     if not site_list:
         return {}
     result: dict[str, list] = {}
     for s in site_list:
-        # 优先 Category 表
         cats = db.query(Category).filter(Category.site == s).all()
         if cats:
             result[s] = [{
                 "name": c.category_name or "(unnamed)",
+                "category_id": c.category_id,
+                "parent_id": c.parent_id,
+                "level": c.level,
                 "product_count": c.product_count or 0,
                 "source": "category-tree",
             } for c in cats if c.category_name]
         else:
-            # 降级：从 Product.category_path distinct
             rows = db.query(Product.category_path, func.count(Product.id)).filter(
                 Product.site == s,
                 Product.category_path.isnot(None)).group_by(
                 Product.category_path).all()
             result[s] = [{
-                "name": p, "product_count": n, "source": "product-path"
+                "name": p, "category_id": None, "parent_id": None,
+                "level": None, "product_count": n, "source": "product-path"
             } for p, n in rows if p]
     return result
+
+
+# ---------- 导出预览（drawer 实时统计）----------
+@public_router.get("/export/preview")
+def export_preview(token: str, site: str | None = None,
+                   sites: str | None = None,
+                   categories: str | None = None,
+                   include_price_history: bool = False,
+                   include_voc: bool = False,
+                   db: Session = Depends(get_db)):
+    """轻量 count 查询返回 7 项预览统计。前端实时调用。"""
+    if not verify_token(token):
+        raise HTTPException(401, "未登录或登录已过期")
+
+    site_list = None
+    if sites:
+        site_list = [s.strip() for s in sites.replace(",", "|").split("|") if s.strip()]
+    elif site:
+        site_list = [site]
+    cat_list = [c.strip() for c in categories.split("|")
+                if c.strip()] if categories else None
+
+    # SKU 查询
+    from sqlalchemy import or_
+    pq = db.query(Product)
+    if site_list:
+        pq = pq.filter(Product.site.in_(site_list)) if len(site_list) > 1 \
+            else pq.filter(Product.site == site_list[0])
+    if cat_list:
+        pq = pq.filter(or_(*[Product.category_path.ilike(f"%{c}%")
+                             for c in cat_list]))
+    sku_count = pq.count()
+    skus = [r[0] for r in pq.with_entities(Product.sku).all() if r[0]]
+
+    # 促销
+    promo_q = db.query(Promotion)
+    if site_list:
+        promo_q = promo_q.filter(Promotion.site.in_(site_list))
+    if skus:
+        promo_q = promo_q.filter(Promotion.sku.in_(skus))
+    promo_count = promo_q.count() if skus else 0
+
+    # 品类数
+    cq = db.query(Product.category_path).filter(Product.category_path.isnot(None))
+    if site_list:
+        cq = cq.filter(Product.site.in_(site_list))
+    if cat_list:
+        cq = cq.filter(or_(*[Product.category_path.ilike(f"%{c}%")
+                             for c in cat_list]))
+    category_count = cq.distinct().count()
+
+    # 价格历史 / 评论（仅 toggle 开时计数）
+    price_history_rows = 0
+    review_count = 0
+    if include_price_history and skus:
+        from datetime import date, timedelta
+        cutoff = date.today() - timedelta(days=90)
+        price_history_rows = db.query(PriceHistory).filter(
+            PriceHistory.date >= cutoff,
+            PriceHistory.sku.in_(skus)).count()
+    if include_voc and skus:
+        review_count = db.query(Review).filter(
+            Review.sku.in_(skus)).count()
+        # 限 10/sku：实际导出量上限 = sku_count × 10
+        review_count = min(review_count, len(skus) * 10)
+
+    # 文件大小估算：每 SKU ~5KB xlsx + price ~80B/行 + review ~1KB/条
+    size_bytes = (sku_count * 5_000
+                  + price_history_rows * 80
+                  + review_count * 1_000)
+    file_size_mb = round(size_bytes / 1_000_000, 2)
+
+    # 耗时估算：每 SKU 0.03s
+    duration_sec = max(2, round(sku_count * 0.03 + price_history_rows * 0.0005
+                                + review_count * 0.01))
+
+    return {
+        "category_count": category_count,
+        "sku_count": sku_count,
+        "promo_count": promo_count,
+        "price_history_rows": price_history_rows,
+        "review_count": review_count,
+        "file_size_mb": file_size_mb,
+        "duration_sec": duration_sec,
+    }
 
 
 # ---------- 代理池状态 ----------
