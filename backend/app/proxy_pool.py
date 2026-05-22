@@ -54,9 +54,11 @@ class ProxyEntry:
 
 class ProxyPool:
     def __init__(self):
+        import random
         self._lock = threading.Lock()
         self._proxies: list[ProxyEntry] = []
-        self._index: int = 0       # round-robin pointer
+        # 每个 process 随机起始 index，避免多个 runner 都从 0 开始压到同 1 个代理
+        self._index: int = random.randint(0, 9999)
         self._sticky: dict[str, str] = {}   # site -> proxy URL（粘性会话）
         self._loaded = False
 
