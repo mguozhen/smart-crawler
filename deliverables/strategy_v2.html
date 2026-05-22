@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart-Crawler 战略 v2 · 周末 48h 落地</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif}
+html{scroll-behavior:smooth}
+body{background:#0a0a14;color:#e0e0e0;font-size:14.5px;line-height:1.65}
+a{color:#a78bfa;text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* nav */
+nav{position:sticky;top:0;z-index:50;background:rgba(10,10,20,.92);backdrop-filter:blur(12px);
+    border-bottom:1px solid #1f1f2e;padding:0 28px;height:54px;display:flex;align-items:center;gap:24px}
+.nav-logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:0.95rem}
+.nav-dot{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#a78bfa,#ec4899);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#000}
+.nav-links{display:flex;gap:22px;margin-left:auto;font-size:0.82rem;color:#666}
+.nav-links a:hover{color:#a78bfa;text-decoration:none}
+
+/* hero */
+.hero{background:radial-gradient(ellipse 90% 70% at 50% 0%, rgba(167,139,250,.20), transparent 60%),
+                radial-gradient(ellipse 50% 60% at 80% 50%, rgba(236,72,153,.12), transparent 60%),
+                linear-gradient(180deg,#0a0a14,#15101f);
+       padding:70px 32px 60px;text-align:center;position:relative;overflow:hidden}
+.hero-tag{display:inline-flex;align-items:center;gap:8px;padding:5px 14px;background:rgba(167,139,250,.12);
+          border:1px solid rgba(167,139,250,.4);border-radius:24px;font-size:0.74rem;color:#c4b5fd;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:18px}
+.hero-tag .dot{width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{font-size:3rem;font-weight:800;letter-spacing:-1.5px;line-height:1.1;margin-bottom:14px}
+.hero h1 .grad{background:linear-gradient(90deg,#ff6b35,#f7b731,#4ecdc4,#a78bfa,#ec4899);
+               -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero h2{font-size:1.1rem;font-weight:500;color:#94a3b8;margin-bottom:14px;letter-spacing:0.2px}
+.hero h2 .accent{color:#f7b731;font-weight:700}
+.hero-stat{display:flex;justify-content:center;gap:36px;margin-top:24px;flex-wrap:wrap}
+.hero-stat-item{display:flex;flex-direction:column;align-items:center}
+.hero-stat-val{font-size:1.6rem;font-weight:800;background:linear-gradient(90deg,#a78bfa,#ec4899);
+               -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-stat-lbl{font-size:0.72rem;color:#566;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+.hero-meta{margin-top:22px;font-size:0.78rem;color:#475569}
+
+/* section */
+section{max-width:1180px;margin:0 auto;padding:56px 28px}
+.sec-label{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:18px;
+           font-size:0.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
+.sec-label.purple{background:rgba(167,139,250,.15);color:#c4b5fd;border:1px solid rgba(167,139,250,.3)}
+.sec-label.gold{background:rgba(247,183,49,.15);color:#f7b731;border:1px solid rgba(247,183,49,.3)}
+.sec-label.red{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3)}
+.sec-label.green{background:rgba(16,185,129,.15);color:#6ee7b7;border:1px solid rgba(16,185,129,.3)}
+.sec-label.blue{background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.3)}
+section h2{font-size:1.9rem;font-weight:800;letter-spacing:-0.5px;margin-bottom:8px;color:#fff}
+section .lede{color:#94a3b8;font-size:0.94rem;margin-bottom:28px;max-width:760px;line-height:1.7}
+
+/* hero RFP cards */
+.rfp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:22px}
+.rfp-card{background:linear-gradient(135deg,#16162a,#1c1428);border:1px solid #2a2a3e;border-radius:14px;
+          padding:18px 20px;position:relative;transition:all .25s}
+.rfp-card:hover{transform:translateY(-2px);border-color:#3b3a55;box-shadow:0 12px 36px rgba(0,0,0,.4)}
+.rfp-card.hot{border-color:#10b981;background:linear-gradient(135deg,#0e1a18,#0a2519)}
+.rfp-card.warm{border-color:#f59e0b;background:linear-gradient(135deg,#1a160c,#251a08)}
+.rfp-card.cold{border-color:#475569;background:#13131f}
+.rfp-card .badge{position:absolute;top:14px;right:14px;font-size:0.66rem;font-weight:800;padding:2px 9px;border-radius:11px;letter-spacing:0.5px}
+.rfp-card.hot .badge{background:#10b981;color:#000}
+.rfp-card.warm .badge{background:#f59e0b;color:#000}
+.rfp-card.cold .badge{background:#475569;color:#fff}
+.rfp-emoji{font-size:1.6rem;margin-bottom:6px}
+.rfp-card h3{font-size:1.05rem;font-weight:800;margin-bottom:5px;color:#fff}
+.rfp-card .desc{font-size:0.78rem;color:#94a3b8;margin-bottom:11px;line-height:1.5}
+.rfp-match{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.rfp-match-num{font-size:1.7rem;font-weight:800;line-height:1}
+.rfp-match-num.green{color:#10b981}.rfp-match-num.orange{color:#f59e0b}.rfp-match-num.red{color:#ef4444}
+.rfp-match-lbl{font-size:0.7rem;color:#666;text-transform:uppercase;letter-spacing:1px}
+.rfp-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.rfp-tag{font-size:0.66rem;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,.05);color:#94a3b8}
+
+/* common needs */
+.common{background:linear-gradient(135deg,#0f0f1e,#161628);border:1px solid #1f1f3a;border-radius:12px;padding:20px 24px;margin-top:18px}
+.common h4{font-size:0.85rem;color:#a78bfa;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:13px;font-weight:700}
+.common-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;font-size:0.84rem}
+.common-list li{list-style:none;padding:6px 0;color:#cbd5e1;display:flex;align-items:center;gap:7px}
+
+/* competitor table */
+.compare-table{background:#13131f;border:1px solid #1f1f2e;border-radius:14px;overflow:hidden;margin-top:14px}
+table{width:100%;border-collapse:collapse;font-size:0.84rem}
+thead{background:linear-gradient(135deg,#1c1c2e,#16162a)}
+th{text-align:left;padding:13px 16px;color:#94a3b8;font-weight:700;font-size:0.72rem;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #2a2a3e}
+td{padding:14px 16px;border-bottom:1px solid #1f1f2e;color:#cbd5e1;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr.us{background:linear-gradient(90deg,rgba(167,139,250,.10),rgba(236,72,153,.05))}
+tr.us td{color:#fff;font-weight:600}
+tr.us .star{background:linear-gradient(90deg,#a78bfa,#ec4899);color:#000;padding:2px 9px;border-radius:11px;font-size:0.7rem;font-weight:800;margin-right:4px}
+tr:hover{background:rgba(255,255,255,.02)}
+.tcheck{color:#10b981}.tcross{color:#ef4444}.twarn{color:#f59e0b}
+
+/* scrapling section */
+.scrap-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:18px;align-items:center;margin-top:18px}
+.scrap-box{background:linear-gradient(135deg,#16162a,#1c1428);border:1px solid #2a2a3e;border-radius:14px;padding:20px 22px}
+.scrap-box.them{border-color:#475569}
+.scrap-box.us{border-color:#a78bfa;background:linear-gradient(135deg,rgba(167,139,250,.08),rgba(236,72,153,.04))}
+.scrap-box h3{font-size:1.1rem;font-weight:700;margin-bottom:5px;color:#fff;display:flex;align-items:center;gap:8px}
+.scrap-box .label{font-size:0.72rem;color:#94a3b8;margin-bottom:13px}
+.scrap-box ul{list-style:none}
+.scrap-box li{font-size:0.82rem;color:#cbd5e1;padding:4px 0;display:flex;align-items:flex-start;gap:7px}
+.scrap-box li::before{content:'▸';color:#a78bfa;flex-shrink:0}
+.arrow{font-size:2.4rem;color:#475569;text-align:center}
+
+/* positioning hero */
+.positioning{background:linear-gradient(135deg,#1c0e30,#0f0a23);border-radius:18px;padding:40px 36px;text-align:center;margin-top:18px}
+.positioning .accent{color:#f7b731;font-weight:800}
+.positioning h2{font-size:2.2rem;font-weight:900;letter-spacing:-1px;line-height:1.2;margin-bottom:18px}
+.positioning h2 .grad{background:linear-gradient(90deg,#a78bfa,#ec4899,#f7b731);
+                      -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.positioning p{color:#94a3b8;font-size:0.95rem;max-width:660px;margin:0 auto 26px;line-height:1.7}
+.moat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+.moat{background:rgba(255,255,255,.03);border:1px solid #2a2a3e;border-radius:12px;padding:18px 20px;text-align:left}
+.moat-num{display:inline-block;width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#ec4899);color:#000;font-weight:800;font-size:0.85rem;display:flex;align-items:center;justify-content:center;margin-bottom:9px}
+.moat h4{font-size:1rem;color:#fff;font-weight:700;margin-bottom:5px}
+.moat p{font-size:0.8rem;color:#94a3b8;line-height:1.55;margin:0}
+
+/* decision cards (抽卡) */
+.deck{display:grid;gap:14px;margin-top:14px}
+.deck.cols-2{grid-template-columns:1fr 1fr}
+.deck.cols-3{grid-template-columns:repeat(3,1fr)}
+.deck.cols-4{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.card{background:linear-gradient(135deg,#13131f,#1a1226);border:2px solid #2a2a3e;border-radius:14px;
+      padding:22px 22px;cursor:pointer;transition:all .2s;position:relative}
+.card:hover{transform:translateY(-3px);border-color:#5b5670;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.card.selected{border-color:#a78bfa;background:linear-gradient(135deg,rgba(167,139,250,.12),rgba(236,72,153,.06))}
+.card.selected::after{content:'✓';position:absolute;top:14px;right:14px;width:26px;height:26px;
+                      background:#a78bfa;color:#000;font-weight:800;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.card .ribbon{position:absolute;top:-10px;left:18px;padding:4px 11px;font-size:0.66rem;font-weight:800;letter-spacing:1px;border-radius:11px;text-transform:uppercase}
+.ribbon.recommend{background:linear-gradient(90deg,#10b981,#059669);color:#000}
+.ribbon.warn{background:linear-gradient(90deg,#f59e0b,#dc2626);color:#fff}
+.ribbon.pass{background:#475569;color:#fff}
+.card-icon{font-size:2rem;margin-bottom:8px;line-height:1}
+.card h3{font-size:1.05rem;font-weight:800;color:#fff;margin-bottom:5px}
+.card .tagline{font-size:0.76rem;color:#a78bfa;font-weight:600;letter-spacing:0.3px;margin-bottom:10px}
+.card p{font-size:0.83rem;color:#cbd5e1;line-height:1.55}
+.card-meta{margin-top:12px;padding-top:11px;border-top:1px solid #2a2a3e;display:flex;justify-content:space-between;font-size:0.74rem;color:#94a3b8}
+.card-meta strong{color:#fff}
+
+/* roadmap */
+.roadmap{margin-top:18px}
+.day{background:#13131f;border:1px solid #1f1f2e;border-radius:14px;padding:18px 22px;margin-bottom:12px}
+.day h3{font-size:1.05rem;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:9px}
+.day h3 .badge{background:linear-gradient(90deg,#a78bfa,#ec4899);color:#000;padding:2px 11px;border-radius:11px;font-size:0.72rem}
+.tasks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.task{background:rgba(255,255,255,.03);border-left:3px solid #a78bfa;padding:9px 14px;border-radius:0 7px 7px 0;font-size:0.82rem}
+.task strong{display:block;color:#fff;margin-bottom:2px}
+.task span{color:#94a3b8;font-size:0.78rem}
+
+/* submit */
+.submit{background:linear-gradient(135deg,rgba(167,139,250,.12),rgba(236,72,153,.06));
+        border:2px solid rgba(167,139,250,.3);border-radius:18px;padding:36px;text-align:center;margin-top:38px}
+.submit h2{font-size:1.5rem;font-weight:800;margin-bottom:9px;background:linear-gradient(90deg,#a78bfa,#ec4899);
+           -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.submit p{color:#94a3b8;margin-bottom:18px;font-size:0.92rem}
+.summary-box{background:#0a0a14;border:1px solid #2a2a3e;border-radius:11px;padding:16px 20px;margin-bottom:20px;text-align:left;font-family:'SF Mono',monospace;font-size:0.85rem;color:#cbd5e1;line-height:2}
+.summary-box .key{color:#a78bfa}
+.summary-box .val{color:#10b981;font-weight:700}
+.btn-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{padding:12px 24px;border-radius:25px;font-size:0.92rem;font-weight:700;text-decoration:none;
+     display:inline-flex;align-items:center;gap:7px;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:linear-gradient(135deg,#a78bfa,#ec4899);color:#000;box-shadow:0 6px 18px rgba(167,139,250,.35)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 9px 22px rgba(167,139,250,.45)}
+.btn-secondary{background:rgba(255,255,255,.04);color:#cbd5e1;border:1px solid #2a2a3e}
+.btn-secondary:hover{background:rgba(255,255,255,.08)}
+
+footer{padding:36px;color:#475569;font-size:0.82rem;text-align:center;background:#0a0a14;border-top:1px solid #1f1f2e;margin-top:20px}
+
+@media(max-width:900px){
+  .hero h1{font-size:2rem}
+  .deck.cols-3,.deck.cols-4{grid-template-columns:1fr}
+  .moat-grid{grid-template-columns:1fr}
+  .scrap-grid{grid-template-columns:1fr}
+  .arrow{transform:rotate(90deg)}
+  .tasks{grid-template-columns:1fr}
+  section{padding:36px 18px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <div class="nav-logo">
+    <div class="nav-dot">SC</div>
+    smart-crawler · 战略 v2
+  </div>
+  <div class="nav-links">
+    <a href="#market">市场</a>
+    <a href="#compete">竞争</a>
+    <a href="#scrapling">Scrapling</a>
+    <a href="#position">定位</a>
+    <a href="#decisions">抽卡</a>
+    <a href="#roadmap">48h</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<div class="hero">
+  <div class="hero-tag"><span class="dot"></span>战略讨论 · 周末 48h 落地</div>
+  <h1>做电商品牌领域<br>最 <span class="grad">牛逼</span> 的爬虫和 VOC 平台</h1>
+  <h2>读完 <span class="accent">9 份 RFP</span> · 调研 <span class="accent">10 个对手</span> · 提炼 <span class="accent">4 个决策</span></h2>
+  <div class="hero-stat">
+    <div class="hero-stat-item"><div class="hero-stat-val">9</div><div class="hero-stat-lbl">RFP 文件</div></div>
+    <div class="hero-stat-item"><div class="hero-stat-val">4</div><div class="hero-stat-lbl">头部客户</div></div>
+    <div class="hero-stat-item"><div class="hero-stat-val">88</div><div class="hero-stat-lbl">目标平台</div></div>
+    <div class="hero-stat-item"><div class="hero-stat-val">10</div><div class="hero-stat-lbl">对手调研</div></div>
+    <div class="hero-stat-item"><div class="hero-stat-val">48h</div><div class="hero-stat-lbl">周末落地</div></div>
+  </div>
+  <div class="hero-meta">2026-05-22 · 战略讨论稿，决策完直接 sprint</div>
+</div>
+
+<!-- ── SECTION 1 · 市场真相 ── -->
+<section id="market">
+  <span class="sec-label purple">① 市场真相</span>
+  <h2>9 份 RFP 暴露的真实需求图谱</h2>
+  <p class="lede">这不是 4 个独立客户在发标书 — 是同一个市场缺口的 4 个证据点。海外消费品牌都在到处拼装方案：自己找 BrightData 买 IP、找 Brandwatch 做 social listening、找开发外包写爬虫。<strong style="color:#fff">中端 VOC SaaS 市场是空白</strong>。</p>
+
+  <div class="rfp-grid">
+    <div class="rfp-card hot">
+      <span class="badge">命中 90%</span>
+      <div class="rfp-emoji">🏠</div>
+      <h3>遨森 (Aosom)</h3>
+      <div class="desc">家居出海 · 46 站独立站 + 21 评论平台 + Dashboard</div>
+      <div class="rfp-match"><span class="rfp-match-num green">90%</span><span class="rfp-match-lbl">已有 SRS v1.0 · RFP-ready</span></div>
+      <div class="rfp-meta">
+        <span class="rfp-tag">46 站</span><span class="rfp-tag">21 评论</span><span class="rfp-tag">5-50 万 SKU</span><span class="rfp-tag">已建</span>
+      </div>
+    </div>
+    <div class="rfp-card warm">
+      <span class="badge">命中 40%</span>
+      <div class="rfp-emoji">📱</div>
+      <h3>VIVO 电商</h3>
+      <div class="desc">Amazon/Lazada/Shopee/Reddit/GSMArena 舆情</div>
+      <div class="rfp-match"><span class="rfp-match-num orange">40%</span><span class="rfp-match-lbl">亿条/年 · POC 5/6 实战考核</span></div>
+      <div class="rfp-meta">
+        <span class="rfp-tag">15+ 平台</span><span class="rfp-tag">28 字段</span><span class="rfp-tag">API 交付</span>
+      </div>
+    </div>
+    <div class="rfp-card cold">
+      <span class="badge">命中 15%</span>
+      <div class="rfp-emoji">📲</div>
+      <h3>VIVO 社媒</h3>
+      <div class="desc">FB/IG/TikTok/X/YouTube + ASR + 14 国 14 品牌</div>
+      <div class="rfp-match"><span class="rfp-match-num red">15%</span><span class="rfp-match-lbl">投入大 · ASR + 多语 NLP</span></div>
+      <div class="rfp-meta">
+        <span class="rfp-tag">5 平台</span><span class="rfp-tag">367 账号</span><span class="rfp-tag">亿条/年</span>
+      </div>
+    </div>
+    <div class="rfp-card cold">
+      <span class="badge">命中 20%</span>
+      <div class="rfp-emoji">🚗</div>
+      <h3>极氪 (Zeekr)</h3>
+      <div class="desc">21 国 · 汽车垂媒 + 社媒 + 应用商店</div>
+      <div class="rfp-match"><span class="rfp-match-num red">20%</span><span class="rfp-match-lbl">Shulex 已交标 · 商务 70% 权重</span></div>
+      <div class="rfp-meta">
+        <span class="rfp-tag">日 1000 万</span><span class="rfp-tag">15min 延迟</span><span class="rfp-tag">GDPR</span>
+      </div>
+    </div>
+    <div class="rfp-card warm">
+      <span class="badge">命中 50%</span>
+      <div class="rfp-emoji">🏢</div>
+      <h3>海尔 (Haier)</h3>
+      <div class="desc">海外友商官网 + 电商 + 社媒 · 资源池按订单</div>
+      <div class="rfp-match"><span class="rfp-match-num orange">50%</span><span class="rfp-match-lbl">数据不跨境 · 长决策周期</span></div>
+      <div class="rfp-meta">
+        <span class="rfp-tag">未指定站</span><span class="rfp-tag">资源池</span><span class="rfp-tag">不跨境</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="common">
+    <h4>📋 4 客户共性需求（决定我们必做的事）</h4>
+    <ul class="common-list">
+      <li>🌍 <strong>100% 海外</strong>（88 平台 0 国内）</li>
+      <li>⚡ <strong>实时性</strong>（主贴 24h / 评论 48h / 重大舆情 15min）</li>
+      <li>🤖 <strong>API + Dashboard 双交付</strong></li>
+      <li>🌐 <strong>多语种 NLP 不翻译</strong>（PT/RO/PL/NL 等小语种原文分析）</li>
+      <li>🔒 <strong>合规</strong>（GDPR / 不跨境 / ISO27001）</li>
+      <li>📊 <strong>量级跨度</strong> 5 万 SKU → 1000 万/日</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ── SECTION 2 · 竞争格局 ── -->
+<section id="compete">
+  <span class="sec-label gold">② 竞争格局</span>
+  <h2>10 个对手放一张表 · 我们在中间空白</h2>
+  <p class="lede">上层贵到品牌方买不起（Brandwatch ¥35w+/年），下层是工具不是产品（MediaCrawler 让 CMO 自己跑？）。中端品牌方 VOC SaaS = 真·空白市场。</p>
+
+  <div class="compare-table">
+    <table>
+      <thead>
+        <tr>
+          <th>玩家</th><th>定位</th><th>定价</th><th>中文电商 VOC</th><th>关键弱点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>BrightData</strong></td><td>Infra 水管</td><td>$0.9-1.5/1k records</td><td><span class="tcross">❌</span> 不懂</td><td>无 NLP · 服务 AI 公司不服务品牌</td></tr>
+        <tr><td><strong>Apify</strong></td><td>Actor marketplace</td><td>$29-$999/月 + CU</td><td><span class="tcross">❌</span> 弱</td><td>开发者工具 · 非业务用户</td></tr>
+        <tr><td><strong>Brandwatch</strong></td><td>企业 social listening</td><td>$50k+/年</td><td><span class="tcross">❌</span> 英文为主</td><td>太贵 · 中文电商深度差</td></tr>
+        <tr><td><strong>Sprinklr / Talkwalker</strong></td><td>Enterprise CXM</td><td>$50-500k/年</td><td><span class="tcross">❌</span> 弱</td><td>企业级专属 · 不接中小</td></tr>
+        <tr><td><strong>Octoparse</strong></td><td>无代码模板</td><td>$69-$249/月</td><td><span class="twarn">⚠</span> 通用</td><td>没有 VOC 分析层</td></tr>
+        <tr><td><strong>Diffbot</strong></td><td>AI 自动结构化</td><td>$299-$899/月</td><td><span class="tcross">❌</span></td><td>不做 vertical · 没行业模板</td></tr>
+        <tr><td><strong>Scrapling</strong> (52k⭐)</td><td>反爬底层 fetcher</td><td>开源 (赞助变现)</td><td><span class="tcross">❌</span></td><td>明确不做 SaaS · 是我们供应商</td></tr>
+        <tr><td><strong>MediaCrawler</strong> (30k⭐)</td><td>国内 6 大社媒 SDK</td><td>开源 / Pro 询价</td><td><span class="tcheck">✅</span> 但工具</td><td>非平台 · 无 NAS 部署 · 无 NLP</td></tr>
+        <tr class="us">
+          <td><span class="star">★</span><strong>smart-crawler</strong></td>
+          <td>品牌方 VOC 闭环 SaaS</td>
+          <td>年单 ¥10-30 万/家</td>
+          <td><span class="tcheck">✅</span> 核心</td>
+          <td>← 我们在这个空白</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── SECTION 3 · Scrapling 关系 ── -->
+<section id="scrapling">
+  <span class="sec-label blue">③ Scrapling 关系</span>
+  <h2>52k⭐ 不撞车 · 我们用它，不和它打</h2>
+  <p class="lede">Scrapling 主动选择不做 SaaS，收入靠代理商赞助 + 开源流量。和我们错位 — 它是反爬底层供应商，我们是业务闭环平台。我们 <code style="background:#1f1f2e;padding:2px 7px;border-radius:4px;color:#a78bfa">requirements.txt</code> 已经依赖它。</p>
+
+  <div class="scrap-grid">
+    <div class="scrap-box them">
+      <h3>🛠️ Scrapling 干什么</h3>
+      <div class="label">反爬底层 fetcher · 52k⭐</div>
+      <ul>
+        <li>StealthyFetcher 破 Cloudflare/Turnstile</li>
+        <li>DynamicFetcher (Playwright SPA)</li>
+        <li>ProxyRotator + DoH</li>
+        <li>JSON/JSONL 输出</li>
+        <li>2ms 解析 5000 嵌套元素</li>
+      </ul>
+    </div>
+    <div class="arrow">→ 喂数据 →</div>
+    <div class="scrap-box us">
+      <h3>🎯 smart-crawler 干什么</h3>
+      <div class="label">业务闭环平台 · 我们</div>
+      <ul>
+        <li>46 站 site-specific 解析</li>
+        <li>PG/SQLite 标杆库</li>
+        <li>VOC 情感聚类 + KOL 识别</li>
+        <li>MCP-first（Agent 时代分发）</li>
+        <li>客户案例 · 行业 playbook</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="common" style="margin-top:18px">
+    <h4>💡 战略启发</h4>
+    <ul class="common-list" style="grid-template-columns:1fr">
+      <li>✅ <strong>扩大 StealthyFetcher 使用面</strong> — 把所有高难度站（Amazon review/Walmart/Shopee）迁过去，减少自建 antiban 维护</li>
+      <li>✅ <strong>代理层可考虑切到 ProxyRotator</strong> — 替换 app/proxy.py 简单轮换</li>
+      <li>❌ <strong>不要 fork</strong> — 它月发 2-3 版，fork 即落后；保持 pip 依赖紧跟</li>
+      <li>🛡️ <strong>中文站点经验是壁垒</strong> — Scrapling 0 中文站验证，1688/淘宝/小红书是我们护城河</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ── SECTION 4 · 定位 ── -->
+<section id="position">
+  <span class="sec-label red">④ 战略定位</span>
+  <h2>一句话锚点</h2>
+
+  <div class="positioning">
+    <h2>「<span class="grad">中文 + 海外消费品牌</span><br>的 AI 时代 VOC 中台」</h2>
+    <p>BrightData 是水管 · Brandwatch 是英文世界的旧 dashboard · MediaCrawler 是程序员的工具<br>
+    我们是给 <span class="accent">中国出海 CMO</span> 看的 <span class="accent">决策中台</span></p>
+
+    <div class="moat-grid">
+      <div class="moat">
+        <div class="moat-num">1</div>
+        <h4>🗄️ 数据层</h4>
+        <p>46 站 + 88 平台站点适配 + 反爬维护 · 对手 6-12 个月追不上的工程消耗</p>
+      </div>
+      <div class="moat">
+        <div class="moat-num">2</div>
+        <h4>🧠 分析层</h4>
+        <p>中文 NLP + 多语种原文 + 行业 taxonomy（3C/美妆/家电/汽车）</p>
+      </div>
+      <div class="moat">
+        <div class="moat-num">3</div>
+        <h4>🤝 关系层</h4>
+        <p>VIVO/遨森/海尔案例 → 行业 playbook → 同业引荐网络（B2B 大客单的真护城河）</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SECTION 5 · 决策抽卡 ── -->
+<section id="decisions">
+  <span class="sec-label purple">⑤ 抽卡决策</span>
+  <h2>4 个决策点 · 拍板就能 sprint</h2>
+  <p class="lede">每组任选一张。点击卡片选择，最下方会汇总你的选择 + 一键发邮件给 Boyuan。</p>
+
+  <!-- 决策 ① -->
+  <div style="margin-top:32px">
+    <h3 style="font-size:1.2rem;margin-bottom:10px;color:#fff">🎴 决策 ① · 客户优先级 <span style="color:#94a3b8;font-size:0.84rem;font-weight:500">先打谁、放弃谁？</span></h3>
+    <div class="deck cols-4">
+      <div class="card" data-group="customer" data-val="aosom">
+        <span class="ribbon recommend">推荐</span>
+        <div class="card-icon">🏠</div>
+        <h3>遨森优先</h3>
+        <div class="tagline">90% 命中 · RFP-ready · 已建</div>
+        <p>SRS v1.0 已完成，46 站基本就绪。短期最快变现，跑通后做行业 case study。</p>
+        <div class="card-meta">
+          <span>耗时 <strong>2 周</strong></span>
+          <span>客单 <strong>¥10-30w</strong></span>
+        </div>
+      </div>
+      <div class="card" data-group="customer" data-val="vivo_ec">
+        <div class="card-icon">📱</div>
+        <h3>VIVO 电商优先</h3>
+        <div class="tagline">40% 命中 · 量级大</div>
+        <p>Amazon/Reddit/GSMArena 已有，补 Lazada/Shopee 即可吃 POC。但 1 亿条/年压力大。</p>
+        <div class="card-meta">
+          <span>耗时 <strong>4 周</strong></span>
+          <span>客单 <strong>¥50-100w</strong></span>
+        </div>
+      </div>
+      <div class="card" data-group="customer" data-val="haier">
+        <div class="card-icon">🏢</div>
+        <h3>海尔优先</h3>
+        <div class="tagline">50% 命中 · 长周期</div>
+        <p>资源池按订单计费灵活，但需求清单未明确 + 数据湖架构需重做。决策慢但单大。</p>
+        <div class="card-meta">
+          <span>耗时 <strong>6 周</strong></span>
+          <span>客单 <strong>¥30-80w</strong></span>
+        </div>
+      </div>
+      <div class="card" data-group="customer" data-val="zeekr_pass">
+        <span class="ribbon pass">PASS</span>
+        <div class="card-icon">🚗</div>
+        <h3>极氪 pass</h3>
+        <div class="tagline">Shulex 已交标 · 价格驱动</div>
+        <p>商务 70% 权重 + 公司 ≥5 年 + ISO27001 门槛。投入回报比差，建议放弃。</p>
+        <div class="card-meta">
+          <span>建议 <strong style="color:#ef4444">不投</strong></span>
+          <span>—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 决策 ② -->
+  <div style="margin-top:38px">
+    <h3 style="font-size:1.2rem;margin-bottom:10px;color:#fff">🎴 决策 ② · 商业模式 <span style="color:#94a3b8;font-size:0.84rem;font-weight:500">怎么收钱？</span></h3>
+    <div class="deck cols-4">
+      <div class="card" data-group="biz" data-val="annual">
+        <span class="ribbon recommend">推荐</span>
+        <div class="card-icon">💼</div>
+        <h3>年单 ¥10-30w</h3>
+        <div class="tagline">按客户打包 · CMO 可批</div>
+        <p>决策者预算可批 · 不卡 CFO · 长期 LTV 高 · 续约预期。VIVO/遨森年框模式契合。</p>
+        <div class="card-meta">
+          <span>毛利 <strong>70%+</strong></span>
+          <span>客单 <strong>¥10-30w</strong></span>
+        </div>
+      </div>
+      <div class="card" data-group="biz" data-val="per_record">
+        <div class="card-icon">📊</div>
+        <h3>按 record 计费</h3>
+        <div class="tagline">$0.5-1.5/1k records</div>
+        <p>撞 BrightData · 价格仗 · 没有差异化 · 客户决策慢。</p>
+        <div class="card-meta">
+          <span>毛利 <strong>30%</strong></span>
+          <span>风险 <strong style="color:#ef4444">高</strong></span>
+        </div>
+      </div>
+      <div class="card" data-group="biz" data-val="saas_month">
+        <div class="card-icon">📅</div>
+        <h3>月订阅 SaaS</h3>
+        <div class="tagline">¥999-9999/月</div>
+        <p>对标 Octoparse · toC 化但客户分散 · 中小品牌不一定能管理。</p>
+        <div class="card-meta">
+          <span>毛利 <strong>60%</strong></span>
+          <span>客单 <strong>¥1-10w</strong></span>
+        </div>
+      </div>
+      <div class="card" data-group="biz" data-val="hybrid">
+        <div class="card-icon">🎁</div>
+        <h3>混合套餐</h3>
+        <div class="tagline">年单 + 增值（NLP/报告）</div>
+        <p>基础年单 + 报告/NLP/MCP API 单独售卖。复杂度高，先做 MVP 再加。</p>
+        <div class="card-meta">
+          <span>毛利 <strong>65%</strong></span>
+          <span>客单 <strong>¥15-50w</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 决策 ③ -->
+  <div style="margin-top:38px">
+    <h3 style="font-size:1.2rem;margin-bottom:10px;color:#fff">🎴 决策 ③ · 能力建设顺序 <span style="color:#94a3b8;font-size:0.84rem;font-weight:500">先补哪些平台？</span></h3>
+    <div class="deck cols-3">
+      <div class="card" data-group="seq" data-val="ec_first">
+        <span class="ribbon recommend">推荐</span>
+        <div class="card-icon">🛒</div>
+        <h3>路径 A · 电商优先</h3>
+        <div class="tagline">Lazada/Shopee → Trustpilot → 社媒</div>
+        <p>4 周吃 VIVO 电商 + 遨森评论平台 · 6 周后再启动社媒 · 渐进可控。</p>
+        <div class="card-meta">
+          <span>顺序 <strong>电商 → 评论 → 社媒</strong></span>
+        </div>
+      </div>
+      <div class="card" data-group="seq" data-val="social_first">
+        <div class="card-icon">📲</div>
+        <h3>路径 B · 社媒优先</h3>
+        <div class="tagline">FB/IG/TikTok/X/YouTube</div>
+        <p>直接吃 VIVO 社媒亿条/年 · 但撞 Brandwatch · 反爬最严 · 投入 8-12 周。</p>
+        <div class="card-meta">
+          <span>顺序 <strong>社媒 → 电商 → 评论</strong></span>
+        </div>
+      </div>
+      <div class="card" data-group="seq" data-val="nlp_first">
+        <div class="card-icon">🧠</div>
+        <h3>路径 C · NLP 优先</h3>
+        <div class="tagline">先做分析层 → 再补平台</div>
+        <p>多语种情感聚类 · KOL 识别 · 报告生成。理论好，但客户等不及（拿不出新数据）。</p>
+        <div class="card-meta">
+          <span>顺序 <strong>NLP → 平台 → 报告</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 决策 ④ -->
+  <div style="margin-top:38px">
+    <h3 style="font-size:1.2rem;margin-bottom:10px;color:#fff">🎴 决策 ④ · VIVO 社媒 POC <span style="color:#94a3b8;font-size:0.84rem;font-weight:500">投不投？</span></h3>
+    <div class="deck cols-2">
+      <div class="card" data-group="vivo_social" data-val="pass">
+        <span class="ribbon recommend">推荐</span>
+        <div class="card-icon">⏸</div>
+        <h3>暂时 pass</h3>
+        <div class="tagline">投入 vs 中标概率不划算</div>
+        <p>5 平台 + 367 账号 + ASR + 14 国 14 品牌 + 多语 = 6 周加速团队都不够。<strong>且 VIVO 门槛是公司 ≥100 人</strong>。</p>
+      </div>
+      <div class="card" data-group="vivo_social" data-val="commit">
+        <span class="ribbon warn">激进</span>
+        <div class="card-icon">⚔️</div>
+        <h3>硬投</h3>
+        <div class="tagline">压力测试团队能力</div>
+        <p>需要 6 周加速 + 外包 ASR + 5 个开发。如果中标年单可能 ¥100-300w。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SECTION 6 · Roadmap ── -->
+<section id="roadmap">
+  <span class="sec-label green">⑥ 周末 48h Roadmap</span>
+  <h2>决策完 = 立刻开始</h2>
+  <p class="lede">不等周一不等下周 · 决策完成的下一秒就是 Day 1 上午 9 点。</p>
+
+  <div class="roadmap">
+    <div class="day">
+      <h3><span class="badge">DAY 1 上午</span> 战略锁定 · 4h</h3>
+      <div class="tasks">
+        <div class="task"><strong>① 客户优先级会议</strong><span>把抽卡决策固化进 OKR</span></div>
+        <div class="task"><strong>② 商业模式定价表</strong><span>10w / 20w / 30w 三档套餐</span></div>
+        <div class="task"><strong>③ 团队角色分工</strong><span>开发 / 销售 / 客户成功</span></div>
+        <div class="task"><strong>④ 销售 pipeline</strong><span>3-5 个目标客户首批 outreach</span></div>
+      </div>
+    </div>
+    <div class="day">
+      <h3><span class="badge">DAY 1 下午</span> 遨森 RFP 应答 · 4h</h3>
+      <div class="tasks">
+        <div class="task"><strong>① 包装交付方案 v1.0</strong><span>把现有 smart-crawler 写成投标稿</span></div>
+        <div class="task"><strong>② 缺口能力清单</strong><span>Trustpilot/Reviews.io/Google Map</span></div>
+        <div class="task"><strong>③ 报价 + SLA + 服务承诺</strong><span>覆盖率 95% + 数据延迟 5min</span></div>
+        <div class="task"><strong>④ 邮件 + 案例页发遨森</strong><span>带 demo URL</span></div>
+      </div>
+    </div>
+    <div class="day">
+      <h3><span class="badge">DAY 2 上午</span> VIVO 电商 POC 准备 · 4h</h3>
+      <div class="tasks">
+        <div class="task"><strong>① 解析 POC 题目</strong><span>5/6 实战窗口的 28 字段输出</span></div>
+        <div class="task"><strong>② Amazon/Reddit 适配验证</strong><span>关键词 vivo/iqoo 实测</span></div>
+        <div class="task"><strong>③ Lazada/Shopee 立项</strong><span>评估 2-3 天加速可行性</span></div>
+        <div class="task"><strong>④ POC 答辩 PPT</strong><span>1 页架构图 + 1 页 SLA</span></div>
+      </div>
+    </div>
+    <div class="day">
+      <h3><span class="badge">DAY 2 下午</span> 产品官网 + 案例页 · 4h</h3>
+      <div class="tasks">
+        <div class="task"><strong>① smartcrawler.io 重做首页</strong><span>新定位 + 3 case study</span></div>
+        <div class="task"><strong>② 客户案例脱敏</strong><span>遨森 / VIVO / Reddit playbook</span></div>
+        <div class="task"><strong>③ MCP tools 文档站</strong><span>已有的 12 工具产品化</span></div>
+        <div class="task"><strong>④ 周一开始 outreach</strong><span>50 家品牌方 email + 朋友圈</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SECTION 7 · 提交选择 ── -->
+<section>
+  <div class="submit">
+    <h2>📋 你的 4 个选择</h2>
+    <p>下面汇总你刚才在上面 4 组抽卡里的选择。点 <strong>发邮件给 Boyuan</strong> 直接拍板。</p>
+
+    <div class="summary-box" id="summary">
+      <div><span class="key">客户优先级：</span><span class="val" id="sum-customer">⏳ 未选</span></div>
+      <div><span class="key">商业模式：</span><span class="val" id="sum-biz">⏳ 未选</span></div>
+      <div><span class="key">能力顺序：</span><span class="val" id="sum-seq">⏳ 未选</span></div>
+      <div><span class="key">VIVO 社媒：</span><span class="val" id="sum-vivo_social">⏳ 未选</span></div>
+    </div>
+
+    <div class="btn-row">
+      <a class="btn btn-primary" id="mailto-btn" href="#">📧 一键发邮件给 Boyuan</a>
+      <a class="btn btn-secondary" href="https://github.com/mguozhen/smart-crawler/tree/feature/customer-design-cards" target="_blank">📦 GitHub 仓库</a>
+      <a class="btn btn-secondary" href="https://smartcrawler.io/app" target="_blank">🚀 当前产品</a>
+    </div>
+    <p style="margin-top:14px;font-size:0.78rem;color:#475569">选完决策 = 立即开始周末 48h sprint</p>
+  </div>
+</section>
+
+<footer>
+  smart-crawler · 战略 v2 · 2026-05-22 ·
+  9 RFP / 10 对手 / 4 决策 / 1 雄心 ·
+  <a href="https://smartcrawler.io">smartcrawler.io</a>
+</footer>
+
+<script>
+const labels = {
+  customer:{aosom:'🥇 遨森优先（推荐）',vivo_ec:'🥈 VIVO 电商优先',haier:'🥉 海尔优先',zeekr_pass:'❌ 极氪 pass'},
+  biz:{annual:'💼 年单 ¥10-30w',per_record:'📊 按 record',saas_month:'📅 月订阅',hybrid:'🎁 混合套餐'},
+  seq:{ec_first:'A · 电商优先（推荐）',social_first:'B · 社媒优先',nlp_first:'C · NLP 优先'},
+  vivo_social:{pass:'⏸ 暂时 pass（推荐）',commit:'⚔️ 硬投'}
+};
+const selections = {};
+
+document.querySelectorAll('.card').forEach(c=>{
+  c.addEventListener('click', ()=>{
+    const grp = c.dataset.group, val = c.dataset.val;
+    if(!grp||!val) return;
+    selections[grp] = val;
+    // 同组取消其他选中
+    document.querySelectorAll(`.card[data-group="${grp}"]`).forEach(x=>x.classList.remove('selected'));
+    c.classList.add('selected');
+    document.getElementById('sum-'+grp).textContent = labels[grp][val] || val;
+    updateMailto();
+  });
+});
+
+function updateMailto(){
+  const body = `Hi Boyuan,
+
+我看完了 smart-crawler 战略 v2 抽卡（https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/strategy_v2.html）
+
+我的 4 个决策：
+1. 客户优先级：${labels.customer[selections.customer]||'未选'}
+2. 商业模式：${labels.biz[selections.biz]||'未选'}
+3. 能力顺序：${labels.seq[selections.seq]||'未选'}
+4. VIVO 社媒：${labels.vivo_social[selections.vivo_social]||'未选'}
+
+可以按这个开始周末 48h sprint。
+
+Best`;
+  const subj = 'smart-crawler 战略 v2 决策确认';
+  document.getElementById('mailto-btn').href = `mailto:boyuan@solvea.cx?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+}
+updateMailto();
+</script>
+
+</body>
+</html>
