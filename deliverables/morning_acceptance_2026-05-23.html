@@ -108,13 +108,29 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
   <p>你睡觉的这几个小时，我跑完了 ALL-IN sprint 的 W1 第一批：开源底座定了、计费 schema 上线、4 客户邮件包齐了、3 套 UI 设计方案就绪。<strong style="color:#fff">可以直接验收开干</strong>。</p>
   <div class="hero-meta">2026-05-22 凌晨 → 2026-05-23 早上 · 通宵交付</div>
   <div class="hero-stat">
-    <div class="hero-stat-item"><div class="hero-stat-val">22/22</div><div class="hero-stat-lbl">回归 v2</div></div>
-    <div class="hero-stat-item"><div class="hero-stat-val">131k</div><div class="hero-stat-lbl">总 SKU</div></div>
+    <div class="hero-stat-item"><div class="hero-stat-val">22/23</div><div class="hero-stat-lbl">回归 v3</div></div>
+    <div class="hero-stat-item"><div class="hero-stat-val">134k</div><div class="hero-stat-lbl">总 SKU</div></div>
     <div class="hero-stat-item"><div class="hero-stat-val">10/10</div><div class="hero-stat-lbl">代理在用</div></div>
-    <div class="hero-stat-item"><div class="hero-stat-val">30</div><div class="hero-stat-lbl">jobs 跑中</div></div>
+    <div class="hero-stat-item"><div class="hero-stat-val" style="background:linear-gradient(90deg,#fb7185,#fda4af);-webkit-background-clip:text;-webkit-text-fill-color:transparent">⚠️ stuck</div><div class="hero-stat-lbl">Worker</div></div>
     <div class="hero-stat-item"><div class="hero-stat-val">0</div><div class="hero-stat-lbl">被封信号</div></div>
   </div>
 </div>
+
+<!-- ⚠️ 早起第一件事 -->
+<section>
+  <span class="sec-tag" style="background:rgba(251,113,133,.15);color:#fda4af;border:1px solid rgba(251,113,133,.4)">⚠️ 起床 30 秒先做这个</span>
+  <h2 style="color:#fda4af">NAS Worker 进程挂了 · 手动重启</h2>
+  <p class="lede">我从笔记本无法 SSH 进 NAS（Tailscale CLI 在 Mac 上也挂了，密码登录被拒）。Worker 进程在凌晨某时点停了，134k SKU 之后不再增长。100 个 pending jobs 堆在队列里。</p>
+  <div style="background:rgba(251,113,133,.08);padding:18px 22px;border-radius:12px;border-left:4px solid rgba(251,113,133,.6);margin-top:16px;font-size:0.92rem;line-height:1.85;color:#fecaca">
+    <strong style="color:#fff">起床后执行：</strong>
+    <pre style="background:#1a0a14;padding:12px 16px;border-radius:8px;color:#fda4af;margin-top:10px;font-size:0.82rem;overflow-x:auto">ssh boyuan@192.168.1.80
+cd /volume1/docker/smart-crawler
+docker compose ps             # 看 worker 状态
+docker compose restart worker # 重启 worker
+docker compose logs -f worker --tail 50  # 看 log</pre>
+    <div style="margin-top:10px">重启后队列里 100 个 jobs 会自动开始消化，预计 6 小时内 SKU 从 134k → 250k+。</div>
+  </div>
+</section>
 
 <!-- 诚实段：100% 覆盖率分析 -->
 <section>
@@ -167,18 +183,18 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
   <div class="metric-row">
     <div class="metric">
       <div class="lbl">总 SKU</div>
-      <div class="val">130,931</div>
-      <div class="delta">↑ +22.8k（21%）通宵增长</div>
+      <div class="val">134,476</div>
+      <div class="delta">↑ +26.3k（24%）通宵</div>
     </div>
     <div class="metric">
       <div class="lbl">覆盖率</div>
-      <div class="val">3.09%</div>
-      <div class="delta">↑ +0.54 pp</div>
+      <div class="val">3.18%</div>
+      <div class="delta">↑ +0.63 pp</div>
     </div>
     <div class="metric">
       <div class="lbl">Vidaxl SKU</div>
-      <div class="val">46,418</div>
-      <div class="delta">↑ 8h 前 23,628（+96%）</div>
+      <div class="val">~50k</div>
+      <div class="delta">↑ 8h 前 23,628（+112%）</div>
     </div>
     <div class="metric">
       <div class="lbl">代理调用</div>
@@ -186,14 +202,14 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
       <div class="delta">985+ ok/proxy · 0 fail</div>
     </div>
     <div class="metric">
-      <div class="lbl">活跃 jobs</div>
-      <div class="val">30</div>
-      <div class="delta">含 18 新触发</div>
+      <div class="lbl">队列 pending</div>
+      <div class="val" style="color:#fda4af">100</div>
+      <div class="delta warn">Worker 挂 · 等重启</div>
     </div>
     <div class="metric">
       <div class="lbl">健康站点</div>
       <div class="val">34 / 46</div>
-      <div class="delta warn">12 Vidaxl 持续推</div>
+      <div class="delta warn">12 Vidaxl 待跑</div>
     </div>
   </div>
 </section>
@@ -211,7 +227,7 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
         <h4>开源底座定了：Crawlee-Python</h4>
         <div class="meta">17 个候选项目对比 → 选 <code>apify/crawlee-python</code>（Apache-2.0 · 9k⭐ · daily commit）。<strong>不用 MediaCrawler</strong>（license 污染）。Crawlee PoC 已写好，未实际跑（避免影响线上）。</div>
         <div class="links">
-          <a class="pill" href="https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" target="_blank">看技术架构</a>
+          <a class="pill" href="https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" target="_blank">看技术架构</a>
           <a class="pill" href="https://github.com/mguozhen/smart-crawler/blob/feature/customer-design-cards/backend/app/CRAWLEE_INTEGRATION.md" target="_blank">CRAWLEE_INTEGRATION.md</a>
           <a class="pill" href="https://github.com/mguozhen/smart-crawler/blob/feature/customer-design-cards/backend/app/crawlee_poc.py" target="_blank">crawlee_poc.py</a>
         </div>
@@ -240,7 +256,7 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
         <h4>4 客户邮件包齐全</h4>
         <div class="meta">遨森（投标方案）/ VIVO 电商（POC 5/6）/ VIVO 社媒（联合体方案）/ 海尔（不跨境架构）/ 极氪（2nd source 备投）— 共 5 份草稿，可直接发出。</div>
         <div class="links">
-          <a class="pill" href="https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/customer_outreach/index.html" target="_blank">★ Outreach Hub（推荐入口）</a>
+          <a class="pill" href="https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/customer_outreach/index.html" target="_blank">★ Outreach Hub（推荐入口）</a>
           <a class="pill" href="https://github.com/mguozhen/smart-crawler/blob/feature/customer-design-cards/deliverables/customer_outreach/01_aosom.md" target="_blank">01 遨森</a>
           <a class="pill" href="https://github.com/mguozhen/smart-crawler/blob/feature/customer-design-cards/deliverables/customer_outreach/02_vivo_ecommerce.md" target="_blank">02 VIVO 电商</a>
           <a class="pill" href="https://github.com/mguozhen/smart-crawler/blob/feature/customer-design-cards/deliverables/customer_outreach/03_vivo_social.md" target="_blank">03 VIVO 社媒</a>
@@ -260,8 +276,8 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
           • 待你拍板：配色风格 + 是否启动新版 UI 重构
         </div>
         <div class="links">
-          <a class="pill" href="https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/strategy_v2.html" target="_blank">战略 v2</a>
-          <a class="pill" href="https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" target="_blank">品牌 v3</a>
+          <a class="pill" href="https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/strategy_v2.html" target="_blank">战略 v2</a>
+          <a class="pill" href="https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" target="_blank">品牌 v3</a>
         </div>
       </div>
     </div>
@@ -364,9 +380,10 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
         <div class="regr-count">3/3 ✓</div>
       </div>
       <div class="regr-list">
-        <div><span class="ok">✓</span> 总 SKU 131k &gt; 90k</div>
-        <div><span class="ok">✓</span> Vidaxl 46k &gt; 5k</div>
+        <div><span class="ok">✓</span> 总 SKU 134k &gt; 90k</div>
+        <div><span class="ok">✓</span> Vidaxl 50k &gt; 5k</div>
         <div><span class="ok">✓</span> 代理 10/10 &ge; 5</div>
+        <div style="color:#fda4af">⚠ Worker 30s 增量 0（需重启）</div>
       </div>
     </div>
   </div>
@@ -464,7 +481,7 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
         <h4>看 Outreach Hub</h4>
         <div class="meta">4 客户邮件包总览，点开任意一份 .md 看完整内容。</div>
         <div class="links">
-          <a class="pill" href="https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/customer_outreach/index.html" target="_blank">→ Outreach Hub</a>
+          <a class="pill" href="https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/customer_outreach/index.html" target="_blank">→ Outreach Hub</a>
         </div>
       </div>
     </div>
@@ -474,7 +491,7 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
         <h4>看品牌 v3 设计稿（含 3 套配色抽卡）</h4>
         <div class="meta">技术架构 + Workspace UI + 8 周路线。决定 Nebula/Cyber Blue/Verdant Gold 哪个配色。</div>
         <div class="links">
-          <a class="pill" href="https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" target="_blank">→ 品牌 v3 设计</a>
+          <a class="pill" href="https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" target="_blank">→ 品牌 v3 设计</a>
         </div>
       </div>
     </div>
@@ -508,8 +525,8 @@ footer{padding:32px;text-align:center;color:#52527a;font-size:0.82rem;border-top
       ③ <strong>团队招聘 + 资质流程</strong>：你线下推进
     </p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/customer_outreach/index.html" target="_blank">📧 看 Outreach Hub</a>
-      <a class="btn btn-secondary" href="https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" target="_blank">🎨 看品牌 v3</a>
+      <a class="btn btn-primary" href="https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/customer_outreach/index.html" target="_blank">📧 看 Outreach Hub</a>
+      <a class="btn btn-secondary" href="https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" target="_blank">🎨 看品牌 v3</a>
       <a class="btn btn-secondary" href="https://smartcrawler.io/app" target="_blank">🚀 看产品</a>
     </div>
   </div>

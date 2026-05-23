@@ -45,7 +45,7 @@
 
 ▎ 立即可看的 demo
 • 看板预览：https://smartcrawler.io/app（账号申请回邮）
-• 战略方案：https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/strategy_v2.html
+• 战略方案：https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/strategy_v2.html
 • 数据覆盖率仪表盘：登录后「数据覆盖率」tab 实时
 
 约个 30min 电话过一遍系统？本周内任意时段可。

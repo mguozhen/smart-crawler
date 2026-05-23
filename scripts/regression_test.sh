@@ -21,7 +21,7 @@ test_endpoint() {
   elif [ "$auth_type" = "bearer" ]; then
     code=$(/usr/bin/curl -s -o /tmp/regr_out -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$url" --max-time 30)
   else
-    code=$(/usr/bin/curl -s -o /tmp/regr_out -w '%{http_code}' "$url" --max-time 30)
+    code=$(/usr/bin/curl -sL -o /tmp/regr_out -w '%{http_code}' "$url" --max-time 30)
   fi
   if [ "$code" = "$expect" ]; then
     echo "  ✅ $name: HTTP $code"
@@ -74,9 +74,9 @@ test_endpoint "GET /llms.txt" "$BASE/llms.txt" none
 
 echo ""
 echo "▎可分享文档链接"
-test_endpoint "战略 v2 抽卡" "https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/strategy_v2.html" none
-test_endpoint "品牌 v3 设计" "https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" none
-test_endpoint "Outreach hub" "https://raw.githack.com/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/customer_outreach/index.html" none
+test_endpoint "战略 v2 抽卡" "https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/strategy_v2.html" none
+test_endpoint "品牌 v3 设计" "https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/brand_v3_design.html" none
+test_endpoint "Outreach hub" "https://cdn.statically.io/gh/mguozhen/smart-crawler/feature/customer-design-cards/deliverables/customer_outreach/index.html" none
 
 echo ""
 echo "▎数据合理性"
@@ -112,6 +112,28 @@ if [ "$PROXIES" -ge 5 ]; then
   RESULTS+=("PASS|代理使用 ($PROXIES/10)|≥5")
 else
   echo "  ⚠️ 代理使用 < 5（粘性 bug?）"
+fi
+
+# Worker 健康度 = 30 秒内 SKU 是否增长（更可靠：jobs status 字段不及时）
+SKU1=$(/usr/bin/curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "
+import json,sys;print(json.load(sys.stdin)['summary']['total_current_sku'])")
+sleep 30
+SKU2=$(/usr/bin/curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "
+import json,sys;print(json.load(sys.stdin)['summary']['total_current_sku'])")
+DELTA=$((SKU2-SKU1))
+echo "  📊 Worker 30s 增量: +$DELTA SKU"
+if [ "$DELTA" -ge 50 ]; then
+  echo "  ✅ Worker 健康（≥50 SKU/30s）"
+  PASS=$((PASS+1))
+  RESULTS+=("PASS|Worker 30s 增量 (+$DELTA)|健康")
+elif [ "$DELTA" -ge 10 ]; then
+  echo "  🟡 Worker 慢速（10-50 SKU/30s）"
+  PASS=$((PASS+1))
+  RESULTS+=("PASS|Worker 30s 增量 (+$DELTA)|慢速")
+else
+  echo "  ⚠️ Worker 可能挂了（< 10 SKU/30s）"
+  FAIL=$((FAIL+1))
+  RESULTS+=("FAIL|Worker 30s 增量 (+$DELTA)|挂?")
 fi
 
 echo ""
