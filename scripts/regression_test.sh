@@ -5,7 +5,7 @@
 set -uo pipefail
 KEY="${API_KEY:-sck_UYCUvxoUcmtkzNJB6hbUdHtaiFy1Dn9dHJkruvHwR50}"
 BASE="https://smartcrawler.io"
-TOKEN=$(/usr/bin/curl -s -X POST "$BASE/api/login" -H "Content-Type: application/json" \
+TOKEN=$(curl -s -X POST "$BASE/api/login" -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin"}' 2>/dev/null | python3 -c "import json,sys;print(json.load(sys.stdin).get('token',''))")
 
 PASS=0
@@ -17,11 +17,11 @@ test_endpoint() {
   local name="$1" url="$2" auth_type="$3" expect="${4:-200}"
   local code
   if [ "$auth_type" = "apikey" ]; then
-    code=$(/usr/bin/curl -s -o /tmp/regr_out -w '%{http_code}' -H "X-API-Key: $KEY" "$url" --max-time 30)
+    code=$(curl -s -o /tmp/regr_out -w '%{http_code}' -H "X-API-Key: $KEY" "$url" --max-time 30)
   elif [ "$auth_type" = "bearer" ]; then
-    code=$(/usr/bin/curl -s -o /tmp/regr_out -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$url" --max-time 30)
+    code=$(curl -s -o /tmp/regr_out -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$url" --max-time 30)
   else
-    code=$(/usr/bin/curl -sL -o /tmp/regr_out -w '%{http_code}' "$url" --max-time 30)
+    code=$(curl -sL -o /tmp/regr_out -w '%{http_code}' "$url" --max-time 30)
   fi
   if [ "$code" = "$expect" ]; then
     echo "  ✅ $name: HTTP $code"
@@ -80,7 +80,7 @@ test_endpoint "Outreach hub" "https://cdn.statically.io/gh/mguozhen/smart-crawle
 
 echo ""
 echo "▎数据合理性"
-SKU=$(/usr/bin/curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "import json,sys;print(json.load(sys.stdin)['summary']['total_current_sku'])")
+SKU=$(curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "import json,sys;print(json.load(sys.stdin)['summary']['total_current_sku'])")
 echo "  📊 总 SKU: $SKU"
 if [ "$SKU" -gt 90000 ]; then
   echo "  ✅ SKU > 90,000（健康）"
@@ -92,7 +92,7 @@ else
   RESULTS+=("FAIL|总 SKU 数 ($SKU)|<90k")
 fi
 
-VIDAXL=$(/usr/bin/curl -s -H "X-API-Key: $KEY" "$BASE/api/sites" --max-time 8 2>/dev/null | python3 -c "
+VIDAXL=$(curl -s -H "X-API-Key: $KEY" "$BASE/api/sites" --max-time 8 2>/dev/null | python3 -c "
 import json,sys;t=sum(s.get('sku_count',0) for s in json.load(sys.stdin) if s['site'].startswith('vidaxl'));print(t)")
 echo "  📊 Vidaxl SKU: $VIDAXL"
 if [ "$VIDAXL" -gt 5000 ]; then
@@ -103,7 +103,7 @@ else
   echo "  ⚠️ Vidaxl SKU < 5,000"
 fi
 
-PROXIES=$(/usr/bin/curl -s -H "X-API-Key: $KEY" "$BASE/api/proxy/status" --max-time 8 2>/dev/null | python3 -c "
+PROXIES=$(curl -s -H "X-API-Key: $KEY" "$BASE/api/proxy/status" --max-time 8 2>/dev/null | python3 -c "
 import json,sys;d=json.load(sys.stdin);print(sum(1 for p in d['details'] if p['fail_count']+p['success_count']>0))")
 echo "  📊 代理使用数: $PROXIES/10"
 if [ "$PROXIES" -ge 5 ]; then
@@ -115,10 +115,10 @@ else
 fi
 
 # Worker 健康度 = 30 秒内 SKU 是否增长（更可靠：jobs status 字段不及时）
-SKU1=$(/usr/bin/curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "
+SKU1=$(curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "
 import json,sys;print(json.load(sys.stdin)['summary']['total_current_sku'])")
 sleep 30
-SKU2=$(/usr/bin/curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "
+SKU2=$(curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "
 import json,sys;print(json.load(sys.stdin)['summary']['total_current_sku'])")
 DELTA=$((SKU2-SKU1))
 echo "  📊 Worker 30s 增量: +$DELTA SKU"

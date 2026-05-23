@@ -1,0 +1,36 @@
+name: 线上回归测试
+
+on:
+  schedule:
+    - cron: '0 1,9,17 * * *'  # UTC 1/9/17 = 北京时间 9/17/01
+  workflow_dispatch:
+  push:
+    branches: [main, 'feature/**']
+    paths:
+      - 'scripts/regression_test.sh'
+      - '.github/workflows/regression.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 跑线上回归
+        env:
+          API_KEY: ${{ secrets.SMART_CRAWLER_API_KEY }}
+        run: |
+          if [ -z "$API_KEY" ]; then
+            export API_KEY="sck_UYCUvxoUcmtkzNJB6hbUdHtaiFy1Dn9dHJkruvHwR50"
+          fi
+          chmod +x scripts/regression_test.sh
+          bash scripts/regression_test.sh
+
+      - name: 失败时上传输出
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-output-${{ github.run_number }}
+          path: /tmp/regr_out
+          retention-days: 7
