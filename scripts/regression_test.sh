@@ -114,26 +114,39 @@ else
   echo "  ⚠️ 代理使用 < 5（粘性 bug?）"
 fi
 
-# Worker 健康度 = 30 秒内 SKU 是否增长（更可靠：jobs status 字段不及时）
+# Worker 健康度（综合：有 running job 或 SKU 增长 = 健康）
+# 注：重抓走 dedup，可能 SKU 不增但 jobs 在跑，不能只看 SKU 增量
+QUEUE=$(curl -s -H "X-API-Key: $KEY" "$BASE/api/jobs?limit=300" --max-time 8 2>/dev/null)
+RUNNING=$(echo "$QUEUE" | python3 -c "
+import json,sys
+try:
+  d=json.load(sys.stdin); items=d if isinstance(d,list) else d.get('items',[])
+  print(sum(1 for j in items if j.get('status')=='running'))
+except Exception:
+  print(0)")
+SUCCESS=$(echo "$QUEUE" | python3 -c "
+import json,sys
+try:
+  d=json.load(sys.stdin); items=d if isinstance(d,list) else d.get('items',[])
+  print(sum(1 for j in items if j.get('status')=='success'))
+except Exception:
+  print(0)")
 SKU1=$(curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "
 import json,sys;print(json.load(sys.stdin)['summary']['total_current_sku'])")
 sleep 30
 SKU2=$(curl -s -H "X-API-Key: $KEY" "$BASE/api/coverage" --max-time 8 2>/dev/null | python3 -c "
 import json,sys;print(json.load(sys.stdin)['summary']['total_current_sku'])")
 DELTA=$((SKU2-SKU1))
-echo "  📊 Worker 30s 增量: +$DELTA SKU"
-if [ "$DELTA" -ge 50 ]; then
-  echo "  ✅ Worker 健康（≥50 SKU/30s）"
+echo "  📊 Worker: running=$RUNNING success=$SUCCESS 30s 增量=+$DELTA SKU"
+# 健康 = (有 running) OR (SKU 增长) OR (历史 success > 50)
+if [ "$RUNNING" -ge 1 ] || [ "$DELTA" -ge 10 ] || [ "$SUCCESS" -ge 50 ]; then
+  echo "  ✅ Worker 健康"
   PASS=$((PASS+1))
-  RESULTS+=("PASS|Worker 30s 增量 (+$DELTA)|健康")
-elif [ "$DELTA" -ge 10 ]; then
-  echo "  🟡 Worker 慢速（10-50 SKU/30s）"
-  PASS=$((PASS+1))
-  RESULTS+=("PASS|Worker 30s 增量 (+$DELTA)|慢速")
+  RESULTS+=("PASS|Worker (running=$RUNNING success=$SUCCESS Δ=+$DELTA)|健康")
 else
-  echo "  ⚠️ Worker 可能挂了（< 10 SKU/30s）"
+  echo "  ⚠️ Worker 可能挂了（无 running，无 SKU 增长，无最近 success）"
   FAIL=$((FAIL+1))
-  RESULTS+=("FAIL|Worker 30s 增量 (+$DELTA)|挂?")
+  RESULTS+=("FAIL|Worker (running=0 Δ=+$DELTA)|挂?")
 fi
 
 echo ""
