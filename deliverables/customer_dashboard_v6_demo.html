@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>smart-crawler · Customer Dashboard Demo (A+B+C)</title>
+<script src="https://unpkg.com/vue@3.4.27/dist/vue.global.prod.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter','PingFang SC',-apple-system,BlinkMacSystemFont,sans-serif}
+html,body{background:#0a0612;color:#e5e7eb;font-size:14px;line-height:1.5;min-height:100vh}
+a{color:#a78bfa;text-decoration:none}
+button{font-family:inherit}
+
+/* ========== TOP BAR ========== */
+.topbar{position:sticky;top:0;z-index:100;background:rgba(10,6,18,.94);backdrop-filter:blur(12px);border-bottom:1px solid #29213a;padding:10px 22px;display:flex;align-items:center;gap:18px}
+.brand{font-weight:900;letter-spacing:-0.4px;font-size:1.05rem;background:linear-gradient(90deg,#a78bfa,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.tab-row{display:flex;gap:4px;flex:1}
+.tab{padding:8px 14px;border-radius:8px;font-size:0.84rem;color:#94a3b8;cursor:pointer;font-weight:600;border:none;background:transparent;display:flex;align-items:center;gap:6px}
+.tab:hover{background:rgba(167,139,250,.08);color:#c4b5fd}
+.tab.active{background:rgba(167,139,250,.16);color:#fff;box-shadow:inset 0 -2px 0 #a78bfa}
+.usage-strip{font-size:0.74rem;color:#94a3b8;padding:5px 12px;border-radius:8px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.25)}
+.usage-strip b{color:#6ee7b7;font-weight:700}
+.icon-btn{padding:7px 9px;border-radius:8px;color:#94a3b8;cursor:pointer;border:1px solid #29213a;background:#13111f;font-size:0.84rem;position:relative}
+.icon-btn:hover{background:rgba(167,139,250,.10);color:#c4b5fd}
+.icon-btn .badge{position:absolute;top:-4px;right:-4px;background:#fb7185;color:#fff;font-size:0.6rem;border-radius:9px;padding:1px 5px;font-weight:700}
+.acct{display:flex;align-items:center;gap:8px;padding:6px 11px;border-radius:8px;background:#13111f;border:1px solid #29213a;font-size:0.78rem;cursor:pointer}
+.acct .avatar{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#f472b6);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:800;color:#fff}
+
+/* ========== LAYOUT ========== */
+.page{max-width:1380px;margin:0 auto;padding:24px 22px 60px}
+.lead{font-size:1.85rem;font-weight:900;letter-spacing:-0.7px;margin-bottom:6px}
+.sub{font-size:0.92rem;color:#94a3b8;margin-bottom:20px}
+
+/* ========== ASK PAGE ========== */
+.ask-shell{display:grid;grid-template-columns:200px 1fr 280px;gap:18px;align-items:flex-start}
+.ask-history{background:#13111f;border:1px solid #29213a;border-radius:14px;padding:14px;font-size:0.8rem}
+.ask-history h4{font-size:0.68rem;color:#52527a;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:9px}
+.ask-history .item{padding:8px 10px;border-radius:7px;color:#cbd5e1;cursor:pointer;margin-bottom:3px;border-left:2px solid transparent}
+.ask-history .item:hover{background:rgba(167,139,250,.08);border-left-color:#a78bfa}
+.ask-history .item .time{font-size:0.66rem;color:#52527a;margin-top:2px}
+
+.ask-main{display:flex;flex-direction:column;gap:14px}
+.ask-input{background:#13111f;border:2px solid #29213a;border-radius:14px;padding:14px 16px;transition:border-color .15s}
+.ask-input:focus-within{border-color:#a78bfa;box-shadow:0 0 0 4px rgba(167,139,250,.10)}
+.ask-input textarea{width:100%;background:transparent;border:none;outline:none;color:#fff;font-size:1rem;resize:none;min-height:48px;font-family:inherit;line-height:1.5}
+.ask-input textarea::placeholder{color:#52527a}
+.ask-input-row{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:0.7rem;color:#52527a}
+.kbd{background:#0a0612;border:1px solid #29213a;border-radius:4px;padding:1px 5px;font-family:'SF Mono',monospace;font-size:0.66rem}
+.btn-go{background:linear-gradient(135deg,#a78bfa,#f472b6);color:#fff;border:none;padding:7px 18px;border-radius:8px;font-size:0.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px}
+.btn-go:disabled{opacity:.45;cursor:not-allowed}
+
+.starters{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.starter{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:13px 15px;cursor:pointer;transition:all .15s}
+.starter:hover{border-color:#a78bfa;transform:translateY(-2px);box-shadow:0 12px 28px rgba(167,139,250,.18)}
+.starter .icon{font-size:1.4rem;margin-bottom:6px}
+.starter .title{font-size:0.86rem;font-weight:700;color:#fff;margin-bottom:3px}
+.starter .desc{font-size:0.74rem;color:#94a3b8;line-height:1.45}
+
+.result-card{background:#13111f;border:1px solid #29213a;border-radius:14px;overflow:hidden}
+.result-head{padding:12px 16px;border-bottom:1px solid #1f1429;display:flex;justify-content:space-between;align-items:center;font-size:0.82rem}
+.result-meta{color:#94a3b8;font-size:0.74rem;display:flex;gap:14px}
+.result-meta b{color:#c4b5fd}
+.result-actions{display:flex;gap:6px}
+.result-actions button{padding:5px 11px;border-radius:7px;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.25);color:#c4b5fd;font-size:0.74rem;font-weight:600;cursor:pointer}
+.result-actions button:hover{background:rgba(167,139,250,.18)}
+
+.result-table{width:100%;border-collapse:collapse;font-size:0.82rem}
+.result-table th{text-align:left;padding:9px 14px;background:#0d0a17;color:#52527a;font-size:0.66rem;letter-spacing:1px;text-transform:uppercase;font-weight:700;border-bottom:1px solid #1f1429}
+.result-table td{padding:11px 14px;border-bottom:1px solid #1f1429;color:#cbd5e1;vertical-align:middle}
+.result-table tr.streaming{background:rgba(167,139,250,.06);animation:streamIn .5s ease}
+@keyframes streamIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+.result-table tr:hover{background:rgba(167,139,250,.05)}
+
+.pill{display:inline-flex;align-items:center;gap:3px;font-size:0.65rem;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:0.3px}
+.pill.ok{background:rgba(16,185,129,.14);color:#6ee7b7;border:1px solid rgba(16,185,129,.3)}
+.pill.warn{background:rgba(247,183,49,.14);color:#fcd34d;border:1px solid rgba(247,183,49,.3)}
+.pill.bad{background:rgba(251,113,133,.14);color:#fda4af;border:1px solid rgba(251,113,133,.3)}
+.pill.pending{background:rgba(96,165,250,.14);color:#93c5fd;border:1px solid rgba(96,165,250,.3)}
+
+.trace{background:#13111f;border:1px solid #29213a;border-radius:14px;padding:14px 15px;font-size:0.78rem}
+.trace h4{font-size:0.68rem;color:#52527a;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:9px}
+.trace .step{padding:7px 9px;border-radius:6px;margin-bottom:5px;background:#0d0a17;display:flex;gap:8px;align-items:flex-start}
+.trace .step .dot{width:6px;height:6px;border-radius:50%;background:#10b981;margin-top:6px;flex-shrink:0}
+.trace .step .body{flex:1;font-size:0.74rem;color:#cbd5e1;line-height:1.5}
+.trace .step .body b{color:#c4b5fd}
+.trace .step .body code{background:rgba(167,139,250,.10);padding:1px 5px;border-radius:4px;font-family:'SF Mono',monospace;font-size:0.7rem;color:#a78bfa}
+
+/* ========== CATALOG ========== */
+.cat-filters{display:flex;gap:9px;flex-wrap:wrap;background:#13111f;border:1px solid #29213a;border-radius:12px;padding:12px;margin-bottom:14px}
+.cat-filters select,.cat-filters input{background:#0d0a17;border:1px solid #29213a;border-radius:7px;padding:7px 11px;color:#cbd5e1;font-size:0.82rem;outline:none}
+.cat-filters select:focus,.cat-filters input:focus{border-color:#a78bfa}
+.sites-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(85px,1fr));gap:7px;margin-bottom:14px}
+.site-tile{background:#13111f;border:1px solid #29213a;border-radius:9px;padding:9px 11px;font-size:0.7rem;cursor:pointer}
+.site-tile .name{font-weight:700;color:#fff;font-size:0.72rem;margin-bottom:3px}
+.site-tile .coverage{color:#94a3b8;font-size:0.64rem;margin-bottom:5px}
+.site-tile .bar{height:3px;background:#29213a;border-radius:3px;overflow:hidden}
+.site-tile .bar div{height:100%;background:linear-gradient(90deg,#10b981,#6ee7b7)}
+.site-tile.warm .bar div{background:linear-gradient(90deg,#fbbf24,#fcd34d)}
+.site-tile.cool .bar div{background:linear-gradient(90deg,#fb7185,#fda4af)}
+
+.cat-table-wrap{background:#13111f;border:1px solid #29213a;border-radius:14px;overflow:hidden}
+.cat-table{width:100%;border-collapse:collapse;font-size:0.8rem}
+.cat-table th{text-align:left;padding:9px 12px;background:#0d0a17;color:#52527a;font-size:0.64rem;letter-spacing:1px;text-transform:uppercase;font-weight:700;border-bottom:1px solid #1f1429;position:sticky;top:0}
+.cat-table td{padding:9px 12px;border-bottom:1px solid #1f1429;color:#cbd5e1}
+.cat-table tr:hover{background:rgba(167,139,250,.05)}
+.cat-table .ck{width:18px;height:18px;cursor:pointer}
+.cell{position:relative;display:inline-flex;gap:5px;align-items:center;cursor:default}
+.cell.clickable{cursor:pointer}
+.cell.clickable:hover{text-decoration:underline}
+.cell .tip{display:none;position:absolute;bottom:calc(100% + 6px);left:0;background:#0a0612;border:1px solid #a78bfa;border-radius:8px;padding:10px 13px;font-size:0.72rem;color:#cbd5e1;white-space:nowrap;z-index:50;box-shadow:0 12px 36px rgba(0,0,0,.6);min-width:240px}
+.cell:hover .tip{display:block}
+.tip .tip-row{display:flex;gap:8px;margin-bottom:4px;align-items:center}
+.tip .tip-row .k{color:#52527a;width:78px;font-size:0.66rem;letter-spacing:.5px;text-transform:uppercase}
+.tip .tip-row .v{color:#cbd5e1;font-size:0.74rem}
+.tip .src-url{color:#a78bfa;text-decoration:underline;font-size:0.68rem;font-family:'SF Mono',monospace}
+.thumb{width:30px;height:30px;border-radius:5px;background:linear-gradient(135deg,#475569,#1f2937);display:inline-flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0}
+
+/* drawer */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;justify-content:flex-end;animation:fadeIn .15s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.drawer{width:480px;max-width:95vw;background:#0d0a17;border-left:1px solid #29213a;height:100vh;overflow-y:auto;animation:slideIn .25s ease}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.drawer-head{padding:18px 22px;border-bottom:1px solid #29213a;display:flex;justify-content:space-between;align-items:center}
+.drawer-head h3{font-size:1.05rem;font-weight:800}
+.drawer-head .close{background:transparent;border:1px solid #29213a;color:#94a3b8;border-radius:7px;padding:4px 9px;cursor:pointer}
+.drawer-body{padding:18px 22px}
+.evidence-block{background:#13111f;border:1px solid #29213a;border-radius:10px;padding:14px;margin-bottom:13px}
+.evidence-block h5{font-size:0.66rem;color:#52527a;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.evidence-block .screenshot{background:#0a0612;border:1px dashed #29213a;border-radius:7px;height:100px;display:flex;align-items:center;justify-content:center;color:#52527a;font-size:0.78rem;margin-bottom:8px}
+.evidence-block .meta-row{display:flex;justify-content:space-between;padding:4px 0;font-size:0.78rem;color:#cbd5e1;border-bottom:1px solid #1f1429}
+.evidence-block .meta-row:last-child{border:none}
+.evidence-block .meta-row .k{color:#52527a;font-size:0.72rem}
+.evidence-block code{font-family:'SF Mono',monospace;font-size:0.74rem;color:#a78bfa}
+
+/* ========== VOC PAGE ========== */
+.voc-shell{display:grid;grid-template-columns:240px 1fr;gap:16px;align-items:flex-start}
+.voc-sidebar{background:#13111f;border:1px solid #29213a;border-radius:12px;padding:13px;max-height:75vh;overflow-y:auto}
+.voc-sidebar h4{font-size:0.66rem;color:#52527a;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:9px}
+.sku-pick{padding:8px 10px;border-radius:7px;cursor:pointer;font-size:0.78rem;color:#cbd5e1;display:flex;justify-content:space-between;align-items:center;border-left:2px solid transparent;margin-bottom:3px}
+.sku-pick:hover{background:rgba(167,139,250,.08)}
+.sku-pick.active{background:rgba(167,139,250,.15);color:#fff;border-left-color:#a78bfa}
+.sku-pick .site-name{font-size:0.66rem;color:#52527a}
+
+.voc-detail{background:#13111f;border:1px solid #29213a;border-radius:14px;overflow:hidden}
+.voc-head{padding:18px 22px;border-bottom:1px solid #1f1429;background:linear-gradient(135deg,rgba(167,139,250,.10),transparent)}
+.voc-head .name{font-size:1.25rem;font-weight:800;color:#fff;margin-bottom:5px}
+.voc-head .meta{font-size:0.78rem;color:#94a3b8;display:flex;gap:14px}
+.voc-head .meta b{color:#c4b5fd}
+.voc-cards{padding:20px 22px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.voc-block{background:#0d0a17;border:1px solid #29213a;border-radius:11px;padding:15px 17px}
+.voc-block h5{font-size:0.72rem;color:#fcd34d;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.voc-block h5 .actions{display:flex;gap:4px}
+.voc-block h5 .actions button{background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.20);color:#a78bfa;font-size:0.6rem;padding:2px 7px;border-radius:5px;cursor:pointer;font-weight:600}
+.voc-block h5 .actions button:hover{background:rgba(167,139,250,.20)}
+
+.complaint{padding:9px 0;border-bottom:1px solid #1f1429}
+.complaint:last-child{border:none}
+.complaint .theme{font-weight:700;color:#fff;font-size:0.86rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.complaint .theme .share{font-size:0.7rem;color:#fda4af;font-weight:700}
+.complaint .quote{font-size:0.74rem;color:#94a3b8;font-style:italic;line-height:1.5;border-left:2px solid #fda4af;padding-left:8px}
+.complaint .bar{height:4px;background:#1f1429;border-radius:3px;margin-top:5px;overflow:hidden}
+.complaint .bar div{height:100%;background:linear-gradient(90deg,#fb7185,#fda4af)}
+
+.kw-cloud{display:flex;flex-wrap:wrap;gap:5px}
+.kw{padding:3px 9px;border-radius:11px;font-size:0.72rem;font-weight:600}
+.kw.pos{background:rgba(16,185,129,.14);color:#6ee7b7;border:1px solid rgba(16,185,129,.3)}
+.kw.neg{background:rgba(251,113,133,.14);color:#fda4af;border:1px solid rgba(251,113,133,.3)}
+.kw.neu{background:rgba(96,165,250,.14);color:#93c5fd;border:1px solid rgba(96,165,250,.3)}
+
+.compare-row{padding:8px 0;border-bottom:1px solid #1f1429;display:grid;grid-template-columns:80px 1fr 60px;gap:8px;align-items:center;font-size:0.78rem}
+.compare-row:last-child{border:none}
+.compare-row .site{font-weight:700;color:#c4b5fd}
+.compare-row .info{color:#cbd5e1}
+.compare-row .info span{color:#52527a;font-size:0.7rem;margin-left:4px}
+.compare-row .delta.dn{color:#6ee7b7;font-weight:700}
+.compare-row .delta.up{color:#fda4af;font-weight:700}
+
+.recs li{padding:8px 0;border-bottom:1px solid #1f1429;color:#cbd5e1;font-size:0.82rem;line-height:1.55;list-style:none;display:flex;gap:8px}
+.recs li:last-child{border:none}
+.recs li::before{content:'💡';flex-shrink:0}
+.recs li b{color:#fff}
+
+.voc-foot{padding:14px 22px;background:#080614;border-top:1px solid #1f1429;display:flex;justify-content:space-between;align-items:center;font-size:0.78rem}
+.voc-foot .cost{color:#52527a}
+.voc-foot button{padding:8px 14px;border-radius:7px;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.25);color:#c4b5fd;font-weight:600;cursor:pointer;font-size:0.78rem}
+.voc-foot button:hover{background:rgba(167,139,250,.20)}
+
+/* ========== Coverage ========== */
+.coverage-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px}
+.cov-tile{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:13px 14px;cursor:default}
+.cov-tile h6{font-size:0.84rem;font-weight:800;color:#fff;margin-bottom:4px}
+.cov-tile .country{font-size:0.66rem;color:#52527a;letter-spacing:1px}
+.cov-tile .num{font-size:1.4rem;font-weight:900;color:#c4b5fd;margin:4px 0}
+.cov-tile .pct{font-size:0.74rem;color:#94a3b8;margin-bottom:6px}
+.cov-tile .bar{height:5px;background:#29213a;border-radius:4px;overflow:hidden}
+.cov-tile .bar div{height:100%;background:linear-gradient(90deg,#10b981,#6ee7b7)}
+.cov-tile.warm .bar div{background:linear-gradient(90deg,#fbbf24,#fcd34d)}
+.cov-tile.cool .bar div{background:linear-gradient(90deg,#fb7185,#fda4af)}
+
+/* ========== Settings ========== */
+.set-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.set-block{background:#13111f;border:1px solid #29213a;border-radius:12px;padding:18px}
+.set-block h3{font-size:0.96rem;font-weight:800;margin-bottom:10px;color:#fff;display:flex;justify-content:space-between;align-items:center}
+.set-block h3 button{background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.25);color:#c4b5fd;padding:4px 11px;border-radius:7px;font-size:0.74rem;font-weight:600;cursor:pointer}
+.key-row{padding:10px 0;border-bottom:1px solid #1f1429;display:flex;justify-content:space-between;align-items:center;font-size:0.82rem}
+.key-row .info{display:flex;flex-direction:column;gap:3px}
+.key-row .key-prefix{font-family:'SF Mono',monospace;font-size:0.72rem;color:#a78bfa}
+.key-row .meta{font-size:0.7rem;color:#52527a}
+.key-row .rev{background:transparent;border:1px solid rgba(251,113,133,.4);color:#fda4af;padding:4px 9px;border-radius:6px;font-size:0.72rem;cursor:pointer}
+
+.billing-bar{height:90px;display:flex;gap:3px;align-items:flex-end;margin:14px 0 8px}
+.billing-bar .b{flex:1;background:linear-gradient(180deg,#a78bfa,rgba(167,139,250,.18));border-radius:3px 3px 0 0;min-height:5px}
+.billing-meta{display:flex;justify-content:space-between;font-size:0.74rem;color:#94a3b8;padding-top:8px;border-top:1px dashed #29213a}
+.billing-meta b{color:#fff}
+
+.alert-row{padding:10px 0;border-bottom:1px solid #1f1429;display:flex;justify-content:space-between;align-items:center;font-size:0.82rem}
+.alert-row .info b{color:#fff;font-weight:700;display:block}
+.alert-row .info span{font-size:0.7rem;color:#94a3b8}
+
+/* ========== Toast ========== */
+.toast{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#a78bfa,#f472b6);color:#fff;padding:11px 18px;border-radius:10px;box-shadow:0 18px 50px rgba(167,139,250,.45);font-size:0.86rem;font-weight:700;z-index:500;animation:toastIn .25s}
+@keyframes toastIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* ========== Hero state ========== */
+.empty-state{text-align:center;padding:40px 22px;color:#94a3b8}
+.empty-state .icon{font-size:3rem;margin-bottom:12px;opacity:.6}
+.empty-state h3{font-size:1.3rem;font-weight:800;color:#fff;margin-bottom:6px}
+
+/* responsive */
+@media(max-width:1100px){
+  .ask-shell{grid-template-columns:1fr}
+  .voc-shell{grid-template-columns:1fr}
+  .voc-cards{grid-template-columns:1fr}
+  .set-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const { createApp, ref, computed, watch, onMounted } = Vue;
+
+/* ========== CANNED FIXTURES ========== */
+const FIXTURES = {
+  ask_starters: [
+    { icon: '🛏️', title: 'Aosom 床品 TOP 50', desc: '本周新上 + 价格 + 评分', key: 'aosom_bed' },
+    { icon: '📐', title: 'Songmics 升降桌差评', desc: '差评 TOP 3 + 关键词', key: 'songmics_voc' },
+    { icon: '💰', title: 'Vidaxl DE 价格变动', desc: '过去 7 天降价 >10% 的 SKU', key: 'vidaxl_price' },
+    { icon: '🆕', title: 'Costway 本周新品', desc: '新增 SKU + 类目分布', key: 'costway_new' },
+    { icon: '🏆', title: '竞品占有率（电动桌）', desc: 'Google Shopping 商家份额', key: 'gs_share' },
+  ],
+  ask_history: [
+    { prompt: 'Aosom 床品 TOP 50 价格 + 评分', time: '今天 09:23', key: 'aosom_bed' },
+    { prompt: 'Songmics 升降桌差评关键词', time: '今天 08:51', key: 'songmics_voc' },
+    { prompt: 'Vidaxl DE 价格变动 >10%', time: '昨天 17:40', key: 'vidaxl_price' },
+    { prompt: 'Costway 本周新品 类目分布', time: '昨天 11:02', key: 'costway_new' },
+    { prompt: '电动桌 Google Shopping 占有率', time: '2 天前', key: 'gs_share' },
+  ],
+  ask_results: {
+    aosom_bed: {
+      plan: [
+        { step: '解析意图', body: '<b>product_search</b> · brand=<code>Aosom</code> · category=<code>床品</code>' },
+        { step: '路由站点', body: '匹配到 <code>aosom_us</code>（满量 80k SKU · 当前 12k）' },
+        { step: '调用 MCP', body: '<code>search_competitor_products</code> · limit=50 · sort by sales' },
+        { step: '验证数据', body: '50 个 cell 经过 verification · 49 ✓ Match · 1 ⚠ Stale' },
+      ],
+      cols: ['商品', '价格', '评分', '30 天销量', ''],
+      rows: [
+        ['实木双层床 EF-22', '$899', '4.7 ★', '142', 'ok'],
+        ['儿童学习床 PRO', '$549', '4.5 ★', '98', 'ok'],
+        ['折叠床垫 8 寸', '$199', '4.3 ★', '67', 'ok'],
+        ['床头柜 三层抽屉', '$129', '4.6 ★', '88', 'ok'],
+        ['沙发床 双人款', '$679', '4.4 ★', '54', 'ok'],
+        ['上下床 实木 90×190', '$799', '4.2 ★', '46', 'warn'],
+        ['壁挂折叠床', '$439', '4.5 ★', '38', 'ok'],
+        ['Murphy 床 全套', '$1,299', '4.7 ★', '24', 'pending'],
+      ],
+      meta: { elapsed: '1.84s', cost: '$0.012', rows: 50 }
+    },
+    songmics_voc: {
+      plan: [
+        { step: '解析意图', body: '<b>voc_summary</b> · brand=<code>Songmics</code> · category=<code>升降桌</code>' },
+        { step: '路由站点', body: '<code>songmics_us / songmics_de / songmics_uk</code>（合计 11k SKU）' },
+        { step: '调用 MCP', body: '<code>voc_summary</code> + <code>get_voc_reviews</code> · sentiment=<code>negative</code>' },
+        { step: '聚合洞察', body: '412 条评论 · 异响 43% · 噪音 21% · 说明书 18%' },
+      ],
+      cols: ['关键词', '占比', '情感', '样本'],
+      rows: [
+        ['异响', '43%', '-0.78', '"全高度时整张桌都晃"', 'bad'],
+        ['电机噪音', '21%', '-0.55', '"晚上不敢用"', 'bad'],
+        ['说明书', '18%', '-0.40', '"装错三次"', 'warn'],
+        ['卡顿', '9%', '-0.45', '"上升中段卡 2 秒"', 'warn'],
+        ['漆面', '4%', '-0.30', '"边角有划痕"', 'warn'],
+        ['承重', '+', '+0.78', '"100kg 显示器没问题"', 'ok'],
+      ],
+      meta: { elapsed: '2.31s', cost: '$0.018', rows: 6 }
+    },
+    vidaxl_price: {
+      plan: [
+        { step: '解析意图', body: '<b>price_change</b> · site=<code>vidaxl_de</code> · delta < <code>-10%</code>' },
+        { step: '调用 MCP', body: '<code>search_competitor_products</code> + <code>price_history</code> 7 天对比' },
+        { step: '验证数据', body: '11 个降价 SKU · 7 ✓ Match · 4 ⚠ 需复核' },
+      ],
+      cols: ['商品', '原价', '现价', '降幅', ''],
+      rows: [
+        ['电动升降桌 1200mm', '€499', '€399', '-20%', 'ok'],
+        ['实木餐桌 6 人', '€459', '€379', '-17%', 'ok'],
+        ['沙发床 灰色', '€599', '€499', '-16%', 'ok'],
+        ['书架 5 层', '€199', '€169', '-15%', 'ok'],
+        ['儿童椅', '€89', '€75', '-15%', 'warn'],
+        ['户外椅 3 件套', '€339', '€289', '-14%', 'warn'],
+      ],
+      meta: { elapsed: '1.47s', cost: '$0.009', rows: 11 }
+    },
+    costway_new: {
+      plan: [
+        { step: '解析意图', body: '<b>new_products</b> · site=<code>costway_us</code> · since <code>7 days</code>' },
+        { step: '调用 MCP', body: '<code>search_competitor_products</code> · filter <code>first_seen >= 7d ago</code>' },
+        { step: '聚合分类', body: '68 个新 SKU · 户外家具 23 · 婴幼儿 15 · 厨房 12 · 其他 18' },
+      ],
+      cols: ['商品', '类目', '上架日', '首价'],
+      rows: [
+        ['户外秋千椅 PE 编织', '户外家具', '2026-05-22', '$249', 'ok'],
+        ['婴儿学步车 多功能', '婴幼儿', '2026-05-21', '$89', 'ok'],
+        ['不锈钢厨房推车', '厨房', '2026-05-21', '$179', 'ok'],
+        ['露营帐篷 4 人', '户外家具', '2026-05-20', '$329', 'ok'],
+        ['折叠野餐桌', '户外家具', '2026-05-19', '$129', 'pending'],
+      ],
+      meta: { elapsed: '1.62s', cost: '$0.011', rows: 68 }
+    },
+    gs_share: {
+      plan: [
+        { step: '解析意图', body: '<b>competitor_landscape</b> · keyword=<code>standing desk</code>' },
+        { step: '调用 MCP', body: '<code>competitor_landscape</code> · Google Shopping API' },
+        { step: '统计份额', body: 'Top 10 商家 · 142 个 SERP 位置 · Costway 17.6% 第一' },
+      ],
+      cols: ['商家', '位置数', '份额', '均价'],
+      rows: [
+        ['Costway', '25', '17.6%', '$229', 'ok'],
+        ['Vivo Office', '21', '14.8%', '$199', 'ok'],
+        ['Flexispot', '18', '12.7%', '$329', 'ok'],
+        ['Songmics', '16', '11.3%', '$259', 'ok'],
+        ['Homary', '12', '8.5%', '$369', 'ok'],
+        ['Aosom', '11', '7.7%', '$219', 'ok'],
+      ],
+      meta: { elapsed: '1.18s', cost: '$0.007', rows: 10 }
+    }
+  },
+
+  /* Catalog */
+  sites: [
+    { code: 'vidaxl_de', name: 'Vidaxl DE', coverage: 1.0, klass: 'cool' },
+    { code: 'vidaxl_uk', name: 'Vidaxl UK', coverage: 1.3, klass: 'cool' },
+    { code: 'songmics_us', name: 'Songmics US', coverage: 100, klass: 'ok' },
+    { code: 'songmics_de', name: 'Songmics DE', coverage: 100, klass: 'ok' },
+    { code: 'costway_us', name: 'Costway US', coverage: 100, klass: 'ok' },
+    { code: 'costway_uk', name: 'Costway UK', coverage: 100, klass: 'ok' },
+    { code: 'homary_us', name: 'Homary US', coverage: 100, klass: 'ok' },
+    { code: 'aosom_us', name: 'Aosom US', coverage: 78, klass: 'warm' },
+    { code: 'flexispot_us', name: 'Flexispot US', coverage: 100, klass: 'ok' },
+    { code: 'bcp_us', name: 'BCP US', coverage: 100, klass: 'ok' },
+    { code: 'yaheetech_us', name: 'Yaheetech US', coverage: 100, klass: 'ok' },
+    { code: 'woltu_de', name: 'Woltu DE', coverage: 100, klass: 'ok' },
+  ],
+  catalog_rows: [
+    { sku:'SOL-3782', title:'电动升降桌 48"', site:'songmics_us', sale:189.99, original:209.99, rating:4.6, sold30:412, status:'fresh', age:6, conf:0.97 },
+    { sku:'CW-DSK-12', title:'升降桌 折叠款 1200mm', site:'costway_us', sale:169.99, original:199.99, rating:4.3, sold30:289, status:'fresh', age:4, conf:0.92 },
+    { sku:'HM-99', title:'L 型升降桌 双人', site:'homary_us', sale:219.00, original:259.00, rating:4.7, sold30:124, status:'fresh', age:8, conf:0.94 },
+    { sku:'VX-DE-2210', title:'电动升降桌 1200×600', site:'vidaxl_de', sale:399.00, original:499.00, rating:4.2, sold30:67, status:'stale', age:192, conf:0.65 },
+    { sku:'FS-EN1', title:'EN1 单电机升降桌', site:'flexispot_us', sale:299.99, original:329.99, rating:4.5, sold30:198, status:'fresh', age:2, conf:0.98 },
+    { sku:'AOS-D45', title:'儿童学习桌 可升降', site:'aosom_us', sale:139.99, original:169.99, rating:4.4, sold30:88, status:'fresh', age:12, conf:0.89 },
+    { sku:'BCP-T22', title:'实木升降桌 1400mm', site:'bcp_us', sale:259.99, original:299.99, rating:4.5, sold30:54, status:'fresh', age:18, conf:0.91 },
+    { sku:'YH-DT', title:'Yaheetech 升降桌 标配', site:'yaheetech_us', sale:159.99, original:189.99, rating:4.3, sold30:178, status:'fresh', age:3, conf:0.93 },
+  ],
+
+  verification: {
+    'SOL-3782': {
+      price: { value:189.99, conf:0.97, src:'https://songmics.com/products/sol-3782', at:'2026-05-24 03:12', prev:209.99, sel:'span.product-price__current' },
+      title: { value:'电动升降桌 48"', conf:0.99, src:'https://songmics.com/products/sol-3782', at:'2026-05-24 03:12', sel:'h1.product-title' },
+      rating: { value:4.6, conf:0.88, src:'https://songmics.com/products/sol-3782#reviews', at:'2026-05-24 03:12', sample:412 }
+    }
+  },
+
+  voc_skus: [
+    { sku:'SOL-3782', site:'songmics_us', name:'电动升降桌 48"' },
+    { sku:'CW-DSK-12', site:'costway_us', name:'升降桌 折叠款' },
+    { sku:'AOS-BED-7', site:'aosom_us', name:'实木双层床 EF-22' },
+    { sku:'HM-SOFA', site:'homary_us', name:'L 型沙发 灰色' },
+    { sku:'VX-2210', site:'vidaxl_de', name:'电动升降桌 (DE)' },
+  ],
+  voc_insights: {
+    'SOL-3782': {
+      sample: 412, generated:'今天 01:30',
+      complaints: [
+        { theme:'异响 / 晃动', share:0.43, sentiment:-0.78, sample:'全高度时整张桌都晃' },
+        { theme:'电机噪音', share:0.21, sentiment:-0.55, sample:'晚上不敢用，太响了' },
+        { theme:'说明书', share:0.18, sentiment:-0.40, sample:'装错三次才看懂' },
+      ],
+      cloud: [
+        { term:'晃', w:34, s:-0.8, k:'neg' }, { term:'噪音', w:22, s:-0.5, k:'neg' },
+        { term:'承重好', w:18, s:+0.6, k:'pos' }, { term:'值', w:16, s:+0.5, k:'pos' },
+        { term:'卡顿', w:14, s:-0.4, k:'neg' }, { term:'说明书', w:12, s:-0.3, k:'neg' },
+        { term:'外观', w:10, s:+0.3, k:'pos' }, { term:'快递', w:8, s:0, k:'neu' },
+        { term:'桌面', w:7, s:+0.2, k:'pos' }, { term:'电机', w:6, s:-0.3, k:'neg' },
+      ],
+      compare: [
+        { site:'costway', sku:'CW-DSK-12', price:169.99, rating:4.3, reviews:1240, complaint:'升降慢' , delta:-20, deltaCls:'dn' },
+        { site:'homary', sku:'HM-99', price:219.00, rating:4.7, reviews:402, complaint:'理线难', delta:+29, deltaCls:'up' },
+        { site:'flexispot', sku:'FS-EN1', price:299.99, rating:4.5, reviews:856, complaint:'装配久', delta:+110, deltaCls:'up' },
+      ],
+      recs: [
+        '<b>加固横梁</b> — 异响占 43%，竞品在此价格档无此问题',
+        '<b>价格调整</b> — 比 Costway 高 $20 但评分却低，建议 $179 锚定',
+        '<b>PDP 升级</b> — 强调 5 年保修（竞品仅 2 年），转化率有望 +12%',
+      ]
+    },
+    'CW-DSK-12': {
+      sample: 1240, generated:'今天 02:45',
+      complaints: [
+        { theme:'升降慢', share:0.31, sentiment:-0.55, sample:'每次升降都要等 30 秒' },
+        { theme:'桌面材质', share:0.18, sentiment:-0.40, sample:'刮花了不耐用' },
+        { theme:'抖动', share:0.12, sentiment:-0.45, sample:'升起后有点不稳' },
+      ],
+      cloud: [
+        { term:'慢', w:42, s:-0.6, k:'neg' }, { term:'便宜', w:30, s:+0.7, k:'pos' },
+        { term:'划痕', w:18, s:-0.5, k:'neg' }, { term:'稳定', w:16, s:+0.5, k:'pos' },
+        { term:'安装', w:14, s:+0.2, k:'pos' }, { term:'颜色', w:10, s:+0.3, k:'pos' },
+      ],
+      compare: [
+        { site:'songmics', sku:'SOL-3782', price:189.99, rating:4.6, reviews:412, complaint:'晃', delta:+20, deltaCls:'up' },
+        { site:'aosom', sku:'AOS-D45', price:139.99, rating:4.4, reviews:182, complaint:'承重', delta:-30, deltaCls:'dn' },
+      ],
+      recs: [
+        '<b>升降速度</b> — 31% 投诉是慢，下一代换成 1200N 电机',
+        '<b>桌面升级</b> — 加 0.8mm 三聚氰胺面板，差评率可降 60%',
+        '<b>价格不动</b> — 当前是定价护城河，不要追评分提价',
+      ]
+    },
+  },
+
+  /* Coverage 简版（v6 不重复 v5） */
+  coverage_summary: { sku:151070, target:4238999, pct:3.56 },
+
+  /* Settings */
+  api_keys: [
+    { id:'k_001', name:'Production', prefix:'sck_UYC...n9dHJ', created:'2026-03-12', requests:12430 },
+    { id:'k_002', name:'Staging', prefix:'sck_xY8...4kPv2', created:'2026-04-01', requests:1820 },
+    { id:'k_003', name:'Read-only Demo', prefix:'sck_dEm...0xP9q', created:'2026-05-15', requests:78 },
+  ],
+  alerts: [
+    { id:'a_001', name:'差评 >30% 的竞品 SKU', channel:'Webhook → Slack #voc', last:'今天 03:15' },
+    { id:'a_002', name:'Costway 新品上架（每日）', channel:'Email → boyuan@solvea.cx', last:'今天 06:00' },
+  ],
+  billing_30d: [4,7,3,6,9,12,8,11,15,18,14,13,17,21,19,22,25,28,24,27,31,29,33,36,30,35,38,32,40,45]
+};
+
+/* ========== APP ========== */
+const App = {
+  setup() {
+    const tab = ref('ask');
+    const toast = ref('');
+    function showToast(msg) {
+      toast.value = msg;
+      setTimeout(()=> toast.value='', 2000);
+    }
+
+    /* === Ask state === */
+    const askInput = ref('');
+    const askRunning = ref(false);
+    const askCurrent = ref(null);  // key
+    const streamedRows = ref([]);
+    const streamedCols = ref([]);
+    const streamedPlan = ref([]);
+    const streamMeta = ref(null);
+
+    function runStarter(key) {
+      const data = FIXTURES.ask_results[key];
+      if (!data) return;
+      askCurrent.value = key;
+      askRunning.value = true;
+      streamedRows.value = [];
+      streamedCols.value = [];
+      streamedPlan.value = [];
+      streamMeta.value = null;
+
+      // Stream plan steps
+      data.plan.forEach((p, i) => {
+        setTimeout(()=> streamedPlan.value.push(p), 400 + i*350);
+      });
+      // Stream columns
+      setTimeout(()=> { streamedCols.value = data.cols.slice(); }, 800);
+      // Stream rows
+      data.rows.forEach((r, i) => {
+        setTimeout(()=> {
+          streamedRows.value.push({ data: r, just: true });
+          setTimeout(()=> {
+            const row = streamedRows.value[streamedRows.value.length-1];
+            if (row) row.just = false;
+          }, 700);
+        }, 1200 + i*600);
+      });
+      // Done
+      setTimeout(()=> {
+        streamMeta.value = data.meta;
+        askRunning.value = false;
+      }, 1200 + data.rows.length*600 + 200);
+    }
+
+    /* === Catalog state === */
+    const catSite = ref('');
+    const catSearch = ref('');
+    const catPriceMin = ref('');
+    const catPriceMax = ref('');
+    const drawerRow = ref(null);
+    const filteredRows = computed(()=> {
+      let rows = FIXTURES.catalog_rows;
+      if (catSite.value) rows = rows.filter(r=> r.site===catSite.value);
+      if (catSearch.value) {
+        const q = catSearch.value.toLowerCase();
+        rows = rows.filter(r=> r.title.toLowerCase().includes(q) || r.sku.toLowerCase().includes(q));
+      }
+      if (catPriceMin.value) rows = rows.filter(r=> r.sale >= +catPriceMin.value);
+      if (catPriceMax.value) rows = rows.filter(r=> r.sale <= +catPriceMax.value);
+      return rows;
+    });
+    function pillClass(row) {
+      if (row.conf >= 0.85 && row.age < 24) return 'ok';
+      if (row.age >= 24*7) return 'warn';
+      if (row.conf < 0.5) return 'bad';
+      return 'ok';
+    }
+    function pillText(row) {
+      if (row.conf >= 0.85 && row.age < 24) return '✓ Verified';
+      if (row.age >= 24*7) return '⚠ Stale';
+      if (row.conf < 0.5) return '✗ Failed';
+      return '✓ Verified';
+    }
+
+    /* === VOC state === */
+    const vocSku = ref('SOL-3782');
+    const vocData = computed(()=> {
+      const sku = FIXTURES.voc_skus.find(s=> s.sku===vocSku.value);
+      const insight = FIXTURES.voc_insights[vocSku.value];
+      return { sku, insight };
+    });
+
+    onMounted(()=> {
+      // 默认演示一次
+      setTimeout(()=> runStarter('aosom_bed'), 400);
+    });
+
+    return {
+      tab, toast, showToast,
+      askInput, askRunning, askCurrent, streamedRows, streamedCols, streamedPlan, streamMeta,
+      runStarter, FIXTURES,
+      catSite, catSearch, catPriceMin, catPriceMax, drawerRow, filteredRows, pillClass, pillText,
+      vocSku, vocData
+    };
+  },
+  template: `
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="brand">⚡ smart-crawler</div>
+      <div class="tab-row">
+        <button class="tab" :class="{active: tab==='ask'}" @click="tab='ask'">💬 Ask</button>
+        <button class="tab" :class="{active: tab==='catalog'}" @click="tab='catalog'">📦 Catalog</button>
+        <button class="tab" :class="{active: tab==='voc'}" @click="tab='voc'">💡 VOC</button>
+        <button class="tab" :class="{active: tab==='coverage'}" @click="tab='coverage'">🌐 Coverage</button>
+        <button class="tab" :class="{active: tab==='settings'}" @click="tab='settings'">⚙️ Settings</button>
+      </div>
+      <div class="usage-strip">用量 <b>12,430</b> / 50,000 records · <b>$18.65</b> MTD</div>
+      <button class="icon-btn" @click="showToast('已导出 CSV ✓')" title="导出">📥</button>
+      <button class="icon-btn" @click="showToast('暂无新告警')" title="告警">🔔<span class="badge">2</span></button>
+      <div class="acct">
+        <div class="avatar">B</div>
+        <span>VIVO 商研</span>
+      </div>
+    </div>
+
+    <!-- ==== ASK ==== -->
+    <div v-if="tab==='ask'" class="page">
+      <div class="lead">问 smart-crawler 一句话</div>
+      <div class="sub">自然语言一句话，stream 出结构化表格 + 每个 cell ✓ 验证。试试下面的 starter 或自己写。</div>
+
+      <div class="ask-shell">
+        <!-- History -->
+        <div class="ask-history">
+          <h4>历史 prompt</h4>
+          <div class="item" v-for="h in FIXTURES.ask_history" :key="h.prompt" @click="runStarter(h.key)">
+            {{ h.prompt }}
+            <div class="time">{{ h.time }}</div>
+          </div>
+        </div>
+
+        <!-- Main -->
+        <div class="ask-main">
+          <div class="ask-input">
+            <textarea v-model="askInput" placeholder="例如：跟踪 Aosom 床品类目本周 TOP 50 SKU，含价格 / 评分 / 库存"></textarea>
+            <div class="ask-input-row">
+              <span>按 <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> 提交</span>
+              <button class="btn-go" :disabled="askRunning" @click="askInput && runStarter('aosom_bed')">▶ Run</button>
+            </div>
+          </div>
+
+          <div v-if="!askCurrent" class="starters">
+            <div class="starter" v-for="s in FIXTURES.ask_starters" :key="s.key" @click="runStarter(s.key)">
+              <div class="icon">{{ s.icon }}</div>
+              <div class="title">{{ s.title }}</div>
+              <div class="desc">{{ s.desc }}</div>
+            </div>
+          </div>
+
+          <div v-if="askCurrent" class="result-card">
+            <div class="result-head">
+              <div class="result-meta">
+                <span v-if="streamMeta">耗时 <b>{{ streamMeta.elapsed }}</b></span>
+                <span v-if="streamMeta">成本 <b>{{ streamMeta.cost }}</b></span>
+                <span v-if="streamMeta">共 <b>{{ streamMeta.rows }}</b> 行</span>
+                <span v-else>正在 stream…</span>
+              </div>
+              <div class="result-actions">
+                <button @click="showToast('已保存为 View ✓')">Save view</button>
+                <button @click="showToast('CSV 导出已开始')">Export CSV</button>
+                <button @click="showToast('告警已创建')">Set alert</button>
+                <button @click="showToast('已复制分享链接')">Share</button>
+              </div>
+            </div>
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th v-for="c in streamedCols" :key="c">{{ c }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(r, i) in streamedRows" :key="i" :class="{streaming: r.just}">
+                  <td v-for="(cell, j) in r.data" :key="j">
+                    <span v-if="j === r.data.length - 1" class="pill" :class="cell || 'ok'">
+                      <template v-if="cell==='ok'">✓ Match</template>
+                      <template v-else-if="cell==='warn'">⚠ Stale</template>
+                      <template v-else-if="cell==='bad'">✗ Failed</template>
+                      <template v-else-if="cell==='pending'">… Pending</template>
+                      <template v-else>{{ cell }}</template>
+                    </span>
+                    <template v-else>{{ cell }}</template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Trace -->
+        <div class="trace">
+          <h4>执行 trace</h4>
+          <div v-if="!streamedPlan.length" style="color:#52527a;font-size:0.74rem">点 starter 或输入 prompt 开始 →</div>
+          <div class="step" v-for="(p, i) in streamedPlan" :key="i">
+            <div class="dot"></div>
+            <div class="body"><b>{{ p.step }}</b> · <span v-html="p.body"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==== CATALOG ==== -->
+    <div v-if="tab==='catalog'" class="page">
+      <div class="lead">Catalog · 商品 + Verified Cells</div>
+      <div class="sub">每个 cell 都有 ✓ Match pill · hover 看源 URL/截图/抓取时间 · 点击看完整证据</div>
+
+      <div class="sites-grid">
+        <div class="site-tile" :class="s.klass" v-for="s in FIXTURES.sites" :key="s.code" @click="catSite=s.code">
+          <div class="name">{{ s.name }}</div>
+          <div class="coverage">覆盖 {{ s.coverage }}%</div>
+          <div class="bar"><div :style="{width: Math.min(s.coverage, 100)+'%'}"></div></div>
+        </div>
+      </div>
+
+      <div class="cat-filters">
+        <select v-model="catSite">
+          <option value="">全部 12 站</option>
+          <option v-for="s in FIXTURES.sites" :key="s.code" :value="s.code">{{ s.name }}</option>
+        </select>
+        <input placeholder="🔍 搜索 SKU / 商品名" v-model="catSearch" style="width:220px"/>
+        <input placeholder="价格 ≥" v-model="catPriceMin" style="width:80px" type="number"/>
+        <input placeholder="价格 ≤" v-model="catPriceMax" style="width:80px" type="number"/>
+        <button class="btn-go" style="margin-left:auto" @click="showToast('已选择 ' + filteredRows.length + ' 行导出')">导出选中</button>
+      </div>
+
+      <div class="cat-table-wrap">
+        <table class="cat-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" class="ck"/></th>
+              <th></th>
+              <th>商品</th>
+              <th>SKU</th>
+              <th>站点</th>
+              <th>现价</th>
+              <th>原价</th>
+              <th>评分</th>
+              <th>30 天销量</th>
+              <th>验证</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in filteredRows" :key="r.sku">
+              <td><input type="checkbox" class="ck"/></td>
+              <td><div class="thumb">📦</div></td>
+              <td class="cell clickable" @click="vocSku=r.sku;tab='voc';showToast('已跳到 VOC 详情')">
+                {{ r.title }}
+                <div class="tip">
+                  <div class="tip-row"><span class="k">SRC URL</span><a class="src-url" :href="'https://'+r.site+'.com'">{{ r.site }}.com/{{ r.sku }}</a></div>
+                  <div class="tip-row"><span class="k">抓取时间</span><span class="v">{{ r.age }}h ago</span></div>
+                  <div class="tip-row"><span class="k">置信度</span><span class="v">{{ (r.conf*100).toFixed(0) }}%</span></div>
+                </div>
+              </td>
+              <td><code style="font-size:0.74rem;color:#a78bfa">{{ r.sku }}</code></td>
+              <td><span class="pill ok" style="font-size:0.6rem">{{ r.site }}</span></td>
+              <td class="cell clickable" @click="drawerRow=r">
+                $\{{ r.sale }}
+                <div class="tip">
+                  <div class="tip-row"><span class="k">SRC URL</span><span class="src-url">{{ r.site }}.com/{{ r.sku }}</span></div>
+                  <div class="tip-row"><span class="k">CSS Selector</span><span class="v">.product-price__current</span></div>
+                  <div class="tip-row"><span class="k">抓取时间</span><span class="v">{{ r.age }} 小时前</span></div>
+                  <div class="tip-row"><span class="k">置信度</span><span class="v">{{ (r.conf*100).toFixed(0) }}% · 点击看证据</span></div>
+                </div>
+              </td>
+              <td style="color:#52527a">$\{{ r.original }}</td>
+              <td>{{ r.rating }} ★</td>
+              <td>{{ r.sold30 }}</td>
+              <td><span class="pill" :class="pillClass(r)">{{ pillText(r) }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Drawer -->
+      <div v-if="drawerRow" class="overlay" @click.self="drawerRow=null">
+        <div class="drawer">
+          <div class="drawer-head">
+            <h3>{{ drawerRow.title }} · 证据</h3>
+            <button class="close" @click="drawerRow=null">关闭 ✕</button>
+          </div>
+          <div class="drawer-body">
+            <div class="evidence-block">
+              <h5>截图快照</h5>
+              <div class="screenshot">📸 mock screenshot · {{ drawerRow.age }}h ago</div>
+              <div class="meta-row"><span class="k">源 URL</span><a :href="'https://'+drawerRow.site+'.com'">{{ drawerRow.site }}.com/{{ drawerRow.sku }}</a></div>
+              <div class="meta-row"><span class="k">抓取时间</span><span>{{ drawerRow.age }}h ago · scraped-at 2026-05-24 03:12 UTC</span></div>
+              <div class="meta-row"><span class="k">爬虫版本</span><code>playwright-v1.7</code></div>
+              <div class="meta-row"><span class="k">CSS Selector</span><code>span.product-price__current</code></div>
+              <div class="meta-row"><span class="k">置信度</span>{{ (drawerRow.conf*100).toFixed(0) }}%</div>
+            </div>
+            <div class="evidence-block">
+              <h5>价格历史（7 天）</h5>
+              <div class="meta-row"><span class="k">本次抓取</span><b>$\{{ drawerRow.sale }}</b></div>
+              <div class="meta-row"><span class="k">上次抓取</span><span>$\{{ drawerRow.original }}（{{ drawerRow.age + 24 }}h ago）</span></div>
+              <div class="meta-row"><span class="k">7 天均价</span><span>$\{{ ((drawerRow.sale + drawerRow.original)/2).toFixed(2) }}</span></div>
+              <div class="meta-row"><span class="k">趋势</span><span style="color:#6ee7b7">↓ 降价 9.5%</span></div>
+            </div>
+            <div class="evidence-block">
+              <h5>HTML 片段</h5>
+              <pre style="background:#0a0612;padding:10px;border-radius:6px;font-family:'SF Mono',monospace;font-size:0.7rem;color:#cbd5e1;overflow-x:auto">&lt;div class="product-price"&gt;
+  &lt;span class="product-price__current"&gt;$\{{ drawerRow.sale }}&lt;/span&gt;
+  &lt;span class="product-price__original"&gt;$\{{ drawerRow.original }}&lt;/span&gt;
+&lt;/div&gt;</pre>
+            </div>
+            <button class="btn-go" style="width:100%" @click="showToast('已添加到 watchlist');drawerRow=null">⭐ 加入 watchlist</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==== VOC ==== -->
+    <div v-if="tab==='voc'" class="page">
+      <div class="lead">VOC · 自动洞察卡片</div>
+      <div class="sub">每个 SKU 自动出差评 Top 3 + 关键词云 + 竞品对比 + 行动建议</div>
+
+      <div class="voc-shell">
+        <div class="voc-sidebar">
+          <h4>SKU 列表</h4>
+          <div v-for="s in FIXTURES.voc_skus" :key="s.sku" class="sku-pick" :class="{active: vocSku===s.sku}" @click="vocSku=s.sku">
+            <span>{{ s.name }}</span>
+            <span class="site-name">{{ s.site.split('_')[0] }}</span>
+          </div>
+        </div>
+
+        <div class="voc-detail" v-if="vocData.insight">
+          <div class="voc-head">
+            <div class="name">{{ vocData.sku.name }}</div>
+            <div class="meta">
+              <span>SKU <b>{{ vocData.sku.sku }}</b></span>
+              <span>站点 <b>{{ vocData.sku.site }}</b></span>
+              <span>评论样本 <b>{{ vocData.insight.sample }}</b></span>
+              <span>生成于 <b>{{ vocData.insight.generated }}</b></span>
+            </div>
+          </div>
+
+          <div class="voc-cards">
+            <div class="voc-block">
+              <h5>
+                差评 Top 3
+                <span class="actions">
+                  <button @click="showToast('已复制 Markdown')">copy</button>
+                  <button @click="showToast('已发到 Slack')">slack</button>
+                </span>
+              </h5>
+              <div class="complaint" v-for="c in vocData.insight.complaints" :key="c.theme">
+                <div class="theme">{{ c.theme }}<span class="share">{{ (c.share*100).toFixed(0) }}%</span></div>
+                <div class="quote">"{{ c.sample }}"</div>
+                <div class="bar"><div :style="{width:(c.share*100)+'%'}"></div></div>
+              </div>
+            </div>
+
+            <div class="voc-block">
+              <h5>
+                关键词云
+                <span class="actions"><button @click="showToast('已导出关键词列表')">export</button></span>
+              </h5>
+              <div class="kw-cloud">
+                <span class="kw" :class="kw.k" v-for="kw in vocData.insight.cloud" :key="kw.term" :style="{fontSize:(0.7+kw.w/40)+'rem'}">{{ kw.term }}</span>
+              </div>
+            </div>
+
+            <div class="voc-block">
+              <h5>
+                竞品对比
+                <span class="actions"><button @click="showToast('已对比 3 竞品')">详情</button></span>
+              </h5>
+              <div class="compare-row" v-for="c in vocData.insight.compare" :key="c.site">
+                <div class="site">{{ c.site }}</div>
+                <div class="info">$\{{ c.price }} · {{ c.rating }} ★<span>({{ c.reviews }} 评论)</span><br/><span>主诉：{{ c.complaint }}</span></div>
+                <div class="delta" :class="c.deltaCls">$\{{ c.delta }}</div>
+              </div>
+            </div>
+
+            <div class="voc-block">
+              <h5>
+                行动建议
+                <span class="actions">
+                  <button @click="showToast('已复制建议 Markdown')">copy</button>
+                  <button @click="showToast('PDF 导出已开始')">pdf</button>
+                </span>
+              </h5>
+              <ul class="recs">
+                <li v-for="(r, i) in vocData.insight.recs" :key="i" v-html="r"></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="voc-foot">
+            <span class="cost">下次刷新成本 <b style="color:#fcd34d">$0.02</b> · 每 24h 自动重算</span>
+            <button @click="showToast('告警已创建：异响投诉 >40% 时通知')">⚡ Set alert</button>
+            <button @click="showToast('Insight 刷新中…')">🔄 Refresh ($0.02)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==== COVERAGE ==== -->
+    <div v-if="tab==='coverage'" class="page">
+      <div class="lead">数据覆盖率 · 你订购的 46 站</div>
+      <div class="sub">总 SKU <b style="color:#c4b5fd">{{ FIXTURES.coverage_summary.sku.toLocaleString() }}</b> / 满量 <b style="color:#c4b5fd">{{ FIXTURES.coverage_summary.target.toLocaleString() }}</b> · 整体覆盖 <b style="color:#fcd34d">{{ FIXTURES.coverage_summary.pct }}%</b></div>
+
+      <div class="coverage-grid">
+        <div class="cov-tile" :class="s.klass" v-for="s in FIXTURES.sites" :key="s.code">
+          <h6>{{ s.name }}</h6>
+          <div class="country">{{ s.code }}</div>
+          <div class="num">{{ s.coverage }}%</div>
+          <div class="pct">覆盖率</div>
+          <div class="bar"><div :style="{width: Math.min(s.coverage, 100)+'%'}"></div></div>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;background:#13111f;border:1px solid #29213a;border-radius:12px;padding:18px;font-size:0.86rem;color:#cbd5e1">
+        <h3 style="font-size:1rem;color:#fcd34d;margin-bottom:9px">🚀 60% 覆盖率冲刺中</h3>
+        <p style="margin-bottom:6px">目标 60% = <b>254 万 SKU</b>，缺口 240 万。</p>
+        <p style="margin-bottom:6px">10 商业代理并发上限 <b>21.6k SKU/天</b> → 物理时间约 <b>11 天</b>。</p>
+        <p style="color:#fda4af">关键路径：Vidaxl Dropshipping API（已发申请邮件给 partners@vidaxl.com）— 拿到后可一夜满血。</p>
+      </div>
+    </div>
+
+    <!-- ==== SETTINGS ==== -->
+    <div v-if="tab==='settings'" class="page">
+      <div class="lead">设置</div>
+      <div class="sub">API Keys · Billing · Alerts</div>
+
+      <div class="set-grid">
+        <div class="set-block">
+          <h3>🔑 API Keys <button @click="showToast('新 Key 已创建：sck_n3w...x9pQr')">+ 新建</button></h3>
+          <div class="key-row" v-for="k in FIXTURES.api_keys" :key="k.id">
+            <div class="info">
+              <b>{{ k.name }}</b>
+              <span class="key-prefix">{{ k.prefix }}</span>
+              <span class="meta">创建 {{ k.created }} · 调用 {{ k.requests.toLocaleString() }} 次</span>
+            </div>
+            <button class="rev" @click="showToast('Key ' + k.name + ' 已撤销')">撤销</button>
+          </div>
+        </div>
+
+        <div class="set-block">
+          <h3>💰 Billing <button @click="showToast('账单已下载')">下载发票</button></h3>
+          <div style="font-size:1.6rem;font-weight:900;color:#c4b5fd">$18.65 <span style="font-size:0.8rem;color:#94a3b8">MTD</span></div>
+          <div style="font-size:0.78rem;color:#52527a">12,430 records · $1.5/1k</div>
+          <div class="billing-bar">
+            <div class="b" v-for="(v, i) in FIXTURES.billing_30d" :key="i" :style="{height: v*2+'%'}"></div>
+          </div>
+          <div class="billing-meta">
+            <span>过去 30 天</span>
+            <span>预估月底 <b>$28.40</b></span>
+          </div>
+        </div>
+
+        <div class="set-block">
+          <h3>🔔 Alerts <button @click="showToast('告警已新建')">+ 新建</button></h3>
+          <div class="alert-row" v-for="a in FIXTURES.alerts" :key="a.id">
+            <div class="info">
+              <b>{{ a.name }}</b>
+              <span>{{ a.channel }} · 最近触发 {{ a.last }}</span>
+            </div>
+            <button class="rev" @click="showToast('告警 ' + a.name + ' 已删除')">删除</button>
+          </div>
+        </div>
+
+        <div class="set-block">
+          <h3>🌐 Webhook</h3>
+          <p style="color:#94a3b8;font-size:0.82rem;margin-bottom:9px">告警触发时 POST 到这个 URL。</p>
+          <input style="width:100%;background:#0d0a17;border:1px solid #29213a;border-radius:7px;padding:9px 12px;color:#cbd5e1;font-size:0.82rem;font-family:'SF Mono',monospace" value="https://hooks.slack.com/services/T01.../B02.../xxxYyyZzz" readonly/>
+          <button class="btn-go" style="margin-top:11px" @click="showToast('Webhook 已 ping，状态 200 OK')">🧪 测试 ping</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div v-if="toast" class="toast">{{ toast }}</div>
+  `
+};
+
+createApp(App).mount('#app');
+</script>
+</body>
+</html>
