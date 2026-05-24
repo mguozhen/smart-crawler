@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客户视角 Dashboard · 4 套抽卡（学 YC 硅谷）· 2026-05-24</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter','PingFang SC',-apple-system,BlinkMacSystemFont,sans-serif}
+html{scroll-behavior:smooth}
+body{background:#0a0612;color:#e5e7eb;font-size:14.5px;line-height:1.65}
+a{color:#a78bfa;text-decoration:none}
+a:hover{text-decoration:underline}
+
+.hero{padding:64px 32px 50px;text-align:center;position:relative;overflow:hidden;
+      background:radial-gradient(ellipse 90% 70% at 50% 0%,rgba(167,139,250,.20),transparent 65%),
+                 radial-gradient(ellipse 70% 60% at 80% 50%,rgba(244,114,182,.12),transparent 60%)}
+.hero-tag{display:inline-flex;align-items:center;gap:9px;padding:6px 16px;background:rgba(167,139,250,.14);
+          border:1px solid rgba(167,139,250,.4);border-radius:26px;font-size:0.74rem;color:#c4b5fd;
+          letter-spacing:1.5px;text-transform:uppercase;margin-bottom:22px}
+.hero-tag .dot{width:7px;height:7px;border-radius:50%;background:#a78bfa;animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{font-size:2.6rem;font-weight:900;letter-spacing:-1.5px;line-height:1.15;margin-bottom:14px}
+.hero h1 .grad{background:linear-gradient(90deg,#a78bfa,#f472b6,#fb7185);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:1.02rem;max-width:780px;margin:0 auto 18px;line-height:1.75}
+.hero-meta{font-size:0.82rem;color:#52527a;margin-top:12px}
+
+.research-strip{background:#13111f;border-top:1px solid #29213a;border-bottom:1px solid #29213a;padding:16px 28px;text-align:center;font-size:0.84rem;color:#94a3b8}
+.research-strip strong{color:#c4b5fd}
+.yc-row{display:flex;flex-wrap:wrap;gap:11px;justify-content:center;margin-top:12px}
+.yc-chip{font-size:0.7rem;padding:4px 10px;border-radius:14px;border:1px solid #29213a;background:#0a0612;color:#94a3b8}
+.yc-chip b{color:#fff;font-weight:700}
+
+section{max-width:1280px;margin:0 auto;padding:50px 28px}
+.sec-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 13px;border-radius:18px;font-size:0.7rem;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;background:rgba(167,139,250,.14);color:#c4b5fd;border:1px solid rgba(167,139,250,.3)}
+section h2{font-size:1.9rem;font-weight:800;letter-spacing:-0.5px;margin-bottom:8px}
+.lede{color:#94a3b8;font-size:0.94rem;margin-bottom:26px;max-width:780px;line-height:1.7}
+
+/* card grid */
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+.card{background:#13111f;border:2px solid #29213a;border-radius:18px;overflow:hidden;cursor:pointer;transition:all .25s ease;display:flex;flex-direction:column}
+.card:hover{transform:translateY(-4px);border-color:#a78bfa;box-shadow:0 24px 60px rgba(167,139,250,.25)}
+.card.selected{border-color:#a78bfa;box-shadow:0 0 0 4px rgba(167,139,250,.2),0 28px 70px rgba(167,139,250,.35)}
+.card-head{padding:22px 26px 16px;border-bottom:1px solid #1f1429;background:linear-gradient(180deg,rgba(167,139,250,.06),transparent)}
+.card-tag{display:inline-flex;gap:6px;align-items:center;font-size:0.66rem;font-weight:800;padding:4px 11px;border-radius:11px;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px}
+.tag-A{background:rgba(244,114,182,.15);color:#f9a8d4;border:1px solid rgba(244,114,182,.4)}
+.tag-B{background:rgba(96,165,250,.15);color:#93c5fd;border:1px solid rgba(96,165,250,.4)}
+.tag-C{background:rgba(16,185,129,.15);color:#6ee7b7;border:1px solid rgba(16,185,129,.4)}
+.tag-D{background:rgba(247,183,49,.15);color:#fcd34d;border:1px solid rgba(247,183,49,.4)}
+.card-title{font-size:1.5rem;font-weight:900;color:#fff;margin-bottom:5px;letter-spacing:-0.4px}
+.card-cn{font-size:0.86rem;color:#a78bfa;margin-bottom:7px;font-weight:600}
+.card-sub{font-size:0.82rem;color:#94a3b8;line-height:1.6}
+.yc-ref{font-size:0.7rem;color:#52527a;margin-top:8px}
+.yc-ref b{color:#94a3b8}
+
+/* mockup area */
+.mockup{padding:18px 22px;background:linear-gradient(180deg,#0d0a17,#0a0612)}
+.frame{background:#080614;border:1px solid #29213a;border-radius:9px;overflow:hidden}
+.frame-bar{background:#13111f;padding:6px 12px;border-bottom:1px solid #1f1429;display:flex;gap:6px;align-items:center;font-size:0.66rem;color:#52527a}
+.dots{display:flex;gap:4px}
+.dot{width:7px;height:7px;border-radius:50%;background:#52527a}
+.dot.r{background:#fb7185}.dot.y{background:#fbbf24}.dot.g{background:#10b981}
+.url{margin-left:auto;font-family:'SF Mono',monospace}
+
+/* A · Prompt-to-Table */
+.A-input{padding:11px 16px;background:rgba(167,139,250,.08);border-bottom:1px solid #1f1429;font-size:0.8rem;color:#c4b5fd;display:flex;align-items:center;gap:8px}
+.A-input .prompt-icon{color:#a78bfa;font-weight:900}
+.A-stream{padding:6px 0;font-size:0.72rem}
+.A-row{display:grid;grid-template-columns:32px 2fr 1fr 100px 60px;padding:6px 14px;border-bottom:1px solid #1f1429;align-items:center;gap:10px}
+.A-row.head{color:#52527a;font-size:0.64rem;letter-spacing:1px;text-transform:uppercase;font-weight:700}
+.A-row .num{color:#52527a}
+.A-row.streaming{background:rgba(167,139,250,.08);animation:streamIn .6s ease}
+@keyframes streamIn{from{opacity:.3;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+.match-pill{display:inline-flex;gap:3px;align-items:center;font-size:0.62rem;padding:2px 7px;border-radius:9px;background:rgba(16,185,129,.16);color:#6ee7b7;border:1px solid rgba(16,185,129,.3);font-weight:600}
+.match-pill.pending{background:rgba(247,183,49,.16);color:#fcd34d;border:1px solid rgba(247,183,49,.3)}
+
+/* B · Verified Cells */
+.B-table{font-size:0.7rem}
+.B-row{display:grid;grid-template-columns:30px 1fr 70px 90px 60px 70px;padding:7px 14px;align-items:center;border-bottom:1px solid #1f1429;gap:8px}
+.B-row.head{color:#52527a;font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;font-weight:700}
+.B-cell{position:relative;display:inline-flex;gap:5px;align-items:center}
+.B-cell .src{color:#52527a;font-size:0.6rem;cursor:help}
+.B-cell:hover .pop{display:block}
+.pop{display:none;position:absolute;bottom:100%;left:0;background:#1a0a14;border:1px solid #29213a;border-radius:5px;padding:5px 8px;font-size:0.62rem;color:#cbd5e1;white-space:nowrap;z-index:10}
+.delta-up{color:#fb7185}
+.delta-dn{color:#6ee7b7}
+
+/* C · VOC Insight Cards */
+.C-insights{padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.C-insight-card{background:linear-gradient(135deg,#13111f,#1a0c28);border:1px solid #29213a;border-radius:9px;padding:12px 14px;font-size:0.72rem}
+.C-insight-card h5{font-size:0.78rem;font-weight:800;color:#fff;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.C-insight-card h5 .sku{font-size:0.62rem;font-weight:600;color:#a78bfa;background:rgba(167,139,250,.12);padding:1px 6px;border-radius:7px}
+.voc-keywords{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.voc-kw{font-size:0.62rem;padding:1px 7px;border-radius:9px;background:rgba(251,113,133,.14);color:#fda4af;border:1px solid rgba(251,113,133,.25)}
+.voc-kw.pos{background:rgba(16,185,129,.14);color:#6ee7b7;border-color:rgba(16,185,129,.25)}
+.C-mini-bar{display:flex;gap:2px;margin-top:7px;height:18px;align-items:flex-end}
+.C-mini-bar .b{flex:1;background:linear-gradient(180deg,rgba(244,114,182,.6),rgba(244,114,182,.2));border-radius:2px}
+
+/* D · Multi-Mode Workspace */
+.D-tabs{display:flex;border-bottom:1px solid #1f1429;background:#0d0a17;padding:0 12px}
+.D-tab{padding:8px 14px;font-size:0.72rem;color:#52527a;cursor:default;border-bottom:2px solid transparent;display:flex;align-items:center;gap:5px}
+.D-tab.active{color:#fcd34d;border-bottom-color:#fcd34d;font-weight:700}
+.D-content{padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:120px}
+.D-trend{background:#0d0a17;border:1px solid #29213a;border-radius:8px;padding:10px;font-size:0.7rem}
+.D-trend-chart{height:46px;display:flex;align-items:flex-end;gap:3px;margin-top:8px}
+.D-trend-chart .bar{flex:1;background:linear-gradient(180deg,#fcd34d,rgba(247,183,49,.2));border-radius:2px 2px 0 0}
+.D-map{background:#0d0a17;border:1px solid #29213a;border-radius:8px;padding:10px;font-size:0.7rem;position:relative;overflow:hidden}
+.D-map-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-top:7px}
+.D-map-cell{aspect-ratio:1;border-radius:3px;background:rgba(247,183,49,.15);position:relative}
+.D-map-cell.hot{background:rgba(251,113,133,.5)}
+.D-map-cell.warm{background:rgba(247,183,49,.5)}
+.D-map-cell.cool{background:rgba(96,165,250,.35)}
+
+/* details */
+.detail{padding:20px 26px 24px;background:#0d0a17;border-top:1px solid #1f1429}
+.detail h4{font-size:0.7rem;color:#52527a;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.detail-row{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:0.82rem;line-height:1.6;color:#cbd5e1;margin-bottom:8px}
+.detail-key{color:#94a3b8;font-weight:600}
+.detail-val strong{color:#fff}
+.pros{font-size:0.78rem;color:#6ee7b7;margin-top:8px}
+.pros::before{content:'✓ '}
+.cons{font-size:0.78rem;color:#fda4af;margin-top:4px}
+.cons::before{content:'✗ '}
+
+/* radio */
+.choose{padding:16px 26px;background:#080614;border-top:1px solid #1f1429;display:flex;align-items:center;justify-content:space-between}
+.choose label{display:flex;gap:9px;align-items:center;font-size:0.82rem;color:#94a3b8;cursor:pointer;font-weight:600}
+.choose input[type=radio]{appearance:none;width:18px;height:18px;border:2px solid #475569;border-radius:50%;cursor:pointer;transition:all .15s}
+.choose input[type=radio]:checked{background:#a78bfa;border-color:#a78bfa;box-shadow:0 0 0 4px rgba(167,139,250,.18)}
+.eta{font-size:0.74rem;color:#52527a}
+
+.recommend{background:linear-gradient(135deg,rgba(244,114,182,.14),rgba(167,139,250,.10));border:1px solid rgba(244,114,182,.3);border-radius:14px;padding:22px 26px;margin:30px 0;font-size:0.92rem;line-height:1.75;color:#fbcfe8}
+.recommend strong{color:#fff}
+.recommend h3{font-size:1.2rem;font-weight:800;color:#fff;margin-bottom:10px}
+
+/* CTA */
+.cta{background:linear-gradient(135deg,rgba(167,139,250,.18),rgba(244,114,182,.12));border:2px solid rgba(167,139,250,.4);border-radius:18px;padding:38px;text-align:center;margin-top:30px}
+.cta h2{font-size:1.9rem;font-weight:900;margin-bottom:10px;background:linear-gradient(90deg,#a78bfa,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.cta p{color:#cbd5e1;font-size:0.95rem;max-width:600px;margin:0 auto 22px;line-height:1.7}
+.btn{padding:11px 22px;border-radius:24px;font-size:0.88rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:7px;border:none;cursor:pointer;background:linear-gradient(135deg,#a78bfa,#f472b6);color:#fff}
+
+footer{padding:30px;text-align:center;color:#52527a;font-size:0.8rem;border-top:1px solid #1f1429;background:#0a0612;margin-top:50px}
+
+@media(max-width:900px){
+  .cards{grid-template-columns:1fr}
+  .hero h1{font-size:1.85rem}
+  .C-insights{grid-template-columns:1fr}
+  .D-content{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tag"><span class="dot"></span>客户视角 Dashboard · v5 抽卡</div>
+  <h1>给 <span class="grad">VIVO / 遨森 / 海尔 / 极氪</span><br>商研团队的最佳 UX</h1>
+  <p>不是给我自己看的 admin 后台，是<strong style="color:#fff">客户登录后看到他们订购的数据</strong>。基于 2024-2026 YC 8 个 AI 数据采集项目的实证调研：Firecrawl / Browserbase / Browser Use / Hyperbrowser / Skyvern / Exa Websets / Parallel / Olostep。</p>
+  <div class="hero-meta">2026-05-24 · 4 个 UX pattern · 单页 self-contained · smartcrawler.io/d/ 自托管</div>
+</div>
+
+<!-- YC 研究 -->
+<div class="research-strip">
+  研究来源 · <strong>2024-2026 YC AI 数据采集项目实证调研</strong>
+  <div class="yc-row">
+    <span class="yc-chip"><b>Firecrawl</b> W24</span>
+    <span class="yc-chip"><b>Browserbase</b> W24</span>
+    <span class="yc-chip"><b>Hyperbrowser</b> S24</span>
+    <span class="yc-chip"><b>Skyvern</b> S23</span>
+    <span class="yc-chip"><b>Browser Use</b> W25</span>
+    <span class="yc-chip"><b>Exa Websets</b> 2024</span>
+    <span class="yc-chip"><b>Parallel</b> $100M A</span>
+    <span class="yc-chip"><b>Olostep / Orbit</b></span>
+  </div>
+</div>
+
+<!-- 4 张抽卡 -->
+<section>
+  <span class="sec-tag">🎴 4 张抽卡 · 选你的 user-facing UX</span>
+  <h2>4 套方案 · 来自硅谷最锐利的 2026 设计模式</h2>
+  <p class="lede">每张卡 = 一种独立 UX 范式，对应不同硅谷 YC 项目实证。Mockup 不是装饰，每个元素都能在引用项目里找到对应。</p>
+
+  <div class="cards">
+
+    <!-- A · Prompt-to-Table -->
+    <div class="card" id="card-A" onclick="select('A')">
+      <div class="card-head">
+        <span class="card-tag tag-A">A · PROMPT-TO-TABLE</span>
+        <div class="card-title">提示词到表格</div>
+        <div class="card-cn">「自然语言一句话 → stream 出结构化表格」</div>
+        <div class="card-sub">商研同学不写筛选条件，直接打字："我要 Aosom Amazon DE 床品类目本周 TOP 50"，几秒后表格逐行流出来。<strong style="color:#c4b5fd">零培训成本，是 Exa Websets / Firecrawl Agent 的核心交互</strong>。</div>
+        <div class="yc-ref">原型 · <b>Exa Websets</b>（websets.exa.ai）· <b>Firecrawl Agent</b>（firecrawl.dev/agent）</div>
+      </div>
+      <div class="mockup">
+        <div class="frame">
+          <div class="frame-bar"><div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div><span class="url">app.smartcrawler.io/ask</span></div>
+          <div class="A-input">
+            <span class="prompt-icon">⌘</span>
+            <span>跟踪 Aosom 床品类目本周 TOP 50 SKU，价格 + 评分 + 库存</span>
+          </div>
+          <div class="A-stream">
+            <div class="A-row head"><span>#</span><span>商品</span><span>价格</span><span>评分</span><span></span></div>
+            <div class="A-row"><span class="num">1</span><span>电动升降桌 折叠款</span><span>€399</span><span>4.5 ★</span><span class="match-pill">✓ Match</span></div>
+            <div class="A-row"><span class="num">2</span><span>儿童双层床 实木</span><span>€899</span><span>4.7 ★</span><span class="match-pill">✓ Match</span></div>
+            <div class="A-row"><span class="num">3</span><span>智能床头柜 RGB 灯</span><span>€159</span><span>4.2 ★</span><span class="match-pill">✓ Match</span></div>
+            <div class="A-row streaming"><span class="num">4</span><span>实木餐桌 6人位</span><span>€459</span><span>4.4 ★</span><span class="match-pill pending">… 验证中</span></div>
+            <div class="A-row streaming"><span class="num">5</span><span style="color:#52527a">…streaming…</span><span></span><span></span><span></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="detail">
+        <h4>形态特征</h4>
+        <div class="detail-row">
+          <div class="detail-key">主入口</div><div class="detail-val">一个输入框，0 培训成本</div>
+          <div class="detail-key">输出</div><div class="detail-val">实时 stream 的表格 + ✓ Match pill 验证</div>
+          <div class="detail-key">底层</div><div class="detail-val">已有 MCP 12 工具，LLM 解析意图调 tool 抓表</div>
+          <div class="detail-key">适合谁</div><div class="detail-val">不熟产品的<strong>新人商研同学</strong>、临时问数的<strong>老板</strong>、KPI 月报<strong>救火</strong></div>
+        </div>
+        <div class="pros">最大降低培训曲线；硅谷 2026 主流；客户 demo 高记忆点</div>
+        <div class="cons">复杂查询 LLM 偶尔理解错；Token 成本上去</div>
+      </div>
+      <div class="choose">
+        <label><input type="radio" name="pick" value="A">选 A · Prompt-to-Table</label>
+        <span class="eta">工期 3.5 周</span>
+      </div>
+    </div>
+
+    <!-- B · Verified Cells -->
+    <div class="card" id="card-B" onclick="select('B')">
+      <div class="card-head">
+        <span class="card-tag tag-B">B · VERIFIED CELLS</span>
+        <div class="card-title">每格带溯源 + 信任验证</div>
+        <div class="card-cn">「数据准不准？hover 看证据 + 源 URL」</div>
+        <div class="card-sub">每个价格 / 库存 / 评分单元格都带「✓ Verified 2 min ago」绿 pill + hover 显示截图 + 源链接。<strong style="color:#93c5fd">解决中国甲方"数据靠不靠谱"的天然不信任</strong>。Exa Websets 的杀手锏。</div>
+        <div class="yc-ref">原型 · <b>Exa Websets</b> Match pill · <b>Browserbase</b> Session Recording 溯源</div>
+      </div>
+      <div class="mockup">
+        <div class="frame">
+          <div class="frame-bar"><div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div><span class="url">app.smartcrawler.io/sku/A-12345</span></div>
+          <div class="B-table">
+            <div class="B-row head"><span></span><span>SKU</span><span>价格</span><span>评分</span><span>库存</span><span>变化</span></div>
+            <div class="B-row">
+              <span>🛏️</span>
+              <span>升降办公桌</span>
+              <span class="B-cell">€399<span class="src">ⓘ<div class="pop">vidaxl.de · 2min ago · 截图✓</div></span></span>
+              <span class="B-cell">4.5 <span class="match-pill" style="font-size:0.55rem">412 reviews</span></span>
+              <span class="B-cell">23<span class="src">ⓘ</span></span>
+              <span class="delta-dn">-€20</span>
+            </div>
+            <div class="B-row">
+              <span>🪑</span>
+              <span>儿童双层床</span>
+              <span class="B-cell">€899<span class="src">ⓘ<div class="pop">homary.uk · 2min ago · 截图✓</div></span></span>
+              <span class="B-cell">4.7 <span class="match-pill" style="font-size:0.55rem">156 reviews</span></span>
+              <span class="B-cell">缺货<span class="src">ⓘ</span></span>
+              <span class="delta-up">+€30</span>
+            </div>
+            <div class="B-row">
+              <span>🚪</span>
+              <span>智能门锁</span>
+              <span class="B-cell">£199<span class="src">ⓘ</span></span>
+              <span class="B-cell">4.0 <span class="match-pill pending" style="font-size:0.55rem">… 验证中</span></span>
+              <span class="B-cell">47<span class="src">ⓘ</span></span>
+              <span class="delta-dn">-£5</span>
+            </div>
+            <div class="B-row">
+              <span>🧹</span>
+              <span>无线吸尘器</span>
+              <span class="B-cell">zł250<span class="src">ⓘ</span></span>
+              <span class="B-cell">3.8 <span class="match-pill" style="font-size:0.55rem">89 reviews</span></span>
+              <span class="B-cell">110<span class="src">ⓘ</span></span>
+              <span class="delta-up">+zł12</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail">
+        <h4>形态特征</h4>
+        <div class="detail-row">
+          <div class="detail-key">主交互</div><div class="detail-val">每个单元格可 hover 验证：截图 / 源 URL / 抓取时间 / 历史快照</div>
+          <div class="detail-key">信任锚</div><div class="detail-val">✓ Verified pill · 数据迟于 5 分钟自动变 ⚠ Stale</div>
+          <div class="detail-key">底层</div><div class="detail-val">已有 data/snapshots/ 截图存档 · 加 hover endpoint</div>
+          <div class="detail-key">适合谁</div><div class="detail-val">采购 / 商研 / <strong>合规审计</strong>类客户 · 给 VIVO 商研、海尔 BI 用</div>
+        </div>
+        <div class="pros">数据可信度 = 商业溢价 · 中国甲方刚需 · 与硅谷拉差距</div>
+        <div class="cons">需要每次抓取存截图，存储成本 ↑ ~30%</div>
+      </div>
+      <div class="choose">
+        <label><input type="radio" name="pick" value="B">选 B · Verified Cells</label>
+        <span class="eta">工期 2.5 周</span>
+      </div>
+    </div>
+
+    <!-- C · VOC Insight Cards -->
+    <div class="card" id="card-C" onclick="select('C')">
+      <div class="card-head">
+        <span class="card-tag tag-C">C · VOC INSIGHT CARDS</span>
+        <div class="card-title">VOC 洞察自动卡片</div>
+        <div class="card-cn">「不只数据，自动出洞察 + 行动项」</div>
+        <div class="card-sub">每个 SKU 自动生成「<strong style="color:#6ee7b7">差评 Top 3 + 关键词云 + 竞品对比 + 改进建议</strong>」洞察卡。<strong style="color:#fb7185">这是硅谷 horizontal 工具不会做的领域护城河</strong>，VIVO / 海尔实际花钱的地方。</div>
+        <div class="yc-ref">原型 · <b>领域专属</b>（硅谷无对应）· 借鉴 Notion Gallery + Linear Issue cards</div>
+      </div>
+      <div class="mockup">
+        <div class="frame">
+          <div class="frame-bar"><div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div><span class="url">app.smartcrawler.io/voc</span></div>
+          <div class="C-insights">
+            <div class="C-insight-card">
+              <h5>升降桌 折叠款 <span class="sku">SKU A-12345</span></h5>
+              <div style="color:#fda4af;font-weight:700;font-size:0.7rem">差评 Top 3</div>
+              <div class="voc-keywords">
+                <span class="voc-kw">异响</span>
+                <span class="voc-kw">高度卡顿</span>
+                <span class="voc-kw">说明书</span>
+                <span class="voc-kw pos">承重好</span>
+              </div>
+              <div style="color:#94a3b8;font-size:0.66rem;margin-top:6px">vs 竞品 X：差评率 8.2% > 5.1%（拖后腿）</div>
+              <div class="C-mini-bar"><div class="b" style="height:60%"></div><div class="b" style="height:80%"></div><div class="b" style="height:45%"></div><div class="b" style="height:90%"></div><div class="b" style="height:35%"></div><div class="b" style="height:70%"></div><div class="b" style="height:55%"></div></div>
+              <div style="color:#fcd34d;font-size:0.66rem;margin-top:6px">💡 <strong style="color:#fff">行动</strong>：异响投诉占 31%，建议工厂改 axle 工艺</div>
+            </div>
+            <div class="C-insight-card">
+              <h5>儿童双层床 <span class="sku">SKU B-67890</span></h5>
+              <div style="color:#fda4af;font-weight:700;font-size:0.7rem">差评 Top 3</div>
+              <div class="voc-keywords">
+                <span class="voc-kw">组装困难</span>
+                <span class="voc-kw">螺丝缺失</span>
+                <span class="voc-kw pos">材质实在</span>
+                <span class="voc-kw pos">外观漂亮</span>
+              </div>
+              <div style="color:#94a3b8;font-size:0.66rem;margin-top:6px">vs 竞品 X：差评率 5.1% &lt; 7.8%（领先）</div>
+              <div class="C-mini-bar"><div class="b" style="height:30%"></div><div class="b" style="height:50%"></div><div class="b" style="height:75%"></div><div class="b" style="height:88%"></div><div class="b" style="height:80%"></div><div class="b" style="height:60%"></div><div class="b" style="height:92%"></div></div>
+              <div style="color:#fcd34d;font-size:0.66rem;margin-top:6px">💡 <strong style="color:#fff">行动</strong>：组装文档可改 video 形式</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail">
+        <h4>形态特征</h4>
+        <div class="detail-row">
+          <div class="detail-key">主输出</div><div class="detail-val">每 SKU 一张卡：差评关键词 + 竞品对比柱状 + 1 句行动建议</div>
+          <div class="detail-key">底层</div><div class="detail-val">LLM 跑 review embedding + clustering + 自动出 insight</div>
+          <div class="detail-key">差异化</div><div class="detail-val">硅谷 horizontal 工具不做；这是 smart-crawler 的<strong>领域护城河</strong></div>
+          <div class="detail-key">适合谁</div><div class="detail-val">VIVO 商研 · 海尔 BI · 极氪产品经理 · <strong>需要 actionable 不是 raw data</strong>的客户</div>
+        </div>
+        <div class="pros">客户花钱的地方 · 6 周开发完即可签客户 · 高溢价</div>
+        <div class="cons">LLM 推理成本高 · 卡片 UX 适合 demo 不适合大量浏览</div>
+      </div>
+      <div class="choose">
+        <label><input type="radio" name="pick" value="C">选 C · VOC Insight Cards</label>
+        <span class="eta">工期 4 周</span>
+      </div>
+    </div>
+
+    <!-- D · Multi-Mode Workspace -->
+    <div class="card" id="card-D" onclick="select('D')">
+      <div class="card-head">
+        <span class="card-tag tag-D">D · MULTI-MODE WORKSPACE</span>
+        <div class="card-title">4 模式工作台</div>
+        <div class="card-cn">「一份数据 4 个视图：表 / 曲线 / 对比 / 地图」</div>
+        <div class="card-sub">同一个 SKU 集合，顶部 4 tab 切换：<strong style="color:#fcd34d">Table（明细）/ Trend（价格曲线）/ Diff（本周 vs 上周）/ Map（产地+发货仓地理）</strong>。中国大牌爱「大屏 cockpit 感」。</div>
+        <div class="yc-ref">原型 · <b>Firecrawl Playground 5-tab</b> · <b>Exa Search 3-mode</b> · <b>Browserbase 三卡片 observability</b></div>
+      </div>
+      <div class="mockup">
+        <div class="frame">
+          <div class="frame-bar"><div class="dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div><span class="url">app.smartcrawler.io/workspace</span></div>
+          <div class="D-tabs">
+            <div class="D-tab">📊 Table</div>
+            <div class="D-tab active">📈 Trend</div>
+            <div class="D-tab">⇄ Diff</div>
+            <div class="D-tab">🗺️ Map</div>
+          </div>
+          <div class="D-content">
+            <div class="D-trend">
+              <div style="color:#fcd34d;font-weight:700;font-size:0.74rem">vidaxl 平均价（7 天）</div>
+              <div style="color:#94a3b8;font-size:0.66rem">基准 €350 · 当前 €378 (+8%)</div>
+              <div class="D-trend-chart">
+                <div class="bar" style="height:30%"></div>
+                <div class="bar" style="height:45%"></div>
+                <div class="bar" style="height:55%"></div>
+                <div class="bar" style="height:40%"></div>
+                <div class="bar" style="height:70%"></div>
+                <div class="bar" style="height:85%"></div>
+                <div class="bar" style="height:90%"></div>
+              </div>
+            </div>
+            <div class="D-map">
+              <div style="color:#fcd34d;font-weight:700;font-size:0.74rem">销量热力 · 25 国</div>
+              <div style="color:#94a3b8;font-size:0.66rem">DE FR UK ES IT</div>
+              <div class="D-map-grid">
+                <div class="D-map-cell hot"></div>
+                <div class="D-map-cell warm"></div>
+                <div class="D-map-cell hot"></div>
+                <div class="D-map-cell warm"></div>
+                <div class="D-map-cell cool"></div>
+                <div class="D-map-cell hot"></div>
+                <div class="D-map-cell warm"></div>
+                <div class="D-map-cell cool"></div>
+                <div class="D-map-cell warm"></div>
+                <div class="D-map-cell hot"></div>
+                <div class="D-map-cell cool"></div>
+                <div class="D-map-cell warm"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail">
+        <h4>形态特征</h4>
+        <div class="detail-row">
+          <div class="detail-key">主交互</div><div class="detail-val">顶部 4 tab 切换视图，左右 split 并排比较</div>
+          <div class="detail-key">视图</div><div class="detail-val">Table / Trend（曲线）/ Diff（上下周对比）/ Map（25 国热力图）</div>
+          <div class="detail-key">底层</div><div class="detail-val">已有 price_history / sites table · 加 4 个视图组件</div>
+          <div class="detail-key">适合谁</div><div class="detail-val">海尔老板月度看 · 投标 demo · <strong>需要"大屏感"</strong>的中国客户</div>
+        </div>
+        <div class="pros">视觉冲击 · 一个入口多种视图 · 中国客户 demo 高签单率</div>
+        <div class="cons">4 个视图都要做精，工期长；移动端难用</div>
+      </div>
+      <div class="choose">
+        <label><input type="radio" name="pick" value="D">选 D · Multi-Mode Workspace</label>
+        <span class="eta">工期 5 周</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 推荐组合 -->
+<section>
+  <div class="recommend">
+    <h3>🎯 我的推荐（基于研究 + 你客户画像）</h3>
+    <p>VIVO / 遨森 / 海尔 / 极氪 都是 <strong>B2B 大牌商研 + BI + 产品经理</strong>，要的是「数据可信 + actionable insight + 不需要培训」。</p>
+    <p style="margin-top:8px"><strong>主推 A + B + C 组合（不要单选）：</strong></p>
+    <p style="margin-top:6px">• <strong>A · Prompt-to-Table</strong> 做主入口 → 0 培训成本，硅谷 2026 主流</p>
+    <p>• <strong>B · Verified Cells</strong> 做表格底层 → 解决中国甲方"数据靠不靠谱"刚需</p>
+    <p>• <strong>C · VOC Insight Cards</strong> 做单 SKU 详情页 → 领域护城河，真正花钱的地方</p>
+    <p style="margin-top:8px"><strong>D 暂缓</strong>：4 视图全做工期 5 周，先做 A+B 的 Table 视图，D 的 Trend/Diff/Map 作为 v2 增量上。</p>
+  </div>
+</section>
+
+<!-- 提交 -->
+<section>
+  <div class="cta">
+    <h2>抽完卡，告诉我</h2>
+    <p>选单卡：A / B / C / D 任一<br>选组合：A+B / A+B+C / 我都要</p>
+    <a class="btn" href="mailto:boyuan@solvea.cx?subject=客户 dashboard 选 X" target="_blank">📧 选好了</a>
+    <div style="margin-top:14px;color:#52527a;font-size:0.78rem">或直接在对话框回："选 A+B+C"等</div>
+  </div>
+</section>
+
+<footer>
+  smart-crawler · 客户视角 Dashboard v5 抽卡 · 2026-05-24<br>
+  基于 8 个 YC AI 数据采集项目实证研究 · <a href="https://smartcrawler.io">smartcrawler.io</a>
+</footer>
+
+<script>
+function select(id) {
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('card-' + id).classList.add('selected');
+  document.querySelectorAll('input[name=pick]').forEach(r => {
+    r.checked = (r.value === id);
+  });
+}
+</script>
+
+</body>
+</html>

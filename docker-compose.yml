@@ -30,8 +30,8 @@ services:
       - "8077:8077"
     volumes:
       - ./data:/app/data            # 数据持久化（迁移脚本 / SQLite 备份等）
-      - ./backend/sites.yaml:/app/backend/sites.yaml:ro
-      - ./backend/proxies.txt:/app/backend/proxies.txt:ro
+      - ./backend:/app/backend:ro   # 热加载后端代码（不必 rebuild image）
+      - ./deliverables:/app/deliverables:ro   # /d/* 路由提供静态托管，替代外部 CDN
     environment:
       # 连接 postgres 服务；服务名 postgres 即容器网络内的主机名
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-smart_crawler}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-smart_crawler}}
