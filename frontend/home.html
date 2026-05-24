@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>smart-crawler · 为 AI Agent 打造的网页数据采集引擎</title>
+<title data-i18n="title">smart-crawler · 为 AI Agent 打造的网页数据采集引擎</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <style>
   :root{
@@ -13,19 +13,18 @@
   *{margin:0;padding:0;box-sizing:border-box;}
   html{scroll-behavior:smooth;}
   body{background:var(--bg);color:var(--txt);
-    font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif;
+    font-family:-apple-system,"PingFang SC","Hiragino Sans","Noto Sans CJK JP","Segoe UI",sans-serif;
     -webkit-font-smoothing:antialiased;line-height:1.5;}
   a{text-decoration:none;color:inherit;}
   .wrap{max-width:1080px;margin:0 auto;padding:0 28px;}
 
-  /* nav */
   .nav{position:sticky;top:0;z-index:20;background:rgba(250,247,242,.9);
     backdrop-filter:blur(10px);border-bottom:1px solid var(--line);}
-  .nav .wrap{display:flex;align-items:center;height:64px;gap:24px;}
+  .nav .wrap{display:flex;align-items:center;height:64px;gap:18px;}
   .brand{font-size:18px;font-weight:800;display:flex;align-items:center;}
   .brand span{color:var(--accent);}
   .mk{width:24px;height:24px;margin-right:7px;}
-  .nav .links{display:flex;gap:24px;margin-left:18px;font-size:14px;color:var(--mut);}
+  .nav .links{display:flex;gap:22px;margin-left:14px;font-size:14px;color:var(--mut);}
   .nav .links a:hover{color:var(--txt);}
   .spacer{flex:1;}
   .btn{display:inline-block;padding:10px 20px;border-radius:11px;font-size:14px;
@@ -35,7 +34,14 @@
   .btn.ghost{background:transparent;color:var(--accent);}
   .btn.ghost:hover{background:var(--accent);color:#fff;}
 
-  /* hero */
+  .lang-switch{display:flex;gap:3px;background:var(--card);border:1px solid var(--line);
+    border-radius:9px;padding:3px;}
+  .lang-switch button{background:transparent;border:none;padding:5px 9px;border-radius:6px;
+    cursor:pointer;color:var(--mut);font-weight:600;font-family:inherit;font-size:11px;
+    letter-spacing:.3px;}
+  .lang-switch button:hover{color:var(--accent);}
+  .lang-switch button.active{background:var(--accent);color:#fff;}
+
   .hero{padding:84px 0 70px;text-align:center;position:relative;overflow:hidden;}
   .hero::before{content:"";position:absolute;width:680px;height:680px;
     left:50%;top:-340px;transform:translateX(-50%);border-radius:50%;
@@ -47,58 +53,43 @@
   .hero h1 em{font-style:normal;
     background:linear-gradient(120deg,var(--accent),#d76b8f);
     -webkit-background-clip:text;background-clip:text;color:transparent;}
-  .hero p{font-size:18px;color:var(--mut);margin:22px auto 32px;max-width:620px;}
+  .hero p{font-size:18px;color:var(--mut);margin:22px auto 32px;max-width:680px;}
   .hero .cta{display:flex;gap:14px;justify-content:center;}
   .hero .btn{padding:13px 26px;font-size:15px;}
 
-  /* stat strip */
   .stats{display:flex;justify-content:center;gap:54px;margin-top:58px;flex-wrap:wrap;}
   .stat .n{font-size:34px;font-weight:850;
     background:linear-gradient(120deg,var(--accent),#d76b8f);
     -webkit-background-clip:text;background-clip:text;color:transparent;}
   .stat .l{font-size:13px;color:var(--mut);margin-top:3px;}
 
-  /* section */
   section{padding:74px 0;}
-  .sec-tag{text-align:center;color:var(--accent);font-weight:700;font-size:14px;
-    letter-spacing:1px;}
-  .sec-h{text-align:center;font-size:34px;font-weight:850;margin:10px 0 12px;
-    letter-spacing:-.5px;}
-  .sec-sub{text-align:center;color:var(--mut);font-size:16px;max-width:600px;
-    margin:0 auto 46px;}
+  .sec-tag{text-align:center;color:var(--accent);font-weight:700;font-size:14px;letter-spacing:1px;}
+  .sec-h{text-align:center;font-size:34px;font-weight:850;margin:10px 0 12px;letter-spacing:-.5px;}
+  .sec-sub{text-align:center;color:var(--mut);font-size:16px;max-width:620px;margin:0 auto 46px;}
 
-  /* value cards */
   .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;}
-  .vc{background:var(--card);border-radius:18px;padding:30px;
-    border:1px solid var(--line);}
-  .vc .ic{width:50px;height:50px;border-radius:13px;display:flex;
-    align-items:center;justify-content:center;font-size:24px;margin-bottom:16px;}
+  .vc{background:var(--card);border-radius:18px;padding:30px;border:1px solid var(--line);}
+  .vc .ic{width:50px;height:50px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:16px;}
   .vc h3{font-size:19px;font-weight:800;margin-bottom:8px;}
   .vc p{color:var(--mut);font-size:14.5px;}
-  .i0{background:#eef0ff;} .i1{background:#e6f7ef;}
-  .i2{background:#fdeede;} .i3{background:#fde9ef;}
+  .i0{background:#eef0ff;} .i1{background:#e6f7ef;} .i2{background:#fdeede;} .i3{background:#fde9ef;}
 
-  /* why-agent band */
-  .band{background:linear-gradient(135deg,#2a2440,#3a2f56);color:#fff;
-    border-radius:26px;padding:54px 50px;}
-  .band .sec-tag{color:#b9aef0;}
-  .band .sec-h{color:#fff;}
+  .band{background:linear-gradient(135deg,#2a2440,#3a2f56);color:#fff;border-radius:26px;padding:54px 50px;}
+  .band .sec-tag{color:#b9aef0;} .band .sec-h{color:#fff;}
   .band .row{display:grid;grid-template-columns:1fr 1fr;gap:34px;margin-top:30px;}
-  .band .item h4{font-size:16px;font-weight:800;margin-bottom:6px;
-    display:flex;align-items:center;gap:8px;}
+  .band .item h4{font-size:16px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
   .band .item h4::before{content:"▸";color:#b9aef0;}
   .band .item p{color:#c4bcd8;font-size:14px;}
 
-  /* connect / agent access */
   .connect{display:grid;grid-template-columns:1.15fr 1fr;gap:20px;}
   .ep{background:#1f1b30;border-radius:18px;padding:30px;color:#e8e4f5;}
   .ep .k{font-size:13px;color:#b9aef0;font-weight:700;letter-spacing:.5px;}
   .ep h3{font-size:20px;font-weight:850;margin:6px 0 4px;color:#fff;}
   .ep .meta{color:#9b94b8;font-size:13px;margin-bottom:16px;}
-  .code{background:#15121f;border:1px solid #322b4a;border-radius:11px;
-    padding:13px 15px;font-family:"SF Mono",ui-monospace,monospace;
-    font-size:13px;color:#c9b8ff;display:flex;align-items:center;gap:10px;
-    cursor:pointer;word-break:break-all;}
+  .code{background:#15121f;border:1px solid #322b4a;border-radius:11px;padding:13px 15px;
+    font-family:"SF Mono",ui-monospace,monospace;font-size:13px;color:#c9b8ff;
+    display:flex;align-items:center;gap:10px;cursor:pointer;word-break:break-all;}
   .code:hover{border-color:var(--accent);}
   .code .cp{margin-left:auto;flex:none;color:#7a7298;font-size:11px;}
   .ep .toolc{margin-top:14px;color:#9b94b8;font-size:12.5px;line-height:1.9;}
@@ -110,30 +101,23 @@
   .ep.rest .code .cp{color:#c8bfb2;}
   .ep.rest .toolc{color:var(--mut);} .ep.rest .toolc b{color:var(--txt);}
   .disc{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:24px;}
-  .disc a{font-size:12.5px;color:var(--mut);background:var(--card);
-    border:1px solid var(--line);border-radius:9px;padding:7px 13px;
-    font-family:ui-monospace,monospace;}
+  .disc a{font-size:12.5px;color:var(--mut);background:var(--card);border:1px solid var(--line);
+    border-radius:9px;padding:7px 13px;font-family:ui-monospace,monospace;}
   .disc a:hover{border-color:var(--accent);color:var(--accent);}
 
-  /* capability list */
   .caps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
-  .cap{background:var(--card);border:1px solid var(--line);border-radius:14px;
-    padding:20px;text-align:center;}
+  .cap{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;text-align:center;}
   .cap .t{font-weight:800;font-size:15px;}
   .cap .d{color:var(--mut);font-size:12.5px;margin-top:4px;}
 
-  /* final cta */
-  .final{text-align:center;background:var(--card);border:1px solid var(--line);
-    border-radius:26px;padding:56px 40px;}
+  .final{text-align:center;background:var(--card);border:1px solid var(--line);border-radius:26px;padding:56px 40px;}
   .final h2{font-size:30px;font-weight:850;}
   .final p{color:var(--mut);margin:12px 0 26px;}
   .acct{display:inline-block;margin-top:18px;font-size:13px;color:var(--mut);
-    background:#faf8f5;border:1px dashed var(--line);border-radius:10px;
-    padding:8px 16px;}
+    background:#faf8f5;border:1px dashed var(--line);border-radius:10px;padding:8px 16px;}
   .acct b{color:var(--accent);}
 
-  footer{border-top:1px solid var(--line);padding:30px 0;color:var(--mut);
-    font-size:13px;text-align:center;}
+  footer{border-top:1px solid var(--line);padding:30px 0;color:var(--mut);font-size:13px;text-align:center;}
   @media(max-width:760px){
     .hero h1{font-size:36px;} .cards,.band .row{grid-template-columns:1fr;}
     .caps{grid-template-columns:1fr 1fr;} .nav .links{display:none;}
@@ -145,109 +129,102 @@
   <nav class="nav"><div class="wrap">
     <div class="brand"><svg class="mk" viewBox="0 0 50 50"><g fill="none" stroke="#7c6ce0" stroke-width="1.8" stroke-linecap="round"><circle cx="25" cy="25" r="20"/><circle cx="25" cy="25" r="12.5"/><circle cx="25" cy="25" r="5"/><path d="M25 4v42M4 25h42M10.5 10.5l29 29M39.5 10.5l-29 29"/></g><circle cx="39.5" cy="10.5" r="4.4" fill="#d76b8f"/></svg>smart<span>·</span>crawler</div>
     <div class="links">
-      <a href="#value">能力</a><a href="#why">为什么</a>
-      <a href="#connect">Agent 接入</a><a href="#cap">覆盖</a>
+      <a href="#value" data-i18n="nav.value">能力</a>
+      <a href="#why" data-i18n="nav.why">为什么</a>
+      <a href="#connect" data-i18n="nav.connect">Agent 接入</a>
+      <a href="#cap" data-i18n="nav.cap">覆盖</a>
     </div>
     <div class="spacer"></div>
-    <a class="btn solid" href="/app">进入控制台</a>
+    <div class="lang-switch">
+      <button data-lang="zh">中文</button>
+      <button data-lang="en">EN</button>
+      <button data-lang="ja">日本語</button>
+      <button data-lang="de">DE</button>
+    </div>
+    <a class="btn solid" href="/app" data-i18n="nav.console">进入控制台</a>
   </div></nav>
 
-  <!-- HERO -->
   <header class="hero"><div class="wrap">
-    <div class="badge">⚡ Built for AI Agents</div>
-    <h1>为 AI Agent 打造的<br><em>网页数据采集引擎</em></h1>
-    <p>AI Agent 需要干净、结构化、可信的实时网页数据。smart-crawler 把"采集"
-       做成 Agent 可直接调用的数据服务 —— 自适应、抗封锁、可回溯。</p>
+    <div class="badge" data-i18n="hero.badge">⚡ Built for AI Agents</div>
+    <h1 data-i18n-html="hero.title">为 AI Agent 打造的<br><em>网页数据采集引擎</em></h1>
+    <p data-i18n="hero.lede">AI Agent 需要干净、结构化、可信的实时网页数据。smart-crawler 把"采集"做成 Agent 可直接调用的数据服务 —— 自适应、抗封锁、可回溯。</p>
     <div class="cta">
-      <a class="btn solid" href="/app">进入控制台 →</a>
-      <a class="btn ghost" href="#value">看看能力</a>
+      <a class="btn solid" href="/app" data-i18n="hero.cta_primary">进入控制台 →</a>
+      <a class="btn ghost" href="#value" data-i18n="hero.cta_secondary">看看能力</a>
     </div>
     <div class="stats">
-      <div class="stat"><div class="n">46</div><div class="l">标杆站点</div></div>
-      <div class="stat"><div class="n">9</div><div class="l">竞品品牌</div></div>
-      <div class="stat"><div class="n">12</div><div class="l">国家 / 地区</div></div>
-      <div class="stat"><div class="n">4</div><div class="l">采集引擎类型</div></div>
+      <div class="stat"><div class="n">59</div><div class="l" data-i18n="stats.sites">标杆站点</div></div>
+      <div class="stat"><div class="n">19</div><div class="l" data-i18n="stats.brands">竞品品牌</div></div>
+      <div class="stat"><div class="n">14</div><div class="l" data-i18n="stats.countries">国家 / 地区</div></div>
+      <div class="stat"><div class="n">10</div><div class="l" data-i18n="stats.engines">采集引擎类型</div></div>
     </div>
   </div></header>
 
-  <!-- VALUE -->
   <section id="value"><div class="wrap">
-    <div class="sec-tag">CORE VALUE</div>
-    <h2 class="sec-h">不只是爬虫，是 Agent 的数据基建</h2>
-    <p class="sec-sub">传统爬虫脆弱、易封、要人盯。smart-crawler 为持续、可靠、
-       面向机器消费而设计。</p>
+    <div class="sec-tag" data-i18n="value.tag">CORE VALUE</div>
+    <h2 class="sec-h" data-i18n="value.title">不只是爬虫，是 Agent 的数据基建</h2>
+    <p class="sec-sub" data-i18n="value.sub">传统爬虫脆弱、易封、要人盯。smart-crawler 为持续、可靠、面向机器消费而设计。</p>
     <div class="cards">
       <div class="vc"><div class="ic i0">🧩</div>
-        <h3>自适应采集</h3>
-        <p>多策略引擎 —— JSON 接口 / SSR 渲染 / JSON-LD / 微数据逐级兜底。
-           网站改版不怕，自动切换抓取路径，无需逐站维护选择器。</p></div>
+        <h3 data-i18n="value.c1.h">自适应采集</h3>
+        <p data-i18n="value.c1.p">多策略引擎 —— JSON 接口 / SSR 渲染 / JSON-LD / 微数据逐级兜底。</p></div>
       <div class="vc"><div class="ic i1">🛡️</div>
-        <h3>抗封锁韧性</h3>
-        <p>浏览器级 TLS / JA3 指纹 + 分层代理池 + 错峰调度，从容应对
-           Cloudflare、WAF、地域封锁。失败自动重试、自动切换出口。</p></div>
+        <h3 data-i18n="value.c2.h">抗封锁韧性</h3>
+        <p data-i18n="value.c2.p">浏览器级 TLS / JA3 指纹 + 分层代理池 + 错峰调度。</p></div>
       <div class="vc"><div class="ic i2">🤖</div>
-        <h3>Agent-Ready 数据</h3>
-        <p>结构化字段 + 标准 REST API，AI Agent 直接查询消费。
-           价格、促销、评论、趋势 —— 统一 schema，开箱即用。</p></div>
+        <h3 data-i18n="value.c3.h">Agent-Ready 数据</h3>
+        <p data-i18n="value.c3.p">结构化字段 + 标准 REST API + MCP 协议。</p></div>
       <div class="vc"><div class="ic i3">🗂️</div>
-        <h3>原始快照可回溯</h3>
-        <p>每次采集的原始响应压缩归档。数据存疑可回溯重解析，
-           采集器升级后能对历史快照重跑提取新字段 —— 数据资产沉淀。</p></div>
+        <h3 data-i18n="value.c4.h">原始快照可回溯</h3>
+        <p data-i18n="value.c4.p">每次采集的原始响应压缩归档。</p></div>
     </div>
   </div></section>
 
-  <!-- WHY AGENT -->
   <section id="why"><div class="wrap">
     <div class="band">
-      <div class="sec-tag">WHY AGENT-NATIVE</div>
-      <h2 class="sec-h">为机器消费而生</h2>
+      <div class="sec-tag" data-i18n="why.tag">WHY AGENT-NATIVE</div>
+      <h2 class="sec-h" data-i18n="why.title">为机器消费而生</h2>
       <div class="row">
-        <div class="item"><h4>稳定的数据契约</h4>
-          <p>Agent 调的是 API 和固定 schema，不是脆弱的网页 DOM。
-             站点改版由采集层吸收，Agent 侧零感知。</p></div>
-        <div class="item"><h4>持续可调度</h4>
-          <p>按站点配置采集频率，价格曲线、新品、促销、趋势自动追踪 ——
-             Agent 拿到的永远是新鲜数据。</p></div>
-        <div class="item"><h4>任务队列化</h4>
-          <p>采集即任务，入队、领取、重试、监控全可观测。
-             Agent 可编程触发、查询状态，像调用一个服务。</p></div>
-        <div class="item"><h4>可信与留痕</h4>
-          <p>原始快照归档 + 数据质量校验 + 成功率监控。
-             Agent 决策所依赖的数据，每一条都可追溯来源。</p></div>
+        <div class="item"><h4 data-i18n="why.i1.h">稳定的数据契约</h4>
+          <p data-i18n="why.i1.p">Agent 调的是 API 和固定 schema。</p></div>
+        <div class="item"><h4 data-i18n="why.i2.h">持续可调度</h4>
+          <p data-i18n="why.i2.p">按站点配置采集频率。</p></div>
+        <div class="item"><h4 data-i18n="why.i3.h">任务队列化</h4>
+          <p data-i18n="why.i3.p">采集即任务，入队/领取/重试/监控全可观测。</p></div>
+        <div class="item"><h4 data-i18n="why.i4.h">可信与留痕</h4>
+          <p data-i18n="why.i4.p">原始快照归档 + 数据质量校验 + 成功率监控。</p></div>
       </div>
     </div>
   </div></section>
 
-  <!-- CONNECT / AGENT ACCESS -->
   <section id="connect"><div class="wrap">
-    <div class="sec-tag">AGENT ACCESS</div>
-    <h2 class="sec-h">一行 URL，接入你的 Agent</h2>
-    <p class="sec-sub">能力直接暴露给 AI Agent —— 不用打开界面、不用写爬虫，
-       MCP 或 REST 二选一即可调用。</p>
+    <div class="sec-tag" data-i18n="connect.tag">AGENT ACCESS</div>
+    <h2 class="sec-h" data-i18n="connect.title">一行 URL，接入你的 Agent</h2>
+    <p class="sec-sub" data-i18n="connect.sub">能力直接暴露给 AI Agent —— 不用打开界面、不用写爬虫。</p>
     <div class="connect">
       <div class="ep">
-        <div class="k">▸ 推荐 · MCP 服务器</div>
+        <div class="k" data-i18n="connect.mcp.k">▸ 推荐 · MCP 服务器</div>
         <h3>Model Context Protocol</h3>
-        <div class="meta">streamable-http 传输 · 7 个工具 · API Key 鉴权</div>
+        <div class="meta" data-i18n="connect.mcp.meta">streamable-http · 12 工具 · API Key 鉴权</div>
         <div class="code" onclick="cp(this)">https://smartcrawler.io/mcp
-          <span class="cp">点击复制</span></div>
+          <span class="cp" data-i18n="connect.copy">点击复制</span></div>
         <div class="toolc">
-          鉴权头 <b>Authorization: Bearer sck_…</b>（控制台「API 接入」生成）<br/>
+          <span data-i18n="connect.mcp.auth">鉴权头</span> <b>Authorization: Bearer sck_…</b><br/>
           <b>list_data_sources</b> · <b>search_competitor_products</b> ·
           <b>get_product_detail</b> · <b>list_promotions</b> ·
           <b>get_voc_reviews</b> · <b>voc_summary</b> ·
-          <b>competitor_landscape</b>
+          <b>competitor_landscape</b> · <b>amazon_voc_report</b>
         </div>
       </div>
       <div class="ep rest">
-        <div class="k">▸ 备选 · REST API</div>
+        <div class="k" data-i18n="connect.rest.k">▸ 备选 · REST API</div>
         <h3>OpenAPI 3.1</h3>
-        <div class="meta">X-API-Key 鉴权 · 稳定 schema · 统一信封</div>
+        <div class="meta" data-i18n="connect.rest.meta">X-API-Key 鉴权 · 稳定 schema · 统一信封</div>
         <div class="code" onclick="cp(this)">https://smartcrawler.io/openapi.json
-          <span class="cp">点击复制</span></div>
+          <span class="cp" data-i18n="connect.copy">点击复制</span></div>
         <div class="toolc">
-          鉴权头 <b>X-API-Key: sck_…</b>（控制台「API 接入」生成）<br/>
-          端点 <b>/api/v1/products</b> · <b>/api/v1/promotions</b> ·
+          <span data-i18n="connect.rest.auth">鉴权头</span> <b>X-API-Key: sck_…</b><br/>
+          <span data-i18n="connect.rest.endpoints">端点</span> <b>/api/v1/products</b> · <b>/api/v1/promotions</b> ·
           <b>/api/v1/site/{site}</b>
         </div>
       </div>
@@ -260,48 +237,260 @@
     </div>
   </div></section>
 
-  <!-- CAPABILITY -->
   <section id="cap"><div class="wrap">
-    <div class="sec-tag">COVERAGE</div>
-    <h2 class="sec-h">一套引擎，覆盖异构站点</h2>
-    <p class="sec-sub">Shopify、Vue SPA、Nuxt SSR、自建平台 —— 同一套管线统一产出。</p>
+    <div class="sec-tag" data-i18n="cap.tag">COVERAGE</div>
+    <h2 class="sec-h" data-i18n="cap.title">一套引擎，覆盖异构站点</h2>
+    <p class="sec-sub" data-i18n="cap.sub">Shopify、Vue SPA、Nuxt SSR、自建平台、Marketplace —— 同一套管线统一产出。</p>
     <div class="caps">
       <div class="cap"><div class="t">Shopify</div>
-        <div class="d">products.json 直采</div></div>
+        <div class="d" data-i18n="cap.shopify">products.json 直采</div></div>
       <div class="cap"><div class="t">Vue / SPA</div>
-        <div class="d">JSON API 接入</div></div>
+        <div class="d" data-i18n="cap.spa">JSON API 接入</div></div>
       <div class="cap"><div class="t">Nuxt / SSR</div>
-        <div class="d">sitemap + 渲染解析</div></div>
-      <div class="cap"><div class="t">通用站点</div>
-        <div class="d">JSON-LD / 微数据兜底</div></div>
+        <div class="d" data-i18n="cap.ssr">sitemap + 渲染解析</div></div>
+      <div class="cap"><div class="t">Marketplace</div>
+        <div class="d" data-i18n="cap.marketplace">Wayfair / Bol / Otto</div></div>
     </div>
   </div></section>
 
-  <!-- FINAL CTA -->
   <section><div class="wrap">
     <div class="final">
-      <h2>进入 smart-crawler 控制台</h2>
-      <p>实时看板 · 商品 / 促销 / 趋势分析 · 一键导出 · 采集任务编排</p>
-      <a class="btn solid" href="/app" style="padding:14px 32px;font-size:15px;">
-        立即进入 →</a>
-      <div class="acct">已为你预设账号 &nbsp;·&nbsp; 账号 <b>aosen</b> &nbsp; 密码 <b>admin</b></div>
+      <h2 data-i18n="final.title">进入 smart-crawler 控制台</h2>
+      <p data-i18n="final.sub">实时看板 · 商品 / 促销 / 趋势 · 一键导出 · 任务编排</p>
+      <a class="btn solid" href="/app" style="padding:14px 32px;font-size:15px;" data-i18n="final.cta">立即进入 →</a>
+      <div class="acct" data-i18n-html="final.acct">已为你预设账号 &nbsp;·&nbsp; 账号 <b>aosen</b> &nbsp; 密码 <b>admin</b></div>
     </div>
   </div></section>
 
-  <footer><div class="wrap">
-    smart·crawler — 为 AI Agent 打造的网页数据采集引擎 ·
-    Aosom 竞品情报平台 · smartcrawler.io
+  <footer><div class="wrap" data-i18n="footer">
+    smart·crawler — 为 AI Agent 打造的网页数据采集引擎 · smartcrawler.io
   </div></footer>
 
 <script>
-  function cp(el){
-    const txt=el.childNodes[0].textContent.trim();
-    navigator.clipboard.writeText(txt).then(()=>{
-      const tag=el.querySelector('.cp'), old=tag.textContent;
-      tag.textContent='✓ 已复制';
-      setTimeout(()=>{tag.textContent=old;},1600);
-    });
+const I18N = {
+  zh: {
+    title: 'smart-crawler · 为 AI Agent 打造的网页数据采集引擎',
+    'nav.value':'能力', 'nav.why':'为什么', 'nav.connect':'Agent 接入', 'nav.cap':'覆盖', 'nav.console':'进入控制台',
+    'hero.badge':'⚡ Built for AI Agents',
+    'hero.title':'为 AI Agent 打造的<br><em>网页数据采集引擎</em>',
+    'hero.lede':'AI Agent 需要干净、结构化、可信的实时网页数据。smart-crawler 把"采集"做成 Agent 可直接调用的数据服务 —— 自适应、抗封锁、可回溯。',
+    'hero.cta_primary':'进入控制台 →', 'hero.cta_secondary':'看看能力',
+    'stats.sites':'标杆站点', 'stats.brands':'竞品品牌', 'stats.countries':'国家 / 地区', 'stats.engines':'采集引擎类型',
+    'value.tag':'CORE VALUE',
+    'value.title':'不只是爬虫，是 Agent 的数据基建',
+    'value.sub':'传统爬虫脆弱、易封、要人盯。smart-crawler 为持续、可靠、面向机器消费而设计。',
+    'value.c1.h':'自适应采集',
+    'value.c1.p':'多策略引擎 —— JSON 接口 / SSR 渲染 / JSON-LD / 微数据逐级兜底。网站改版自动切换抓取路径。',
+    'value.c2.h':'抗封锁韧性',
+    'value.c2.p':'浏览器级 TLS / JA3 指纹 + 分层代理池 + 错峰调度。从容应对 Cloudflare、Akamai、PerimeterX。',
+    'value.c3.h':'Agent-Ready 数据',
+    'value.c3.p':'结构化字段 + 标准 REST API + MCP 协议。价格、促销、评论、趋势统一 schema，开箱即用。',
+    'value.c4.h':'原始快照可回溯',
+    'value.c4.p':'每次采集的原始响应压缩归档。数据存疑可回溯重解析，采集器升级后能对历史快照重跑提取新字段。',
+    'why.tag':'WHY AGENT-NATIVE', 'why.title':'为机器消费而生',
+    'why.i1.h':'稳定的数据契约',
+    'why.i1.p':'Agent 调的是 API 和固定 schema，不是脆弱的网页 DOM。站点改版由采集层吸收，Agent 侧零感知。',
+    'why.i2.h':'持续可调度',
+    'why.i2.p':'按站点配置采集频率，价格曲线、新品、促销、趋势自动追踪 —— Agent 拿到的永远是新鲜数据。',
+    'why.i3.h':'任务队列化',
+    'why.i3.p':'采集即任务，入队、领取、重试、监控全可观测。Agent 可编程触发、查询状态。',
+    'why.i4.h':'可信与留痕',
+    'why.i4.p':'原始快照归档 + 数据质量校验 + 成功率监控。Agent 决策依赖的数据每一条都可追溯来源。',
+    'connect.tag':'AGENT ACCESS', 'connect.title':'一行 URL，接入你的 Agent',
+    'connect.sub':'能力直接暴露给 AI Agent —— 不用打开界面、不用写爬虫，MCP 或 REST 二选一即可调用。',
+    'connect.mcp.k':'▸ 推荐 · MCP 服务器',
+    'connect.mcp.meta':'streamable-http · 12 工具 · API Key 鉴权',
+    'connect.copy':'点击复制', 'connect.mcp.auth':'鉴权头',
+    'connect.rest.k':'▸ 备选 · REST API', 'connect.rest.meta':'X-API-Key 鉴权 · 稳定 schema · 统一信封',
+    'connect.rest.auth':'鉴权头', 'connect.rest.endpoints':'端点',
+    'cap.tag':'COVERAGE', 'cap.title':'一套引擎，覆盖异构站点',
+    'cap.sub':'Shopify、Vue SPA、Nuxt SSR、自建平台、Marketplace —— 同一套管线统一产出。',
+    'cap.shopify':'products.json 直采', 'cap.spa':'JSON API 接入', 'cap.ssr':'sitemap + 渲染解析', 'cap.marketplace':'Wayfair / Bol / Otto',
+    'final.title':'进入 smart-crawler 控制台',
+    'final.sub':'实时看板 · 商品 / 促销 / 趋势 · 一键导出 · 任务编排',
+    'final.cta':'立即进入 →',
+    'final.acct':'已为你预设账号 &nbsp;·&nbsp; 账号 <b>aosen</b> &nbsp; 密码 <b>admin</b>',
+    'footer':'smart·crawler — 为 AI Agent 打造的网页数据采集引擎 · smartcrawler.io'
+  },
+  en: {
+    title:'smart-crawler · Web Data Engine for AI Agents',
+    'nav.value':'Features', 'nav.why':'Why', 'nav.connect':'Agent Access', 'nav.cap':'Coverage', 'nav.console':'Console',
+    'hero.badge':'⚡ Built for AI Agents',
+    'hero.title':'Web Data Engine<br>for <em>AI Agents</em>',
+    'hero.lede':'AI Agents need clean, structured, trusted real-time web data. smart-crawler turns scraping into a service Agents can call directly — adaptive, resilient, traceable.',
+    'hero.cta_primary':'Open Console →', 'hero.cta_secondary':'See Features',
+    'stats.sites':'Sites Tracked', 'stats.brands':'Brands', 'stats.countries':'Countries', 'stats.engines':'Engine Types',
+    'value.tag':'CORE VALUE',
+    'value.title':'Not just a scraper — Agent data infrastructure',
+    'value.sub':'Traditional crawlers are fragile, easy to block, demand babysitting. smart-crawler is built for continuous, reliable, machine-grade consumption.',
+    'value.c1.h':'Adaptive Crawling',
+    'value.c1.p':'Multi-strategy engine — JSON API / SSR / JSON-LD / microdata fallbacks. Auto-switches extraction path when sites redesign; no per-site selector maintenance.',
+    'value.c2.h':'Anti-Block Resilience',
+    'value.c2.p':'Browser-grade TLS/JA3 fingerprinting + tiered proxy pool + jittered scheduling. Handles Cloudflare, Akamai, PerimeterX, DataDome with ease.',
+    'value.c3.h':'Agent-Ready Data',
+    'value.c3.p':'Structured fields + REST API + MCP protocol. Prices, promotions, reviews, trends — unified schema, ready to consume.',
+    'value.c4.h':'Replayable Snapshots',
+    'value.c4.p':'Every raw response archived compressed. Suspect data can be re-parsed; crawler upgrades replay history to extract new fields.',
+    'why.tag':'WHY AGENT-NATIVE', 'why.title':'Built for Machine Consumption',
+    'why.i1.h':'Stable Data Contract',
+    'why.i1.p':'Agents call APIs and fixed schemas, not fragile DOMs. Site redesigns absorbed at the crawler layer; Agent side stays zero-aware.',
+    'why.i2.h':'Continuously Scheduled',
+    'why.i2.p':'Per-site crawl frequency. Price curves, new arrivals, promotions, trends auto-tracked — Agents always get fresh data.',
+    'why.i3.h':'Queue-Based',
+    'why.i3.p':'Crawls are tasks: queue, claim, retry, monitor — fully observable. Agents trigger programmatically and check status like a service.',
+    'why.i4.h':'Trusted & Traceable',
+    'why.i4.p':'Raw snapshot archive + data quality validation + success monitoring. Every datapoint Agents rely on is traceable to source.',
+    'connect.tag':'AGENT ACCESS', 'connect.title':'One URL, connect your Agent',
+    'connect.sub':'Capabilities exposed directly to AI Agents — no UI, no scraping code. Pick MCP or REST.',
+    'connect.mcp.k':'▸ Recommended · MCP Server',
+    'connect.mcp.meta':'streamable-http · 12 tools · API Key auth',
+    'connect.copy':'click to copy', 'connect.mcp.auth':'Auth header',
+    'connect.rest.k':'▸ Alternative · REST API',
+    'connect.rest.meta':'X-API-Key auth · stable schema · unified envelope',
+    'connect.rest.auth':'Auth header', 'connect.rest.endpoints':'Endpoints',
+    'cap.tag':'COVERAGE', 'cap.title':'One engine, every site type',
+    'cap.sub':'Shopify, Vue SPA, Nuxt SSR, custom platforms, marketplaces — one pipeline, unified output.',
+    'cap.shopify':'products.json direct', 'cap.spa':'JSON API integration', 'cap.ssr':'sitemap + render', 'cap.marketplace':'Wayfair / Bol / Otto',
+    'final.title':'Enter the smart-crawler Console',
+    'final.sub':'Live dashboards · Products / promos / trends · One-click export · Job orchestration',
+    'final.cta':'Enter Now →',
+    'final.acct':'Preset account &nbsp;·&nbsp; user <b>aosen</b> &nbsp; password <b>admin</b>',
+    'footer':'smart·crawler — Web Data Engine for AI Agents · smartcrawler.io'
+  },
+  ja: {
+    title:'smart-crawler · AI エージェント向け Web データ採集エンジン',
+    'nav.value':'機能', 'nav.why':'なぜ', 'nav.connect':'エージェント接続', 'nav.cap':'カバレッジ', 'nav.console':'コンソール',
+    'hero.badge':'⚡ Built for AI Agents',
+    'hero.title':'AI エージェント向け<br><em>Web データ採集エンジン</em>',
+    'hero.lede':'AI エージェントには、クリーンで構造化され、信頼できるリアルタイム Web データが必要です。smart-crawler は「採集」をエージェントが直接呼び出せるサービスに変えます。',
+    'hero.cta_primary':'コンソールへ →', 'hero.cta_secondary':'機能を見る',
+    'stats.sites':'対象サイト', 'stats.brands':'競合ブランド', 'stats.countries':'国・地域', 'stats.engines':'エンジン種別',
+    'value.tag':'CORE VALUE',
+    'value.title':'単なるスクレイパーではなく、エージェントのデータ基盤',
+    'value.sub':'従来のクローラーは脆く、ブロックされやすく、人手が必要です。smart-crawler は継続的・信頼性・機械消費向けに設計。',
+    'value.c1.h':'適応的採集',
+    'value.c1.p':'マルチ戦略エンジン — JSON API / SSR / JSON-LD / マイクロデータ段階フォールバック。サイト改修にも自動対応。',
+    'value.c2.h':'耐ブロック性',
+    'value.c2.p':'ブラウザ級 TLS / JA3 指紋 + 階層プロキシプール + 時差スケジューリング。Cloudflare、Akamai、PerimeterX に対応。',
+    'value.c3.h':'Agent-Ready データ',
+    'value.c3.p':'構造化フィールド + REST API + MCP プロトコル。価格、プロモ、レビュー、トレンドが統一スキーマ。',
+    'value.c4.h':'原本スナップショット再現可能',
+    'value.c4.p':'採集ごとの原本応答を圧縮アーカイブ。データを疑えば再解析、クローラー更新後の履歴再実行で新フィールド抽出。',
+    'why.tag':'WHY AGENT-NATIVE', 'why.title':'機械消費のために生まれた',
+    'why.i1.h':'安定したデータ契約',
+    'why.i1.p':'エージェントは API と固定スキーマを呼び、脆い DOM は呼びません。サイト改修は採集層が吸収。',
+    'why.i2.h':'継続的スケジュール',
+    'why.i2.p':'サイトごとの採集頻度設定。価格曲線、新商品、プロモ、トレンド自動追跡 — エージェントは常に新鮮なデータ。',
+    'why.i3.h':'キュー化タスク',
+    'why.i3.p':'採集はタスク：キュー、取得、再試行、監視すべて可観測。エージェントはプログラム経由でトリガー・状態確認。',
+    'why.i4.h':'信頼性と追跡可能性',
+    'why.i4.p':'原本スナップショット + 品質検証 + 成功率監視。エージェントが依拠するデータは出所追跡可能。',
+    'connect.tag':'AGENT ACCESS', 'connect.title':'1 行の URL でエージェントに接続',
+    'connect.sub':'能力を直接 AI エージェントに公開 — UI を開かず、スクレイピングコードを書かず、MCP または REST。',
+    'connect.mcp.k':'▸ 推奨 · MCP サーバー',
+    'connect.mcp.meta':'streamable-http · 12 ツール · API Key 認証',
+    'connect.copy':'クリックでコピー', 'connect.mcp.auth':'認証ヘッダ',
+    'connect.rest.k':'▸ 代替 · REST API',
+    'connect.rest.meta':'X-API-Key 認証 · 安定スキーマ · 統一エンベロープ',
+    'connect.rest.auth':'認証ヘッダ', 'connect.rest.endpoints':'エンドポイント',
+    'cap.tag':'COVERAGE', 'cap.title':'一つのエンジン、あらゆるサイト',
+    'cap.sub':'Shopify、Vue SPA、Nuxt SSR、自社プラットフォーム、マーケットプレイス — 同一パイプライン、統一出力。',
+    'cap.shopify':'products.json 直接採集', 'cap.spa':'JSON API 統合', 'cap.ssr':'sitemap + レンダリング', 'cap.marketplace':'Wayfair / Bol / Otto',
+    'final.title':'smart-crawler コンソールへ',
+    'final.sub':'リアルタイムダッシュボード · 商品/プロモ/トレンド · ワンクリックエクスポート · タスク編成',
+    'final.cta':'今すぐ入る →',
+    'final.acct':'プリセットアカウント &nbsp;·&nbsp; ユーザー <b>aosen</b> &nbsp; パスワード <b>admin</b>',
+    'footer':'smart·crawler — AI エージェント向け Web データ採集エンジン · smartcrawler.io'
+  },
+  de: {
+    title:'smart-crawler · Web-Daten-Engine für KI-Agenten',
+    'nav.value':'Features', 'nav.why':'Warum', 'nav.connect':'Agent-Zugang', 'nav.cap':'Abdeckung', 'nav.console':'Konsole',
+    'hero.badge':'⚡ Built for AI Agents',
+    'hero.title':'Web-Daten-Engine<br>für <em>KI-Agenten</em>',
+    'hero.lede':'KI-Agenten brauchen saubere, strukturierte, vertrauenswürdige Echtzeit-Webdaten. smart-crawler verwandelt Scraping in einen Dienst, den Agenten direkt aufrufen.',
+    'hero.cta_primary':'Konsole öffnen →', 'hero.cta_secondary':'Features ansehen',
+    'stats.sites':'Erfasste Sites', 'stats.brands':'Marken', 'stats.countries':'Länder', 'stats.engines':'Engine-Typen',
+    'value.tag':'CORE VALUE',
+    'value.title':'Nicht nur Scraper — Daten-Infra für Agenten',
+    'value.sub':'Klassische Crawler sind fragil, leicht blockierbar, brauchen Pflege. smart-crawler ist auf kontinuierlichen, zuverlässigen, maschinen­gerechten Verbrauch ausgelegt.',
+    'value.c1.h':'Adaptive Erfassung',
+    'value.c1.p':'Multi-Strategie-Engine — JSON-API / SSR / JSON-LD / Microdata-Fallbacks. Bei Redesigns automatischer Pfadwechsel, keine Selector-Pflege.',
+    'value.c2.h':'Anti-Block-Resilienz',
+    'value.c2.p':'Browser-TLS/JA3-Fingerprinting + abgestufter Proxy-Pool + zeitversetzte Planung. Bewältigt Cloudflare, Akamai, PerimeterX.',
+    'value.c3.h':'Agent-Ready Daten',
+    'value.c3.p':'Strukturierte Felder + REST-API + MCP-Protokoll. Preise, Aktionen, Bewertungen, Trends — einheitliches Schema.',
+    'value.c4.h':'Wiederabspielbare Snapshots',
+    'value.c4.p':'Jede Rohantwort komprimiert archiviert. Verdächtige Daten lassen sich neu parsen; Crawler-Updates ziehen aus der Historie neue Felder.',
+    'why.tag':'WHY AGENT-NATIVE', 'why.title':'Für maschinellen Verbrauch konzipiert',
+    'why.i1.h':'Stabiler Datenvertrag',
+    'why.i1.p':'Agenten rufen APIs und feste Schemata, kein fragiles DOM. Site-Redesigns werden in der Crawler-Schicht absorbiert.',
+    'why.i2.h':'Dauerhaft geplant',
+    'why.i2.p':'Crawl-Frequenz pro Site. Preiskurven, Neueinträge, Aktionen, Trends automatisch verfolgt.',
+    'why.i3.h':'Warteschlangen-basiert',
+    'why.i3.p':'Crawls sind Tasks: einreihen, beanspruchen, wiederholen, überwachen — vollständig beobachtbar.',
+    'why.i4.h':'Vertrauen & Nachverfolgbarkeit',
+    'why.i4.p':'Roh-Snapshot-Archiv + Datenqualitäts-Validierung + Erfolgsüberwachung. Jeder Datenpunkt ist quellengeprüft.',
+    'connect.tag':'AGENT ACCESS', 'connect.title':'Eine URL, Agent verbunden',
+    'connect.sub':'Funktionen direkt an KI-Agenten verfügbar — keine UI, kein Scraping-Code. MCP oder REST wählen.',
+    'connect.mcp.k':'▸ Empfohlen · MCP-Server',
+    'connect.mcp.meta':'streamable-http · 12 Tools · API-Key-Auth',
+    'connect.copy':'klicken zum kopieren', 'connect.mcp.auth':'Auth-Header',
+    'connect.rest.k':'▸ Alternative · REST-API',
+    'connect.rest.meta':'X-API-Key-Auth · stabiles Schema · einheitlicher Envelope',
+    'connect.rest.auth':'Auth-Header', 'connect.rest.endpoints':'Endpunkte',
+    'cap.tag':'COVERAGE', 'cap.title':'Eine Engine, jeder Site-Typ',
+    'cap.sub':'Shopify, Vue SPA, Nuxt SSR, Eigenplattformen, Marketplaces — eine Pipeline, einheitlicher Output.',
+    'cap.shopify':'products.json direkt', 'cap.spa':'JSON-API-Integration', 'cap.ssr':'sitemap + Rendering', 'cap.marketplace':'Wayfair / Bol / Otto',
+    'final.title':'smart-crawler Konsole öffnen',
+    'final.sub':'Live-Dashboards · Produkte/Aktionen/Trends · Ein-Klick-Export · Job-Orchestrierung',
+    'final.cta':'Jetzt einsteigen →',
+    'final.acct':'Voreingestelltes Konto &nbsp;·&nbsp; Benutzer <b>aosen</b> &nbsp; Passwort <b>admin</b>',
+    'footer':'smart·crawler — Web-Daten-Engine für KI-Agenten · smartcrawler.io'
   }
+};
+
+function detectLang() {
+  const stored = localStorage.getItem('sc_lang');
+  if (stored && I18N[stored]) return stored;
+  const nav = (navigator.language || 'zh').toLowerCase();
+  if (nav.startsWith('en')) return 'en';
+  if (nav.startsWith('ja')) return 'ja';
+  if (nav.startsWith('de')) return 'de';
+  return 'zh';
+}
+
+function applyLang(lang) {
+  const dict = I18N[lang] || I18N.zh;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key] !== undefined) el.textContent = dict[key];
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    const key = el.getAttribute('data-i18n-html');
+    if (dict[key] !== undefined) el.innerHTML = dict[key];
+  });
+  if (dict.title) document.title = dict.title;
+  document.documentElement.lang = {zh:'zh-CN',en:'en',ja:'ja',de:'de'}[lang] || 'zh-CN';
+  document.querySelectorAll('.lang-switch button').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === lang);
+  });
+  localStorage.setItem('sc_lang', lang);
+}
+
+document.querySelectorAll('.lang-switch button').forEach(b => {
+  b.addEventListener('click', () => applyLang(b.dataset.lang));
+});
+
+applyLang(detectLang());
+
+function cp(el){
+  const txt = el.childNodes[0].textContent.trim();
+  navigator.clipboard.writeText(txt).then(() => {
+    const tag = el.querySelector('.cp'), old = tag.textContent;
+    tag.textContent = '✓';
+    setTimeout(() => { tag.textContent = old; }, 1600);
+  });
+}
 </script>
 </body>
 </html>
