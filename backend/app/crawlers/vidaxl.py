@@ -116,11 +116,24 @@ class VidaxlCrawler(BaseCrawler):
             idx = sess.get(self.base + "/sitemap_index.xml", timeout=30)
             self.guard(idx.status_code, self.base)    # 熔断检查
             if idx.status_code != 200:
-                result.notes.append(
-                    f"⚠ sitemap_index 不可达（{idx.status_code}）—— "
-                    f"{'美国站需住宅代理（路径3）' if self.site.country=='US' else '站点封锁'}")
-                return result
-            subs = re.findall(r"<loc>\s*(.*?)\s*</loc>", idx.text)
+                # 路径 2.5：curl_cffi 被封 → fallback 到 StealthyFetcher（Camoufox patched playwright）
+                if idx.status_code in (401, 403, 451):
+                    stealth_text = self._fetch_via_stealth(self.base + "/sitemap_index.xml")
+                    if stealth_text:
+                        result.notes.append(
+                            f"✅ curl_cffi {idx.status_code} → StealthyFetcher 解锁成功")
+                        subs = re.findall(r"<loc>\s*(.*?)\s*</loc>", stealth_text)
+                    else:
+                        result.notes.append(
+                            f"⚠ sitemap_index 不可达（{idx.status_code}）+ stealth 也失败")
+                        return result
+                else:
+                    result.notes.append(
+                        f"⚠ sitemap_index 不可达（{idx.status_code}）—— "
+                        f"{'美国站需住宅代理（路径3）' if self.site.country=='US' else '站点封锁'}")
+                    return result
+            else:
+                subs = re.findall(r"<loc>\s*(.*?)\s*</loc>", idx.text)
         except BlockedError:
             raise                              # 熔断 —— 传播到 runner
         except Exception as exc:
@@ -248,6 +261,32 @@ class VidaxlCrawler(BaseCrawler):
                     "product_url": url,
                     "site": self.site.site,
                 }
+        return None
+
+    def _fetch_via_stealth(self, url: str) -> str | None:
+        """curl_cffi 被封时（401/403/451）走 Scrapling StealthyFetcher 兜底。
+
+        反爬参数升级（2026-05-24 整合）：solve_cloudflare / hide_canvas /
+        block_webrtc / dns_over_https / locale / timezone_id / per-site profile。
+        参考 deliverables/scrapling_design_research.html。
+        """
+        try:
+            from scrapling.fetchers import StealthyFetcher
+            from ._stealth_config import stealth_kwargs
+        except Exception as exc:
+            return None
+        try:
+            kw = stealth_kwargs(
+                proxy=self.proxy,
+                country=self.site.country,
+                persist_profile_key=f"vidaxl_{self.site.site}",
+                timeout_ms=45000,
+            )
+            page = StealthyFetcher.fetch(url, **kw)
+            if getattr(page, "status", None) == 200:
+                return page.html_content or page.body or ""
+        except Exception:
+            pass
         return None
 
 

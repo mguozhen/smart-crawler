@@ -109,20 +109,20 @@ class GoogleShoppingCrawler:
                 pass
             return page
 
-        kw = dict(
-            headless=True,
-            timeout=60000,
-            wait=1500,
+        from ._stealth_config import stealth_kwargs
+        kw = stealth_kwargs(
+            proxy=self.proxy,
+            country="US",  # Google Shopping 默认走 US
             network_idle=False,
-            useragent=_DESKTOP_UA,
-            humanize=True,                    # scrapling 0.4 的人类化动作
-            block_webrtc=True,
-            hide_canvas=True,
-            page_action=warm_then_search,
-            google_search=True,               # 加 Google referer
+            timeout_ms=60000,
+            persist_profile_key=f"gshop_{self.keyword[:20]}",
+            extra={
+                "wait": 1500,
+                "useragent": _DESKTOP_UA,
+                "humanize": True,
+                "page_action": warm_then_search,
+            },
         )
-        if self.proxy:
-            kw["proxy"] = self.proxy
         try:
             page = StealthyFetcher.fetch(url, **kw)
         except Exception as exc:

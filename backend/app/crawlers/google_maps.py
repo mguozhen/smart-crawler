@@ -74,10 +74,15 @@ class GoogleMapsCrawler:
             return page
 
         try:
-            kw = dict(headless=True, network_idle=False, timeout=70000,
-                      page_action=scroll_reviews)
-            if self.proxy:
-                kw["proxy"] = self.proxy
+            from ._stealth_config import stealth_kwargs
+            kw = stealth_kwargs(
+                proxy=self.proxy,
+                country=getattr(self, "country", None),
+                network_idle=False,
+                timeout_ms=70000,
+                persist_profile_key=f"google_maps_{getattr(self, 'place_id', 'default')}",
+                extra={"page_action": scroll_reviews},
+            )
             fetched = StealthyFetcher.fetch(url, **kw)
         except Exception as exc:
             self.notes.append(f"抓取异常: {exc}")

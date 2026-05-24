@@ -41,9 +41,12 @@ class TrustpilotCrawler:
         for page in range(1, self.max_pages + 1):
             url = f"https://{self.host}/review/{self.domain}?page={page}"
             try:
-                kw = dict(headless=True, network_idle=True, timeout=60000)
-                if self.proxy:
-                    kw["proxy"] = self.proxy
+                from ._stealth_config import stealth_kwargs
+                kw = stealth_kwargs(
+                    proxy=self.proxy,
+                    country=getattr(self, "country", None),
+                    persist_profile_key=f"trustpilot_{self.domain}",
+                )
                 fetched = StealthyFetcher.fetch(url, **kw)
             except Exception as exc:
                 self.notes.append(f"page{page} 抓取异常: {exc}")
