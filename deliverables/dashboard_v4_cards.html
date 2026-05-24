@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>smart-crawler Dashboard · 4 版本抽卡 · 2026-05-24</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter','PingFang SC',-apple-system,BlinkMacSystemFont,sans-serif}
+html{scroll-behavior:smooth}
+body{background:#0a0612;color:#e5e7eb;font-size:14.5px;line-height:1.65}
+a{color:#a78bfa;text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* hero */
+.hero{padding:64px 32px 50px;text-align:center;position:relative;overflow:hidden;
+      background:radial-gradient(ellipse 90% 70% at 50% 0%,rgba(167,139,250,.18),transparent 65%),
+                 radial-gradient(ellipse 70% 60% at 80% 50%,rgba(16,185,129,.10),transparent 60%)}
+.hero-tag{display:inline-flex;align-items:center;gap:9px;padding:6px 16px;background:rgba(167,139,250,.12);
+          border:1px solid rgba(167,139,250,.4);border-radius:26px;font-size:0.74rem;color:#c4b5fd;
+          letter-spacing:1.5px;text-transform:uppercase;margin-bottom:22px}
+.hero-tag .dot{width:7px;height:7px;border-radius:50%;background:#a78bfa;animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{font-size:2.8rem;font-weight:900;letter-spacing:-1.5px;line-height:1.1;margin-bottom:14px}
+.hero h1 .grad{background:linear-gradient(90deg,#a78bfa,#f472b6,#fb7185);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:1.02rem;max-width:680px;margin:0 auto 18px;line-height:1.7}
+.hero-meta{font-size:0.82rem;color:#52527a;margin-top:12px}
+
+section{max-width:1280px;margin:0 auto;padding:50px 28px}
+.sec-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 13px;border-radius:18px;font-size:0.7rem;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
+.tag-purple{background:rgba(167,139,250,.14);color:#c4b5fd;border:1px solid rgba(167,139,250,.3)}
+section h2{font-size:1.9rem;font-weight:800;letter-spacing:-0.5px;margin-bottom:8px}
+.lede{color:#94a3b8;font-size:0.94rem;margin-bottom:26px;max-width:760px;line-height:1.7}
+
+/* card grid */
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+.card{background:#13111f;border:2px solid #29213a;border-radius:18px;overflow:hidden;cursor:pointer;transition:all .25s ease;display:flex;flex-direction:column}
+.card:hover{transform:translateY(-4px);border-color:#a78bfa;box-shadow:0 24px 60px rgba(167,139,250,.25)}
+.card.selected{border-color:#a78bfa;box-shadow:0 0 0 4px rgba(167,139,250,.2),0 28px 70px rgba(167,139,250,.35)}
+.card-head{padding:24px 26px 18px;border-bottom:1px solid #1f1429}
+.card-tag{display:inline-flex;gap:6px;align-items:center;font-size:0.68rem;font-weight:800;padding:4px 11px;border-radius:11px;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px}
+.tag-a{background:rgba(16,185,129,.16);color:#6ee7b7;border:1px solid rgba(16,185,129,.4)}
+.tag-b{background:rgba(96,165,250,.16);color:#93c5fd;border:1px solid rgba(96,165,250,.4)}
+.tag-c{background:rgba(247,183,49,.16);color:#fcd34d;border:1px solid rgba(247,183,49,.4)}
+.tag-d{background:rgba(244,114,182,.16);color:#f9a8d4;border:1px solid rgba(244,114,182,.4)}
+.card-title{font-size:1.5rem;font-weight:900;color:#fff;margin-bottom:6px;letter-spacing:-0.4px}
+.card-sub{font-size:0.84rem;color:#94a3b8;line-height:1.6}
+
+/* mockup area */
+.mockup{padding:24px 26px;background:linear-gradient(180deg,#0d0a17,#0a0612);min-height:280px;position:relative}
+.mock-frame{background:#080614;border:1px solid #29213a;border-radius:10px;overflow:hidden;font-family:'SF Mono',monospace;font-size:0.7rem}
+.mock-bar{background:#13111f;padding:7px 12px;border-bottom:1px solid #1f1429;display:flex;gap:6px;align-items:center}
+.mock-dots{display:flex;gap:4px}
+.mock-dot{width:8px;height:8px;border-radius:50%;background:#52527a}
+.mock-dot.r{background:#fb7185}.mock-dot.y{background:#fbbf24}.mock-dot.g{background:#10b981}
+.mock-url{color:#52527a;font-size:0.68rem;margin-left:auto}
+
+/* Cockpit */
+.mock-cockpit{padding:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mock-stat{background:linear-gradient(135deg,rgba(167,139,250,.12),rgba(167,139,250,.04));border:1px solid rgba(167,139,250,.25);border-radius:7px;padding:9px 11px}
+.mock-stat .v{font-size:1.05rem;font-weight:900;color:#fff;font-family:Inter}
+.mock-stat .l{font-size:0.62rem;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.mock-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:8px}
+.mock-cell{aspect-ratio:1;border-radius:4px;background:rgba(167,139,250,.15)}
+.mock-cell.hi{background:rgba(16,185,129,.5)}
+.mock-cell.lo{background:rgba(251,113,133,.4)}
+.mock-cell.md{background:rgba(247,183,49,.4)}
+
+/* Workspace */
+.mock-ws{display:grid;grid-template-columns:140px 1fr;height:230px}
+.mock-side{background:#0a0612;border-right:1px solid #1f1429;padding:10px 8px;font-size:0.72rem}
+.mock-side-item{padding:6px 8px;color:#94a3b8;border-radius:5px;margin-bottom:3px}
+.mock-side-item.active{background:rgba(167,139,250,.15);color:#c4b5fd}
+.mock-main{padding:14px;display:flex;flex-direction:column;gap:8px}
+.mock-tabs{display:flex;gap:10px;border-bottom:1px solid #1f1429;padding-bottom:6px;font-size:0.72rem}
+.mock-tab{color:#52527a}
+.mock-tab.active{color:#c4b5fd;border-bottom:2px solid #a78bfa;padding-bottom:5px}
+.mock-row{display:grid;grid-template-columns:1fr 1fr 1fr 50px;gap:8px;padding:6px 8px;background:#0d0a17;border-radius:5px;font-size:0.7rem;color:#cbd5e1}
+
+/* Excel */
+.mock-excel{padding:0}
+.mock-excel-bar{background:#13111f;padding:7px 10px;border-bottom:1px solid #1f1429;display:flex;gap:6px;font-size:0.68rem}
+.mock-pill{background:rgba(96,165,250,.15);color:#93c5fd;padding:2px 8px;border-radius:9px;border:1px solid rgba(96,165,250,.3)}
+.mock-table{font-size:0.7rem}
+.mock-table-row{display:grid;grid-template-columns:30px 1fr 60px 70px 50px;padding:5px 10px;border-bottom:1px solid #1f1429;color:#cbd5e1}
+.mock-table-row.head{color:#52527a;font-weight:700;letter-spacing:0.5px}
+.mock-table-row:hover{background:#0d0a17}
+
+/* Chat */
+.mock-chat{padding:14px;display:flex;flex-direction:column;gap:8px;font-size:0.74rem;color:#cbd5e1}
+.mock-msg{padding:7px 12px;border-radius:8px;max-width:75%;line-height:1.5}
+.mock-msg.user{background:rgba(244,114,182,.12);color:#f9a8d4;align-self:flex-end}
+.mock-msg.ai{background:rgba(167,139,250,.10);color:#c4b5fd;align-self:flex-start}
+.mock-chart{background:#0d0a17;border:1px solid #29213a;border-radius:6px;padding:9px 12px;align-self:flex-start;font-family:'SF Mono';font-size:0.65rem;color:#10b981}
+.mock-input{margin-top:auto;background:#13111f;border:1px solid #29213a;border-radius:7px;padding:7px 10px;color:#52527a;font-size:0.7rem}
+
+/* details */
+.detail{padding:22px 26px 26px;background:#0d0a17;border-top:1px solid #1f1429}
+.detail h4{font-size:0.7rem;color:#52527a;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.detail-row{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;font-size:0.82rem;line-height:1.6;color:#cbd5e1}
+.detail-key{color:#94a3b8;font-weight:600}
+.detail-val strong{color:#fff}
+.pros{margin-top:14px;font-size:0.78rem;color:#6ee7b7}
+.pros::before{content:'+ '}
+.cons{margin-top:4px;font-size:0.78rem;color:#fda4af}
+.cons::before{content:'- '}
+
+/* radio */
+.choose{padding:18px 26px;background:#080614;border-top:1px solid #1f1429;display:flex;align-items:center;justify-content:space-between}
+.choose label{display:flex;gap:9px;align-items:center;font-size:0.82rem;color:#94a3b8;cursor:pointer;font-weight:600}
+.choose input[type=radio]{appearance:none;width:18px;height:18px;border:2px solid #475569;border-radius:50%;cursor:pointer;transition:all .15s}
+.choose input[type=radio]:checked{background:#a78bfa;border-color:#a78bfa;box-shadow:0 0 0 4px rgba(167,139,250,.18)}
+.eta{font-size:0.74rem;color:#52527a}
+
+/* CTA */
+.cta{background:linear-gradient(135deg,rgba(167,139,250,.18),rgba(244,114,182,.12));border:2px solid rgba(167,139,250,.4);border-radius:18px;padding:38px;text-align:center;margin-top:30px}
+.cta h2{font-size:1.9rem;font-weight:900;margin-bottom:10px;background:linear-gradient(90deg,#a78bfa,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.cta p{color:#cbd5e1;font-size:0.95rem;max-width:600px;margin:0 auto 22px;line-height:1.7}
+.btn{padding:11px 22px;border-radius:24px;font-size:0.88rem;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:7px;border:none;cursor:pointer;background:linear-gradient(135deg,#a78bfa,#f472b6);color:#fff}
+
+footer{padding:30px;text-align:center;color:#52527a;font-size:0.82rem;border-top:1px solid #1f1429;background:#0a0612;margin-top:50px}
+
+@media(max-width:900px){
+  .cards{grid-template-columns:1fr}
+  .mock-cockpit{grid-template-columns:repeat(2,1fr)}
+  .mock-grid{grid-template-columns:repeat(6,1fr)}
+  .mock-ws{grid-template-columns:1fr;height:auto}
+  .hero h1{font-size:2rem}
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tag"><span class="dot"></span>Dashboard v4 · 4 张抽卡</div>
+  <h1>smart-crawler 主界面 · <span class="grad">4 个版本任选</span></h1>
+  <p>从「数据驾驶舱」到「AI 对话面板」—— 4 个完全不同的产品形态，对应 4 类客户视角。挑一个，我立即开干。</p>
+  <div class="hero-meta">2026-05-24 · 4 mockup + 4 决策点 · 单页可分享</div>
+</div>
+
+<!-- 4 张卡 -->
+<section>
+  <span class="sec-tag tag-purple">🎴 抽卡 · 选你要的 Dashboard 形态</span>
+  <h2>4 个版本 · 选 1</h2>
+  <p class="lede">每张卡 = 一个完整产品形态。形态选错，6 周开发白干。仔细看 mockup + 看右下「适合谁」+ 选 radio。</p>
+
+  <div class="cards">
+
+    <!-- 卡 A · 数据驾驶舱 -->
+    <div class="card" id="card-A" onclick="select('A')">
+      <div class="card-head">
+        <span class="card-tag tag-a">A · COCKPIT</span>
+        <div class="card-title">数据驾驶舱</div>
+        <div class="card-sub">大屏式实时看板，46 站全景 + 热力图 + 漏斗 + 地图。给老板 / 客户 demo 用。</div>
+      </div>
+      <div class="mockup">
+        <div class="mock-frame">
+          <div class="mock-bar"><div class="mock-dots"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div></div><span class="mock-url">smartcrawler.io/cockpit</span></div>
+          <div class="mock-cockpit">
+            <div class="mock-stat"><div class="v">151k</div><div class="l">SKU</div></div>
+            <div class="mock-stat"><div class="v">3.56%</div><div class="l">覆盖</div></div>
+            <div class="mock-stat"><div class="v">9/10</div><div class="l">代理</div></div>
+            <div class="mock-stat"><div class="v">10</div><div class="l">Worker</div></div>
+            <div class="mock-grid">
+              <div class="mock-cell hi"></div><div class="mock-cell hi"></div><div class="mock-cell hi"></div><div class="mock-cell md"></div>
+              <div class="mock-cell hi"></div><div class="mock-cell md"></div><div class="mock-cell hi"></div><div class="mock-cell hi"></div>
+              <div class="mock-cell md"></div><div class="mock-cell hi"></div><div class="mock-cell lo"></div><div class="mock-cell lo"></div>
+              <div class="mock-cell hi"></div><div class="mock-cell hi"></div><div class="mock-cell md"></div><div class="mock-cell hi"></div>
+              <div class="mock-cell lo"></div><div class="mock-cell md"></div><div class="mock-cell hi"></div><div class="mock-cell hi"></div>
+              <div class="mock-cell hi"></div><div class="mock-cell hi"></div><div class="mock-cell md"></div><div class="mock-cell lo"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail">
+        <h4>形态特征</h4>
+        <div class="detail-row">
+          <div class="detail-key">主交互</div><div class="detail-val">看，<strong>不点</strong>。投影到会议室大屏</div>
+          <div class="detail-key">核心元素</div><div class="detail-val">数字大屏 + 实时热力图 + 中国/欧洲地图 + 漏斗 + 雷达图</div>
+          <div class="detail-key">每秒</div><div class="detail-val">WebSocket 推 SKU/代理/Worker 实时变化</div>
+          <div class="detail-key">适合谁</div><div class="detail-val"><strong>客户 demo + 投标现场 + 自己看运营状态</strong></div>
+        </div>
+        <div class="pros">视觉冲击力强，签单率 ↑</div>
+        <div class="cons">不能编辑/查询，纯展示。复杂筛选要切别的页面</div>
+      </div>
+      <div class="choose">
+        <label><input type="radio" name="pick" value="A">选 A · Cockpit</label>
+        <span class="eta">工期 2.5 周</span>
+      </div>
+    </div>
+
+    <!-- 卡 B · AI Workspace -->
+    <div class="card" id="card-B" onclick="select('B')">
+      <div class="card-head">
+        <span class="card-tag tag-b">B · WORKSPACE</span>
+        <div class="card-title">AI Workspace</div>
+        <div class="card-sub">类 Linear/Notion，左侧切「客户/项目/平台」，右主区做事。SaaS 标配形态。</div>
+      </div>
+      <div class="mockup">
+        <div class="mock-frame">
+          <div class="mock-bar"><div class="mock-dots"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div></div><span class="mock-url">app.smartcrawler.io/vivo</span></div>
+          <div class="mock-ws">
+            <div class="mock-side">
+              <div class="mock-side-item active">📂 VIVO 海外</div>
+              <div class="mock-side-item">📂 遨森</div>
+              <div class="mock-side-item">📂 极氪</div>
+              <div class="mock-side-item">📂 海尔</div>
+              <div style="border-top:1px solid #1f1429;margin:8px -8px 6px;"></div>
+              <div class="mock-side-item">▸ 产品库</div>
+              <div class="mock-side-item">▸ VOC</div>
+              <div class="mock-side-item">▸ 价格</div>
+            </div>
+            <div class="mock-main">
+              <div class="mock-tabs">
+                <div class="mock-tab active">概览</div>
+                <div class="mock-tab">SKU</div>
+                <div class="mock-tab">舆情</div>
+                <div class="mock-tab">导出</div>
+              </div>
+              <div class="mock-row"><span>Lazada ID</span><span>225k</span><span>+12%</span><span style="color:#10b981">●</span></div>
+              <div class="mock-row"><span>Shopee TH</span><span>189k</span><span>+8%</span><span style="color:#10b981">●</span></div>
+              <div class="mock-row"><span>Amazon MX</span><span>67k</span><span>-3%</span><span style="color:#fbbf24">●</span></div>
+              <div class="mock-row"><span>Flipkart IN</span><span>—</span><span>未连</span><span style="color:#52527a">○</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail">
+        <h4>形态特征</h4>
+        <div class="detail-row">
+          <div class="detail-key">主交互</div><div class="detail-val">左切客户 → 右看数据/导出/配置。每客户独立 workspace</div>
+          <div class="detail-key">核心元素</div><div class="detail-val">侧栏 + tab + 表格 + 卡片混排</div>
+          <div class="detail-key">支持</div><div class="detail-val">多客户隔离、权限、API key 分发、按 record 计费看板</div>
+          <div class="detail-key">适合谁</div><div class="detail-val"><strong>SaaS 真用户日常用 · 多客户并行（ALL-IN 路线）</strong></div>
+        </div>
+        <div class="pros">最标准 SaaS UX，客户上手快</div>
+        <div class="cons">缺乏 "wow" 视觉，demo 时显平淡</div>
+      </div>
+      <div class="choose">
+        <label><input type="radio" name="pick" value="B">选 B · Workspace</label>
+        <span class="eta">工期 3 周</span>
+      </div>
+    </div>
+
+    <!-- 卡 C · Excel Pro -->
+    <div class="card" id="card-C" onclick="select('C')">
+      <div class="card-head">
+        <span class="card-tag tag-c">C · EXCEL PRO</span>
+        <div class="card-title">Excel Pro / Airtable 模式</div>
+        <div class="card-sub">表格优先 + pivot/filter/group/bulk export。给数据分析师 + 商研同学用。</div>
+      </div>
+      <div class="mockup">
+        <div class="mock-frame">
+          <div class="mock-bar"><div class="mock-dots"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div></div><span class="mock-url">smartcrawler.io/data</span></div>
+          <div class="mock-excel">
+            <div class="mock-excel-bar">
+              <span class="mock-pill">+ Filter</span>
+              <span class="mock-pill">⫶ Group</span>
+              <span class="mock-pill">⇅ Sort</span>
+              <span class="mock-pill">📊 Pivot</span>
+              <span class="mock-pill">↓ CSV/XLSX/JSON</span>
+            </div>
+            <div class="mock-table">
+              <div class="mock-table-row head"><span></span><span>商品</span><span>站点</span><span>价格</span><span>VOC</span></div>
+              <div class="mock-table-row"><span>1</span><span>电动升降桌 折叠款</span><span>vidaxl_de</span><span>€399</span><span>4.5★</span></div>
+              <div class="mock-table-row"><span>2</span><span>儿童电动玩具车</span><span>costway_us</span><span>$129</span><span>4.2★</span></div>
+              <div class="mock-table-row"><span>3</span><span>不锈钢厨房收纳架</span><span>songmics_de</span><span>€89</span><span>4.7★</span></div>
+              <div class="mock-table-row"><span>4</span><span>智能门锁 指纹</span><span>homary_uk</span><span>£199</span><span>4.0★</span></div>
+              <div class="mock-table-row"><span>5</span><span>无线吸尘器</span><span>vidaxl_pl</span><span>zł250</span><span>3.8★</span></div>
+              <div class="mock-table-row"><span>6</span><span>儿童双层床</span><span>flexispot_de</span><span>€499</span><span>4.6★</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="detail">
+        <h4>形态特征</h4>
+        <div class="detail-row">
+          <div class="detail-key">主交互</div><div class="detail-val">表格筛 / 分组 / pivot 透视 / bulk 导出</div>
+          <div class="detail-key">核心元素</div><div class="detail-val">超大表格 + AG-Grid 或 TanStack Table + saved views</div>
+          <div class="detail-key">扩展</div><div class="detail-val">行内编辑、批量打标、自定义字段、saved query</div>
+          <div class="detail-key">适合谁</div><div class="detail-val"><strong>客户的数据分析师 + 商研同学 + 自己跑日报</strong></div>
+        </div>
+        <div class="pros">实用主义者狂喜，数据生产力工具</div>
+        <div class="cons">看起来像 Excel，不像产品；不够 sexy</div>
+      </div>
+      <div class="choose">
+        <label><input type="radio" name="pick" value="C">选 C · Excel Pro</label>
+        <span class="eta">工期 2 周</span>
+      </div>
+    </div>
+
+    <!-- 卡 D · Agent Chat -->
+    <div class="card" id="card-D" onclick="select('D')">
+      <div class="card-head">
+        <span class="card-tag tag-d">D · AGENT CHAT</span>
+        <div class="card-title">AI Agent 对话面板</div>
+        <div class="card-sub">主交互是 chat。"给我 vidaxl 销售 top 10" → AI 直接渲染图表/表格/导出链接。</div>
+      </div>
+      <div class="mockup">
+        <div class="mock-frame">
+          <div class="mock-bar"><div class="mock-dots"><div class="mock-dot r"></div><div class="mock-dot y"></div><div class="mock-dot g"></div></div><span class="mock-url">smartcrawler.io/agent</span></div>
+          <div class="mock-chat" style="height:240px">
+            <div class="mock-msg user">vidaxl_de 价格 top 10</div>
+            <div class="mock-msg ai">用 mcp tool 查询了 vidaxl_de 站点，top 10 SKU 在下面：</div>
+            <div class="mock-chart">
+              ▌ 升降办公桌 折叠款           €1299<br>
+              ▌ 儿童双层床 实木              €899<br>
+              ▌ 智能门锁 指纹+蓝牙           €699<br>
+              ▌ ... 7 more</div>
+            <div class="mock-msg user">导出 Excel</div>
+            <div class="mock-msg ai">已生成 → vidaxl_de_top10.xlsx ↓</div>
+            <div class="mock-input">问问：把这周价格变化 &gt;10% 的产品发我邮箱</div>
+          </div>
+        </div>
+      </div>
+      <div class="detail">
+        <h4>形态特征</h4>
+        <div class="detail-row">
+          <div class="detail-key">主交互</div><div class="detail-val">所有操作都是聊天 → AI 调 MCP tool → 渲染富文本回复</div>
+          <div class="detail-key">核心元素</div><div class="detail-val">输入框 + AI 渲染卡片/图表/下载/邮件 trigger</div>
+          <div class="detail-key">底层</div><div class="detail-val">已有 MCP 12 工具，再加 streaming + tool_use + 多轮上下文</div>
+          <div class="detail-key">适合谁</div><div class="detail-val"><strong>非技术用户 · "我不懂筛选，告诉我答案" · 卖给企业老板</strong></div>
+        </div>
+        <div class="pros">最 sexy，最匹配 "MCP-first" 战略</div>
+        <div class="cons">非确定性：同一问题答不一样；权限/审计难做；客户教育成本高</div>
+      </div>
+      <div class="choose">
+        <label><input type="radio" name="pick" value="D">选 D · Agent Chat</label>
+        <span class="eta">工期 4 周</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 决策框架 -->
+<section>
+  <span class="sec-tag tag-purple">📋 抉择框架</span>
+  <h2>三个问题帮你选</h2>
+  <p class="lede">不要看哪个最 sexy，看哪个最匹配你的客户场景。</p>
+
+  <div class="cards">
+    <div class="card" style="cursor:default">
+      <div class="card-head">
+        <div class="card-title" style="font-size:1.15rem">Q1 · 客户怎么用？</div>
+        <div class="card-sub">看 vs 用 vs 分析 vs 问 → 决定形态</div>
+      </div>
+      <div style="padding:18px 26px;font-size:0.84rem;line-height:1.85;color:#cbd5e1">
+        <strong style="color:#6ee7b7">VIVO 商研每周用</strong> → <strong>C Excel Pro</strong><br>
+        <strong style="color:#93c5fd">遨森多角色协作</strong> → <strong>B Workspace</strong><br>
+        <strong style="color:#fcd34d">海尔老板月度看</strong> → <strong>A Cockpit</strong><br>
+        <strong style="color:#f9a8d4">企业 SDR 临时问数</strong> → <strong>D Agent Chat</strong>
+      </div>
+    </div>
+
+    <div class="card" style="cursor:default">
+      <div class="card-head">
+        <div class="card-title" style="font-size:1.15rem">Q2 · 投标场景</div>
+        <div class="card-sub">demo 现场打动决策者，还是落地深耕？</div>
+      </div>
+      <div style="padding:18px 26px;font-size:0.84rem;line-height:1.85;color:#cbd5e1">
+        <strong>demo 现场震撼</strong> → A 或 D（最有视觉/科技感）<br>
+        <strong>深耕日常使用</strong> → B 或 C（实用主义）<br>
+        <strong>AI Agent 卖点</strong> → D（这是其他人没有的护城河）
+      </div>
+    </div>
+
+    <div class="card" style="cursor:default">
+      <div class="card-head">
+        <div class="card-title" style="font-size:1.15rem">Q3 · 团队能力</div>
+        <div class="card-sub">能不能 hold 住开发 + 维护？</div>
+      </div>
+      <div style="padding:18px 26px;font-size:0.84rem;line-height:1.85;color:#cbd5e1">
+        <strong>1-2 人小团队</strong> → C（2 周最快上）<br>
+        <strong>3-4 人</strong> → B（3 周，标准 SaaS）<br>
+        <strong>5+ 人</strong> → A 或 D（更高视觉/技术天花板）
+      </div>
+    </div>
+
+    <div class="card" style="cursor:default">
+      <div class="card-head">
+        <div class="card-title" style="font-size:1.15rem">混合方案</div>
+        <div class="card-sub">不互斥 → B 做主，A 做 demo 入口，D 做 power user 工具</div>
+      </div>
+      <div style="padding:18px 26px;font-size:0.84rem;line-height:1.85;color:#cbd5e1">
+        <strong>推荐组合</strong>：B（主 workspace） + A（投标 demo 大屏） + 渐进式上 D（chat panel 嵌右下角）<br><br>
+        <strong>不要做 C 单选</strong>：C 只能做插件，不能是产品入口
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 提交 -->
+<section>
+  <div class="cta">
+    <h2>抽完卡，告诉我哪个</h2>
+    <p>选 A/B/C/D 任意一个，或回复"B+A"组合方案 / "我都要"我就按推荐做。</p>
+    <a class="btn" href="mailto:boyuan@solvea.cx?subject=Dashboard 选 X&body=我选 X · 原因..." target="_blank">📧 选好了发邮件</a>
+    <div style="margin-top:14px;color:#52527a;font-size:0.78rem">或在对话框直接回 "选 A" / "选 B" / 等</div>
+  </div>
+</section>
+
+<footer>
+  smart-crawler · Dashboard v4 抽卡 · 2026-05-24<br>
+  4 个版本任选 · 单页 self-contained · <a href="https://smartcrawler.io">smartcrawler.io</a>
+</footer>
+
+<script>
+function select(id) {
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('card-' + id).classList.add('selected');
+  document.querySelectorAll('input[name=pick]').forEach(r => {
+    r.checked = (r.value === id);
+  });
+}
+</script>
+
+</body>
+</html>
