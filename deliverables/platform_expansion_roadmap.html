@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>smart-crawler 数据平台扩展路线图 · 遨森优先 · 2026-05-24</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter','PingFang SC',-apple-system,BlinkMacSystemFont,sans-serif}
+html{scroll-behavior:smooth}
+body{background:#0a0612;color:#e5e7eb;font-size:14px;line-height:1.65}
+a{color:#a78bfa;text-decoration:none}
+
+.hero{padding:52px 28px 38px;text-align:center;
+      background:radial-gradient(ellipse 90% 70% at 50% 0%,rgba(16,185,129,.18),transparent 65%),
+                 radial-gradient(ellipse 70% 60% at 80% 50%,rgba(247,183,49,.12),transparent 60%)}
+.hero-tag{display:inline-flex;align-items:center;gap:9px;padding:5px 14px;background:rgba(16,185,129,.16);
+          border:1px solid rgba(16,185,129,.4);border-radius:24px;font-size:0.7rem;color:#6ee7b7;
+          letter-spacing:1.4px;text-transform:uppercase;margin-bottom:15px;font-weight:700}
+.hero h1{font-size:2.2rem;font-weight:900;letter-spacing:-1.4px;line-height:1.18;margin-bottom:11px}
+.hero h1 .grad{background:linear-gradient(90deg,#10b981,#fcd34d);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:0.96rem;max-width:780px;margin:0 auto;line-height:1.75}
+
+section{max-width:1240px;margin:0 auto;padding:42px 24px}
+section h2{font-size:1.5rem;font-weight:800;margin-bottom:6px;letter-spacing:-0.4px;display:flex;gap:10px;align-items:center}
+section h2 .n{font-size:0.72rem;background:rgba(16,185,129,.14);color:#6ee7b7;border:1px solid rgba(16,185,129,.3);padding:3px 10px;border-radius:9px;font-weight:800}
+section h3{font-size:1.02rem;font-weight:800;margin:18px 0 7px;color:#fff}
+section p{color:#cbd5e1;margin-bottom:8px}
+section .lede{color:#94a3b8;font-size:0.88rem;margin-bottom:16px;font-style:italic}
+
+table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:0.82rem}
+th{text-align:left;padding:9px 11px;background:#13111f;color:#94a3b8;font-size:0.66rem;letter-spacing:1px;text-transform:uppercase;font-weight:700;border-bottom:2px solid #29213a}
+td{padding:8px 11px;border-bottom:1px solid #1f1429;color:#cbd5e1;vertical-align:top}
+td b{color:#fff}
+.center{text-align:center}
+
+.diff{display:inline-flex;align-items:center;font-size:0.66rem;padding:2px 8px;border-radius:9px;font-weight:700;letter-spacing:0.2px}
+.diff-1{background:rgba(16,185,129,.16);color:#6ee7b7;border:1px solid rgba(16,185,129,.3)}
+.diff-2{background:rgba(96,165,250,.16);color:#93c5fd;border:1px solid rgba(96,165,250,.3)}
+.diff-3{background:rgba(247,183,49,.16);color:#fcd34d;border:1px solid rgba(247,183,49,.3)}
+.diff-4{background:rgba(251,113,133,.16);color:#fda4af;border:1px solid rgba(251,113,133,.3)}
+.diff-5{background:rgba(220,38,127,.18);color:#f9a8d4;border:1px solid rgba(220,38,127,.4)}
+
+.val{display:inline-flex;align-items:center;font-size:0.66rem;padding:2px 7px;border-radius:8px;font-weight:700}
+.val-h{background:rgba(16,185,129,.16);color:#6ee7b7}
+.val-m{background:rgba(247,183,49,.14);color:#fcd34d}
+.val-l{background:rgba(96,165,250,.14);color:#93c5fd}
+
+.callout{background:linear-gradient(135deg,rgba(247,183,49,.10),rgba(247,183,49,.04));border-left:3px solid rgba(247,183,49,.5);padding:13px 16px;border-radius:7px;margin:12px 0;font-size:0.86rem;color:#fcd34d;line-height:1.7}
+.callout b{color:#fff}
+.callout.pos{background:linear-gradient(135deg,rgba(16,185,129,.10),rgba(16,185,129,.04));border-left-color:rgba(16,185,129,.5);color:#6ee7b7}
+.callout.neg{background:linear-gradient(135deg,rgba(251,113,133,.10),rgba(251,113,133,.04));border-left-color:rgba(251,113,133,.5);color:#fda4af}
+
+.wave-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:14px}
+.wave-card{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:16px 18px;border-top:3px solid #10b981}
+.wave-card.w2{border-top-color:#a78bfa}
+.wave-card.w3{border-top-color:#fcd34d}
+.wave-card h4{font-size:0.92rem;font-weight:800;color:#fff;margin-bottom:5px}
+.wave-card .when{font-size:0.66rem;color:#52527a;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:9px;font-weight:700}
+.wave-card ul{margin-left:18px;font-size:0.82rem;color:#cbd5e1;line-height:1.65}
+.wave-card ul li{margin-bottom:3px}
+.wave-card .meta{font-size:0.74rem;color:#94a3b8;margin-top:9px;padding-top:9px;border-top:1px dashed #29213a}
+.wave-card .meta b{color:#fff}
+
+.tag-row{display:flex;flex-wrap:wrap;gap:5px}
+.tag{font-size:0.66rem;padding:2px 8px;border-radius:9px;background:rgba(167,139,250,.10);color:#c4b5fd;border:1px solid rgba(167,139,250,.25);font-weight:600}
+.tag.good{background:rgba(16,185,129,.10);color:#6ee7b7;border-color:rgba(16,185,129,.25)}
+.tag.bad{background:rgba(251,113,133,.10);color:#fda4af;border-color:rgba(251,113,133,.25)}
+
+code{background:rgba(167,139,250,.10);color:#a78bfa;padding:1px 6px;border-radius:4px;font-family:'SF Mono',monospace;font-size:0.82em}
+
+footer{padding:26px;text-align:center;color:#52527a;font-size:0.78rem;border-top:1px solid #1f1429;margin-top:34px}
+footer a{color:#a78bfa}
+
+ul{padding-left:22px;color:#cbd5e1}
+ul li{margin-bottom:4px}
+ul li b{color:#fff}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-tag">数据扩展 · 遨森优先 · 反爬阻塞分析</div>
+  <h1>smart-crawler 数据平台 <span class="grad">扩展路线图</span></h1>
+  <p>现状：9 品牌 46 自营独立站（家居 vertical 已饱和）。遨森 RFP 提到「21 评论平台」+ 我们目前仅 9 个。<strong style="color:#fff">还有 28 个高价值平台值得加</strong>，但每个都有具体的技术 / 合规 / 商业阻塞点。</p>
+</div>
+
+<!-- 1. 现状 -->
+<section>
+  <h2><span class="n">1</span>现状盘点</h2>
+  <p class="lede">9 个家居品牌 × 12 国 × 自营独立站 = 46 站。<strong>客户卖货的"主战场"平台几乎没覆盖</strong>。</p>
+
+  <table>
+    <thead>
+      <tr><th>类型</th><th>已覆盖</th><th>未覆盖（应补）</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>品牌自营独立站</b></td>
+        <td>✅ 46 个（Songmics/Costway/Homary/Vidaxl/Flexispot/Aosom/BCP/Yaheetech/VonHaus/Woltu）</td>
+        <td>缺：Article / West Elm / IKEA Online / Crate&Barrel / Lulu and Georgia</td>
+      </tr>
+      <tr>
+        <td><b>Marketplace（卖货主战场）</b></td>
+        <td>❌ <strong style="color:#fda4af">0 个</strong></td>
+        <td>Amazon × 7 国 / Walmart / Wayfair / Home Depot / Lowes / Houzz / Overstock / eBay</td>
+      </tr>
+      <tr>
+        <td><b>评论平台</b></td>
+        <td>✅ Trustpilot 9 站 / Google Maps 7 站 / Reviews.io 1</td>
+        <td>缺：TrustedShops (DE) / Avis Verifiés (FR) / Opiniones Verificadas (ES) / Yandex / Bazaarvoice / Yotpo</td>
+      </tr>
+      <tr>
+        <td><b>欧洲本地 Marketplace</b></td>
+        <td>❌</td>
+        <td>Otto.de / Bol.com (NL) / CDiscount (FR) / Allegro (PL) / Fnac (FR)</td>
+      </tr>
+      <tr>
+        <td><b>价格比较 / 聚合</b></td>
+        <td>✅ Google Shopping</td>
+        <td>缺：Idealo (DE) / Geizhals (DE-AT) / Bizrate / Kelkoo (EU)</td>
+      </tr>
+      <tr>
+        <td><b>B2B / 批发</b></td>
+        <td>❌</td>
+        <td>Alibaba.com / DHgate / GlobalSources / Made-in-China（不是遨森优先）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout neg">
+    <b>最大盲区</b>：我们覆盖了 Aosom 的<strong>品牌自营独立站</strong>，但 Aosom 的真实销量大头在 <strong>Amazon US/UK/DE</strong>（占其海外销售估计 ≥ 60%）。<strong>遨森的真竞品数据藏在 Amazon</strong>，我们却没有。这是 P0 缺口。
+  </div>
+</section>
+
+<!-- 2. 应该加的 28 个平台 -->
+<section>
+  <h2><span class="n">2</span>应该加的 28 个平台（按 ROI 排）</h2>
+  <p class="lede">数据价值（H/M/L）= 客户实际花钱看的优先级。反爬难度（1-5）= 1 容易 / 5 最难（Amazon / PerimeterX 级）。</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>平台</th><th>国家</th><th>类型</th><th>SKU 估</th><th>价值</th><th>反爬</th><th>核心阻塞</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td><td><b>Amazon</b>.com</td><td>US</td><td>Marketplace</td><td>500M+</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-5">5 · 最难</span></td>
+        <td>PerimeterX + Captcha + ToS 法律风险</td>
+      </tr>
+      <tr>
+        <td>2</td><td><b>Amazon</b>.de</td><td>DE</td><td>Marketplace</td><td>200M+</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-5">5</span></td>
+        <td>同上 + 多语种 NLP</td>
+      </tr>
+      <tr>
+        <td>3</td><td><b>Amazon</b>.co.uk</td><td>UK</td><td>Marketplace</td><td>180M+</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-5">5</span></td>
+        <td>同上</td>
+      </tr>
+      <tr>
+        <td>4</td><td><b>Wayfair</b>.com</td><td>US</td><td>Marketplace 家居专门</td><td>14M</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-3">3</span></td>
+        <td>Akamai · 但有 sitemap.xml</td>
+      </tr>
+      <tr>
+        <td>5</td><td><b>Walmart</b>.com</td><td>US</td><td>Marketplace</td><td>50M+</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-4">4</span></td>
+        <td>PerimeterX + GeoIP（需 US 代理）</td>
+      </tr>
+      <tr>
+        <td>6</td><td><b>Home Depot</b></td><td>US</td><td>Home 大店</td><td>2M</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-4">4</span></td>
+        <td>Akamai + Bot detection</td>
+      </tr>
+      <tr>
+        <td>7</td><td><b>Houzz</b>.com</td><td>US/UK</td><td>高端家居社区+商城</td><td>10M+</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-3">3</span></td>
+        <td>登录墙 · 大部分商品要登录看价</td>
+      </tr>
+      <tr>
+        <td>8</td><td><b>Otto</b>.de</td><td>DE</td><td>德国电商 Top 2</td><td>5M</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-3">3</span></td>
+        <td>Cloudflare · 德文 NLP</td>
+      </tr>
+      <tr>
+        <td>9</td><td><b>Overstock</b>.com</td><td>US</td><td>折扣家居</td><td>1.5M</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-2">2</span></td>
+        <td>较开放 · sitemap 友好</td>
+      </tr>
+      <tr>
+        <td>10</td><td><b>TrustedShops</b></td><td>DE/EU</td><td>评论平台</td><td>50w 商家</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-2">2</span></td>
+        <td>支付墙（深度数据需付费 API）</td>
+      </tr>
+      <tr>
+        <td>11</td><td><b>Avis Vérifiés</b></td><td>FR</td><td>评论平台</td><td>20w 商家</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-2">2</span></td>
+        <td>法语 NLP · 反爬轻</td>
+      </tr>
+      <tr>
+        <td>12</td><td><b>Opiniones Verif.</b></td><td>ES</td><td>评论平台</td><td>10w 商家</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-1">1</span></td>
+        <td>西语 NLP</td>
+      </tr>
+      <tr>
+        <td>13</td><td><b>Bol.com</b></td><td>NL/BE</td><td>荷比最大电商</td><td>30M</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-3">3</span></td>
+        <td>Cloudflare · 荷兰语 NLP</td>
+      </tr>
+      <tr>
+        <td>14</td><td><b>Allegro</b>.pl</td><td>PL</td><td>波兰最大电商</td><td>200M+</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-3">3</span></td>
+        <td>波兰语 NLP · 自营 + 第三方混合</td>
+      </tr>
+      <tr>
+        <td>15</td><td><b>CDiscount</b></td><td>FR</td><td>法国最大电商之一</td><td>50M</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-3">3</span></td>
+        <td>Cloudflare</td>
+      </tr>
+      <tr>
+        <td>16</td><td><b>Idealo</b>.de</td><td>DE</td><td>德国价格比较</td><td>10M</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-2">2</span></td>
+        <td>无 affiliate cookie 直接抓</td>
+      </tr>
+      <tr>
+        <td>17</td><td><b>eBay</b>.com</td><td>US</td><td>Marketplace</td><td>2B+</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-3">3</span></td>
+        <td>有官方 Browse API（推荐用 API）</td>
+      </tr>
+      <tr>
+        <td>18</td><td><b>Lowe's</b></td><td>US</td><td>Home 大店</td><td>2M</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-4">4</span></td>
+        <td>Akamai 强</td>
+      </tr>
+      <tr>
+        <td>19</td><td><b>Target</b>.com</td><td>US</td><td>百货</td><td>1M</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-4">4</span></td>
+        <td>Akamai · 商品页 SPA</td>
+      </tr>
+      <tr>
+        <td>20</td><td><b>Yandex Market</b></td><td>RU</td><td>俄罗斯电商</td><td>50M</td>
+        <td><span class="val val-l">L</span></td><td><span class="diff diff-3">3</span></td>
+        <td>俄语 NLP · 制裁/支付风险</td>
+      </tr>
+      <tr>
+        <td>21</td><td><b>Article</b>.com</td><td>US/CA</td><td>家居独立站</td><td>3k</td>
+        <td><span class="val val-l">L</span></td><td><span class="diff diff-1">1</span></td>
+        <td>无 · 已有同类型 fetcher</td>
+      </tr>
+      <tr>
+        <td>22</td><td><b>West Elm</b></td><td>US</td><td>家居高端</td><td>10k</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-2">2</span></td>
+        <td>WilliamsSonoma 集团 · Shopify+</td>
+      </tr>
+      <tr>
+        <td>23</td><td><b>Crate&Barrel</b></td><td>US</td><td>家居中高端</td><td>20k</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-2">2</span></td>
+        <td>Salesforce Commerce Cloud</td>
+      </tr>
+      <tr>
+        <td>24</td><td><b>IKEA Online</b></td><td>多国</td><td>家居</td><td>10k SKU/国</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-3">3</span></td>
+        <td>Cloudflare · 多国独立 URL</td>
+      </tr>
+      <tr>
+        <td>25</td><td><b>Yotpo</b></td><td>多国</td><td>评论 API（SaaS）</td><td>无限</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-2">2</span></td>
+        <td>需找商家 widget API key</td>
+      </tr>
+      <tr>
+        <td>26</td><td><b>Bazaarvoice</b></td><td>全球</td><td>评论 SaaS</td><td>无限</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-3">3</span></td>
+        <td>同上 · API key 较难</td>
+      </tr>
+      <tr>
+        <td>27</td><td><b>Reddit</b> 家居 subreddits</td><td>全球</td><td>UGC 舆情</td><td>~50 subreddit</td>
+        <td><span class="val val-m">M</span></td><td><span class="diff diff-2">2</span></td>
+        <td>已有 reddit.py · 扩 subreddit 即可</td>
+      </tr>
+      <tr>
+        <td>28</td><td><b>YouTube</b> 家居开箱</td><td>全球</td><td>视频 VOC</td><td>无限</td>
+        <td><span class="val val-h">H</span></td><td><span class="diff diff-2">2</span></td>
+        <td>需 ASR pipeline（W2 计划）</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 3. 困难分类 -->
+<section>
+  <h2><span class="n">3</span>遇到的困难（4 类）</h2>
+  <p class="lede">不是所有困难都是技术。法律/合规/商业阻塞往往更难绕。</p>
+
+  <h3>① 技术反爬（5 级）</h3>
+  <table>
+    <thead><tr><th>难度</th><th>典型代表</th><th>反爬技术</th><th>破解方案</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="diff diff-1">1 · 容易</span></td>
+        <td>Article / Overstock / Opiniones</td>
+        <td>UA 检测 / 简单 rate limit</td>
+        <td>curl_cffi + UA 池</td>
+      </tr>
+      <tr>
+        <td><span class="diff diff-2">2 · 中低</span></td>
+        <td>West Elm / Idealo / TrustedShops</td>
+        <td>Cloudflare 基础挑战</td>
+        <td>Scrapling StealthyFetcher（已就绪）</td>
+      </tr>
+      <tr>
+        <td><span class="diff diff-3">3 · 中</span></td>
+        <td>Wayfair / Houzz / Otto / Bol / CDiscount / Allegro</td>
+        <td>Cloudflare 高级 / Datadome</td>
+        <td>Scrapling + 商业住宅代理 + per-site profile</td>
+      </tr>
+      <tr>
+        <td><span class="diff diff-4">4 · 难</span></td>
+        <td>Walmart / Home Depot / Lowes / Target</td>
+        <td>PerimeterX / Akamai / Geo-block</td>
+        <td>商业代理 + Scrapling + 慢速 + 失败重试 + 偶尔 Captcha solver</td>
+      </tr>
+      <tr>
+        <td><span class="diff diff-5">5 · 最难</span></td>
+        <td><b>Amazon × 7 国</b></td>
+        <td>PerimeterX + 自家 WAF + Behavior 检测 + Captcha</td>
+        <td>商业 SaaS（BrightData / ScraperAPI）或 自部署 PX bypass cluster · <strong>成本/工期最大</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>② 法律 / 合规阻塞</h3>
+  <div class="callout neg">
+    <b>Amazon ToS 风险</b>：Amazon 用户协议明令禁止 scraping，hiQ vs LinkedIn (2022) 判 public data 可抓，但 Amazon 数据是<strong>登录可见</strong>，灰色。建议路径：
+    <ul style="margin:5px 0">
+      <li>不抓登录后内容（only public PDP / search results）</li>
+      <li>低频 + 商业代理 + UA 池（降低被诉风险）</li>
+      <li>合同明示「数据用途为竞品分析，不二次出售」</li>
+      <li>客户签 NDA + ToS 责任转移条款</li>
+    </ul>
+  </div>
+
+  <h3>③ 商业 / 谈判阻塞</h3>
+  <ul>
+    <li><b>评论 SaaS（Yotpo/Bazaarvoice）</b>：要找到商家 widget key，需<strong>客户提供其商家 widget URL</strong>。客户不给就抓不全</li>
+    <li><b>Houzz 登录墙</b>：大部分商品/价格要登录才看，需要<strong>客户买一个普通 Pro 账号</strong>给我们用</li>
+    <li><b>Vidaxl Dropshipping API</b>：申请已发 5 天没回，需要客户名义 follow up</li>
+    <li><b>Wayfair Trade Program</b>：需要美国公司主体 + EIN 才能注册</li>
+  </ul>
+
+  <h3>④ 数据维度阻塞</h3>
+  <ul>
+    <li><b>真实销量</b>：除 Amazon BSR、Wayfair best-seller，其他站没公开销量 → 我们用<strong>评论增量倒推</strong>估销（已实现）</li>
+    <li><b>多语种 NLP</b>：14 国语言 = 14 个 fine-tune 模型？我们用 <code>claude-haiku-4-5</code> 多语种统一处理（已实现）</li>
+    <li><b>视频内容 VOC</b>：YouTube 开箱视频是高价值数据，但需 ASR pipeline（Whisper Large v3），算力成本估 $30k/年</li>
+  </ul>
+</section>
+
+<!-- 4. 推荐 wave 分批 -->
+<section>
+  <h2><span class="n">4</span>推荐分批策略（3 个 Wave）</h2>
+
+  <div class="wave-grid">
+
+    <div class="wave-card">
+      <div class="when">WAVE 1 · 2 周内</div>
+      <h4>低阻塞 + 高 ROI</h4>
+      <ul>
+        <li><b>Wayfair</b>（家居 marketplace · 14M SKU · 反爬 3 级）</li>
+        <li><b>Overstock</b>（折扣家居 · 反爬 2 级）</li>
+        <li><b>TrustedShops</b> + <b>Avis Vérifiés</b> + <b>Opiniones</b>（评论 3 平台）</li>
+        <li><b>Idealo.de</b>（价格比较 · 反爬 2 级）</li>
+        <li><b>Reddit 家居 subreddits</b>（扩展已有 reddit.py）</li>
+      </ul>
+      <div class="meta">
+        投入 <b>2 人周</b> · 预计加 30 站点 + 3 评论平台<br>
+        <span class="tag good">遨森 SLA 直接达成</span>
+      </div>
+    </div>
+
+    <div class="wave-card w2">
+      <div class="when">WAVE 2 · 4-6 周</div>
+      <h4>中阻塞 + 仍高价值</h4>
+      <ul>
+        <li><b>Otto.de</b> + <b>Bol.com</b> + <b>CDiscount</b>（欧洲三大电商）</li>
+        <li><b>Houzz</b>（需客户买 Pro 账号）</li>
+        <li><b>IKEA Online</b>（5 个国家）</li>
+        <li><b>West Elm</b> + <b>Crate&Barrel</b>（美国中高端家居）</li>
+        <li><b>Article.com</b>（独立站 · 反爬 1 级）</li>
+        <li><b>YouTube 家居开箱</b>（ASR pipeline 上线）</li>
+      </ul>
+      <div class="meta">
+        投入 <b>4 人周</b> · 加 8-10 平台<br>
+        <span class="tag">需 ASR GPU 资源</span>
+      </div>
+    </div>
+
+    <div class="wave-card w3">
+      <div class="when">WAVE 3 · 2-3 月</div>
+      <h4>高阻塞 / 法律灰区</h4>
+      <ul>
+        <li><b>Amazon × 7 国</b>（US/UK/DE/FR/IT/ES/JP）</li>
+        <li><b>Walmart</b> + <b>Home Depot</b> + <b>Lowe's</b> + <b>Target</b></li>
+        <li><b>Allegro.pl</b>（波兰 200M SKU）</li>
+        <li><b>Yandex Market</b>（俄罗斯 · 制裁风险）</li>
+        <li><b>Bazaarvoice</b>（评论 API）</li>
+      </ul>
+      <div class="meta">
+        投入 <b>8 人周</b> + 法律咨询 + 客户 NDA<br>
+        <span class="tag bad">Amazon 单平台占 50% 工作量</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- 5. 立即可干（D1 内 wave 1 起步） -->
+<section>
+  <h2><span class="n">5</span>立即可干（今天到本周末）</h2>
+
+  <div class="callout pos">
+    <b>D1-D3 · 5 个 fetcher 新建</b>，全是 1-3 级反爬，复用现有 Scrapling stealth_kwargs：
+    <table style="background:transparent;margin-top:10px">
+      <thead><tr><th>新 fetcher</th><th>工期</th><th>预期产出</th></tr></thead>
+      <tbody>
+        <tr><td><code>backend/app/crawlers/wayfair.py</code></td><td>1 天</td><td>家居类目 50w SKU</td></tr>
+        <tr><td><code>backend/app/crawlers/overstock.py</code></td><td>0.5 天</td><td>10w SKU</td></tr>
+        <tr><td><code>backend/app/crawlers/trustedshops.py</code></td><td>0.5 天</td><td>覆盖 30+ 客户商家评论</td></tr>
+        <tr><td><code>backend/app/crawlers/avis_verifies.py</code></td><td>0.5 天</td><td>法语评论平台</td></tr>
+        <tr><td><code>backend/app/crawlers/idealo.py</code></td><td>0.5 天</td><td>德国价格比较，10w 商品</td></tr>
+      </tbody>
+    </table>
+    总投入 <b>3 天</b> · 总产出 <b>~70w 新增 SKU + 评论数据</b>
+  </div>
+</section>
+
+<!-- 6. 真心话 -->
+<section>
+  <h2><span class="n">6</span>真心话 · 3 件事必须告诉客户</h2>
+  <ol style="padding-left:24px;color:#cbd5e1;line-height:1.85;font-size:0.92rem">
+    <li><b>Amazon 不在 Q2 路径</b>：Wave 3，需要 2-3 个月 + 法律咨询 + 8 人周。如果遨森<strong>必须</strong>要 Amazon 数据，建议 buy BrightData / ScraperAPI 套餐 ~$2000/月，转手价 ~¥30k/月）</li>
+    <li><b>所有 marketplace 都有合规风险</b>：建议客户合同里加「数据仅用于竞品分析，不二次出售」条款，把 ToS 风险转移</li>
+    <li><b>评论 SaaS（Yotpo/Bazaarvoice）需要客户配合</b>：客户给商家 widget URL 才能抓到完整数据，不然只是 PDP 上的几条 review</li>
+  </ol>
+</section>
+
+<footer>
+  smart-crawler · 数据扩展路线图 · 2026-05-24<br>
+  关联：<a href="/d/aosen_80pct_daily_plan.html">遨森 80% 方案</a> ·
+  <a href="/d/scrapling_design_research.html">Scrapling 研究</a> ·
+  <a href="/d/customer_dashboard_v7_unified.html">v7 Dashboard</a>
+</footer>
+
+</body>
+</html>
