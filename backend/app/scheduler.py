@@ -94,9 +94,22 @@ def start_scheduler() -> BackgroundScheduler:
                   id="crawl_shopping", replace_existing=True,
                   max_instances=1, misfire_grace_time=7200)
 
+    # 4) Daily Delta —— 每天凌晨 2:00 UTC（北京时间 10:00 AM，遨森 SOP）
+    #    5 个 delta job：sitemap / top SKU / promo / review / aggregate
+    try:
+        from .daily_delta import run_all_daily_delta
+        freq_daily_delta = s.get("freq_daily_delta", "0 2 * * *")
+        sched.add_job(run_all_daily_delta,
+                      trigger=_cron(freq_daily_delta, "0 2 * * *"),
+                      id="daily_delta", replace_existing=True,
+                      max_instances=1, misfire_grace_time=3600)
+        logger.info("Daily Delta 已注册：cron=%s", freq_daily_delta)
+    except Exception as exc:
+        logger.error("Daily Delta 注册失败: %s", exc)
+
     sched.start()
     _scheduler = sched
-    logger.info("调度器已启动：%d 商品站(每日) + 评论(每周) + Shopping(每周)",
+    logger.info("调度器已启动：%d 商品站(每日) + 评论(每周) + Shopping(每周) + Delta(凌晨)",
                 len(get_sites()))
     return sched
 

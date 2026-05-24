@@ -146,6 +146,14 @@ class Trend(Base):
     traffic = Column(Integer)                        # 第三方数据，MVP 留空
     conversion_rate = Column(Float)                  # 第三方数据，MVP 留空
 
+    # Daily delta 字段（2026-05-24 · 遨森每日增量需求）
+    price_change_count = Column(Integer, default=0)  # 当日价格变化 SKU 数
+    stock_change_count = Column(Integer, default=0)  # 当日库存变化 SKU 数
+    new_promo_count = Column(Integer, default=0)     # 当日新增促销数
+    new_review_count = Column(Integer, default=0)    # 当日新增评论数
+    avg_sentiment = Column(Float)                    # 当日评论平均情感分
+    delta_summary = Column(Text)                     # LLM 生成的一句话总结
+
 
 class User(Base):
     """后台账号 —— 登录鉴权。"""

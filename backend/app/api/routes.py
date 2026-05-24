@@ -224,9 +224,48 @@ def list_trends(site: str, db: Session = Depends(get_db)):
     return [{"date": t.date.isoformat(), "sku_count": t.sku_count,
              "new_product_count": t.new_product_count,
              "estimated_sales": t.estimated_sales,
-             "estimated_revenue": t.estimated_revenue}
+             "estimated_revenue": t.estimated_revenue,
+             # Daily delta 字段（2026-05-24）
+             "price_change_count": getattr(t, "price_change_count", 0),
+             "stock_change_count": getattr(t, "stock_change_count", 0),
+             "new_promo_count": getattr(t, "new_promo_count", 0),
+             "new_review_count": getattr(t, "new_review_count", 0),
+             "avg_sentiment": getattr(t, "avg_sentiment", None),
+             "delta_summary": getattr(t, "delta_summary", None)}
             for t in db.query(Trend).filter(Trend.site == site)
             .order_by(Trend.date).all()]
+
+
+# ---------- Daily Delta（2026-05-24 加 · 遨森每日增量需求）----------
+@router.post("/daily-delta/run")
+def trigger_daily_delta():
+    """手动触发 daily delta 5 个 job。生产环境每天凌晨 2:00 自动跑。"""
+    from ..daily_delta import run_all_daily_delta
+    return run_all_daily_delta()
+
+
+@router.get("/daily-delta/latest")
+def latest_daily_delta(db: Session = Depends(get_db)):
+    """看最近 1 天所有 site 的 delta 总结。"""
+    from datetime import date
+    today = date.today()
+    rows = (db.query(Trend)
+            .filter(Trend.date == today)
+            .order_by(Trend.site).all())
+    return {
+        "date": today.isoformat(),
+        "site_count": len(rows),
+        "sites": [{
+            "site": t.site,
+            "sku_count": t.sku_count,
+            "new_skus": t.new_product_count,
+            "price_changes": getattr(t, "price_change_count", 0),
+            "new_promos": getattr(t, "new_promo_count", 0),
+            "new_reviews": getattr(t, "new_review_count", 0),
+            "avg_sentiment": getattr(t, "avg_sentiment", None),
+            "summary": getattr(t, "delta_summary", None),
+        } for t in rows]
+    }
 
 
 @router.get("/categories")
