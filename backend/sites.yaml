@@ -84,4 +84,5 @@ sites:
   - {site: overstock_us, brand: Overstock, country: US, url: "https://www.overstock.com/", platform: overstock, proxy_tier: none, max_products: 1000}
 
   # ========== Idealo.de（德国价格比较 · W1）==========
-  - {site: idealo_de, brand: Idealo, country: DE, url: "https://www.idealo.de/", platform: idealo, proxy_tier: none, max_products: 1000}
+  # Agent 实测：Akamai BotManager · 必须 residential + impersonate=chrome（不能改 UA）
+  - {site: idealo_de, brand: Idealo, country: DE, url: "https://www.idealo.de/", platform: idealo, proxy_tier: residential, max_products: 1000}
