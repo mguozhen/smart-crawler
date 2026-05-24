@@ -55,7 +55,9 @@ def parse_dt(value):
 
 
 # 必填字段 —— 缺失则标记为异常（C-023）
-REQUIRED = ("sku", "title", "sale_price", "product_url", "site")
+# 2026-05-24：sale_price 改可选 —— sitemap-only 站（Overstock/Wayfair 反爬严）
+# 拿不到价格但 SKU/title/URL 有效，应入库。pipeline 后续可补价格历史。
+REQUIRED = ("sku", "title", "product_url", "site")
 
 
 def normalize(raw: dict) -> dict:
