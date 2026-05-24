@@ -29,9 +29,11 @@ def require_user(authorization: str = Header(default=""),
     username = verify_token(token)
     if username:
         return username
-    if x_api_key:
+    # Firecrawl-compat: Authorization: Bearer sck_... 也走 API key 路径
+    candidate_key = x_api_key or token
+    if candidate_key:
         k = (db.query(ApiKey)
-             .filter(ApiKey.key_hash == hash_key(x_api_key),
+             .filter(ApiKey.key_hash == hash_key(candidate_key),
                      ApiKey.active.is_(True)).first())
         if k:
             k.last_used = datetime.utcnow()

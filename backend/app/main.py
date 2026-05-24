@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from .api.routes import public_router, router as api_router
 from .api.output import router as v1_router
+from .api.v2 import router as v2_router
 from .api.discovery import router as discovery_router
 from .config import FRONTEND_DIR, PROJECT_DIR
 from .db import init_db
@@ -97,6 +98,7 @@ app.include_router(discovery_router)     # Agent 发现层 (llms.txt / .well-kno
 app.include_router(public_router)
 app.include_router(api_router)
 app.include_router(v1_router)
+app.include_router(v2_router)
 app.mount("/mcp", _mcp_app)              # AI Agent MCP 入口
 
 

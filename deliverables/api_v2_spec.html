@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>smart-crawler API v2 · Firecrawl Compatible Spec</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter','PingFang SC',-apple-system,sans-serif}
+body{background:#0a0612;color:#e5e7eb;font-size:14.5px;line-height:1.7}
+a{color:#a78bfa;text-decoration:none}
+
+.hero{padding:52px 30px 38px;text-align:center;
+      background:radial-gradient(ellipse 90% 70% at 50% 0%,rgba(167,139,250,.18),transparent 65%)}
+.hero-tag{display:inline-flex;align-items:center;gap:9px;padding:5px 15px;background:rgba(167,139,250,.14);
+          border:1px solid rgba(167,139,250,.4);border-radius:24px;font-size:0.72rem;color:#c4b5fd;
+          letter-spacing:1.4px;text-transform:uppercase;margin-bottom:16px;font-weight:700}
+.hero h1{font-size:2.2rem;font-weight:900;line-height:1.18;margin-bottom:10px;letter-spacing:-1px}
+.hero h1 .grad{background:linear-gradient(90deg,#a78bfa,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:0.96rem;max-width:760px;margin:0 auto;line-height:1.75}
+
+section{max-width:1120px;margin:0 auto;padding:42px 26px}
+section h2{font-size:1.5rem;font-weight:800;margin-bottom:6px;display:flex;gap:10px;align-items:center}
+section h2 .n{font-size:0.72rem;background:rgba(167,139,250,.14);color:#c4b5fd;border:1px solid rgba(167,139,250,.3);padding:3px 10px;border-radius:9px;font-weight:800}
+section h3{font-size:1.02rem;font-weight:800;margin:18px 0 8px;color:#fff}
+section .lede{color:#94a3b8;font-size:0.9rem;margin-bottom:18px;font-style:italic}
+
+code{background:rgba(167,139,250,.10);color:#a78bfa;padding:1px 6px;border-radius:4px;font-family:'SF Mono',monospace;font-size:0.88em}
+pre{background:#0d0a17;border:1px solid #29213a;border-radius:9px;padding:14px 18px;color:#cbd5e1;overflow-x:auto;line-height:1.55;font-size:0.8rem;margin-bottom:14px;font-family:'SF Mono',monospace;white-space:pre-wrap}
+pre .c{color:#52527a;font-style:italic} pre .k{color:#fb7185} pre .s{color:#6ee7b7} pre .v{color:#a78bfa} pre .f{color:#fcd34d}
+
+table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:0.86rem}
+th{text-align:left;padding:9px 12px;background:#13111f;color:#94a3b8;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;font-weight:700;border-bottom:2px solid #29213a}
+td{padding:9px 12px;border-bottom:1px solid #1f1429;color:#cbd5e1;vertical-align:top}
+td b{color:#fff}
+td code{font-size:0.78em}
+
+.method{display:inline-block;padding:1px 7px;border-radius:5px;font-size:0.64rem;font-weight:800;font-family:'SF Mono',monospace}
+.method.get{background:rgba(16,185,129,.16);color:#6ee7b7;border:1px solid rgba(16,185,129,.3)}
+.method.post{background:rgba(96,165,250,.16);color:#93c5fd;border:1px solid rgba(96,165,250,.3)}
+
+.endpoint{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:14px 18px;margin-bottom:14px}
+.endpoint-head{font-family:'SF Mono',monospace;font-size:0.92rem;color:#fff;font-weight:700;margin-bottom:8px}
+.endpoint-desc{color:#cbd5e1;font-size:0.84rem;margin-bottom:9px}
+
+.key-box{background:linear-gradient(135deg,rgba(167,139,250,.18),rgba(244,114,182,.10));
+         border:2px solid rgba(167,139,250,.5);border-radius:13px;padding:18px 22px;margin:12px 0}
+.key-box .label{font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;color:#c4b5fd;font-weight:800;margin-bottom:6px}
+.key-box .val{font-family:'SF Mono',monospace;font-size:0.95rem;color:#fff;font-weight:700;
+              padding:10px 14px;background:#0a0612;border:1px dashed rgba(167,139,250,.4);border-radius:8px;
+              cursor:pointer;display:flex;justify-content:space-between;align-items:center;word-break:break-all}
+.key-box .val:hover{border-color:#a78bfa}
+.key-box .copy-hint{font-size:0.7rem;color:#52527a;margin-left:10px;flex-shrink:0}
+
+.callout{padding:13px 17px;border-radius:8px;margin:12px 0;font-size:0.86rem;line-height:1.7}
+.callout.pos{background:linear-gradient(135deg,rgba(16,185,129,.10),rgba(16,185,129,.04));border-left:3px solid rgba(16,185,129,.5);color:#6ee7b7}
+.callout.warn{background:linear-gradient(135deg,rgba(247,183,49,.10),rgba(247,183,49,.04));border-left:3px solid rgba(247,183,49,.5);color:#fcd34d}
+.callout b{color:#fff}
+
+ul{padding-left:22px;color:#cbd5e1;line-height:1.85}
+ul li b{color:#fff}
+
+.tab-row{display:flex;gap:6px;margin-bottom:8px}
+.tab-row button{padding:5px 11px;border-radius:7px;background:transparent;border:1px solid #29213a;color:#94a3b8;cursor:pointer;font-size:0.78rem;font-family:inherit;font-weight:600}
+.tab-row button.active{background:rgba(167,139,250,.15);border-color:#a78bfa;color:#fff}
+
+footer{padding:30px;text-align:center;color:#52527a;font-size:0.8rem;border-top:1px solid #1f1429;margin-top:34px}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-tag">smart-crawler · API v2 · 2026-05-25</div>
+  <h1>v2 API · <span class="grad">Firecrawl 兼容</span></h1>
+  <p>Firecrawl-style 端点（scrape/map/crawl/extract/batch）+ smart-crawler 完整数据契约（ProductData / DataSourceInfo）。同一把 Bearer key，多种调用方式自由选。</p>
+</div>
+
+<section>
+  <h2><span class="n">1</span>概览</h2>
+  <ul>
+    <li>Base URL: <code>https://smartcrawler.io</code></li>
+    <li>Prefix: <code>/api/v2</code>（旧 v1 仍在 <code>/api/v1</code>）</li>
+    <li>认证：<b>Authorization: Bearer sck_xxxx</b>（兼容 Firecrawl）或 <b>X-API-Key</b></li>
+    <li>设计参考：<a href="https://docs.firecrawl.dev" target="_blank">Firecrawl v1 API</a>（W24 YC）端点形态</li>
+    <li>计费：按 records 计费（$1.5 / 1k records，demo 期免费）</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="n">2</span>认证（兼容 Firecrawl）</h2>
+
+  <div class="key-box">
+    <div class="label">API KEY · External Integration · 2026-05-25</div>
+    <div class="val" onclick="cp(this)">
+      <span>sck_ikuBVCAjAKygdAxu8_DNSDc9iOJkgXMY7jBf5ceMmlw</span>
+      <span class="copy-hint">点击复制</span>
+    </div>
+  </div>
+
+  <pre><span class="c"># 方式 A · Bearer（Firecrawl 兼容）</span>
+curl -H <span class="s">"Authorization: Bearer sck_ikuBVCAjAKygdAxu8_DNSDc9iOJkgXMY7jBf5ceMmlw"</span> \
+     <span class="s">"https://smartcrawler.io/api/v2/sources"</span>
+
+<span class="c"># 方式 B · X-API-Key（旧风格也支持）</span>
+curl -H <span class="s">"X-API-Key: sck_..."</span> <span class="s">"https://smartcrawler.io/api/v2/sources"</span></pre>
+
+  <div class="callout pos">
+    <b>Firecrawl SDK 直接可用</b>：把 Firecrawl client 的 base_url 改成 <code>https://smartcrawler.io/api/v2</code>，API key 换成我们的 <code>sck_</code>，scrape / map / crawl 三个端点 schema 完全一致。
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">3</span>核心端点</h2>
+
+  <!-- /v2/scrape -->
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method post">POST</span> /api/v2/scrape</div>
+    <div class="endpoint-desc">单 URL 抓取 → 返结构化数据 + markdown。如 URL 已在 DB 直接返存量，否则入队。</div>
+    <pre><span class="c"># Request</span>
+{
+  <span class="k">"url"</span>: <span class="s">"https://www.songmics.com/products/sol-3782"</span>,
+  <span class="k">"formats"</span>: [<span class="s">"markdown"</span>, <span class="s">"structured"</span>],
+  <span class="k">"only_main_content"</span>: <span class="v">true</span>,
+  <span class="k">"timeout"</span>: <span class="v">30000</span>
+}
+
+<span class="c"># Response</span>
+{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"url"</span>: <span class="s">"https://www.songmics.com/products/sol-3782"</span>,
+  <span class="k">"crawl_url"</span>: <span class="s">"https://www.songmics.com/products/sol-3782"</span>,
+  <span class="k">"site"</span>: <span class="s">"songmics_us"</span>,
+  <span class="k">"data"</span>: { <span class="c">// ProductData schema · 见 §4</span>
+    <span class="k">"sku"</span>: <span class="s">"SOL-3782"</span>,
+    <span class="k">"title"</span>: <span class="s">"电动升降桌 48英寸"</span>,
+    <span class="k">"sale_price"</span>: <span class="v">189.99</span>,
+    <span class="k">"currency"</span>: <span class="s">"USD"</span>,
+    <span class="k">"ratings"</span>: <span class="v">4.6</span>,
+    <span class="k">"review_count"</span>: <span class="v">412</span>,
+    <span class="k">"image_urls"</span>: [<span class="s">"https://cdn..."</span>],
+    <span class="k">"product_url"</span>: <span class="s">"https://www.songmics.com/products/sol-3782"</span>,
+    <span class="k">"site_url"</span>: <span class="s">"https://www.songmics.com/"</span>,
+    <span class="k">"crawled_at"</span>: <span class="s">"2026-05-24T10:30:00"</span>,
+    <span class="k">"confidence"</span>: <span class="v">0.97</span>
+  },
+  <span class="k">"markdown"</span>: <span class="s">"# 电动升降桌 48英寸\n\nPrice: 189.99 USD..."</span>,
+  <span class="k">"scrape_id"</span>: <span class="s">"scr_5191fa07f09641bd"</span>,
+  <span class="k">"credits_used"</span>: <span class="v">1</span>
+}</pre>
+  </div>
+
+  <!-- /v2/map -->
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method post">POST</span> /api/v2/map</div>
+    <div class="endpoint-desc">列出站点全部已知 URL（来自 DB），可按 search 过滤。比 sitemap 更新更及时。</div>
+    <pre><span class="c"># Request</span>
+{
+  <span class="k">"url"</span>: <span class="s">"https://www.songmics.com/"</span>,
+  <span class="k">"limit"</span>: <span class="v">1000</span>,
+  <span class="k">"search"</span>: <span class="s">"desk"</span>  <span class="c">// 可选</span>
+}
+
+<span class="c"># Response</span>
+{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"url"</span>: <span class="s">"https://www.songmics.com/"</span>,
+  <span class="k">"site"</span>: <span class="s">"songmics_us"</span>,
+  <span class="k">"links"</span>: [
+    <span class="s">"https://www.songmics.com/products/sol-3782"</span>,
+    <span class="s">"https://www.songmics.com/products/sol-3783"</span>
+  ],
+  <span class="k">"count"</span>: <span class="v">100</span>,
+  <span class="k">"credits_used"</span>: <span class="v">1</span>
+}</pre>
+  </div>
+
+  <!-- /v2/crawl -->
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method post">POST</span> /api/v2/crawl</div>
+    <div class="endpoint-desc">触发整站爬取（异步）。返 job_id，用 GET 轮询。</div>
+    <pre><span class="c"># Request</span>
+{
+  <span class="k">"url"</span>: <span class="s">"https://www.songmics.com/"</span>,
+  <span class="k">"limit"</span>: <span class="v">1000</span>,
+  <span class="k">"include_paths"</span>: [<span class="s">"^/products/"</span>],
+  <span class="k">"max_depth"</span>: <span class="v">2</span>
+}
+
+<span class="c"># Response · 立即返</span>
+{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"job_id"</span>: <span class="v">730</span>,
+  <span class="k">"status"</span>: <span class="s">"pending"</span>,
+  <span class="k">"site"</span>: <span class="s">"songmics_us"</span>,
+  <span class="k">"crawl_url"</span>: <span class="s">"https://www.songmics.com/"</span>,
+  <span class="k">"poll_url"</span>: <span class="s">"/api/v2/crawl/730"</span>,
+  <span class="k">"credits_used"</span>: <span class="v">1000</span>
+}</pre>
+  </div>
+
+  <!-- /v2/crawl/{id} -->
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method get">GET</span> /api/v2/crawl/{job_id}</div>
+    <div class="endpoint-desc">轮询爬取任务状态。完成时返 data[]。</div>
+    <pre>{
+  <span class="k">"success"</span>: <span class="v">true</span>,
+  <span class="k">"job_id"</span>: <span class="v">730</span>,
+  <span class="k">"status"</span>: <span class="s">"success"</span>,  <span class="c">// pending / running / success / failed</span>
+  <span class="k">"site"</span>: <span class="s">"songmics_us"</span>,
+  <span class="k">"crawl_url"</span>: <span class="s">"https://www.songmics.com/"</span>,
+  <span class="k">"total"</span>: <span class="v">4202</span>,
+  <span class="k">"products_count"</span>: <span class="v">4202</span>,
+  <span class="k">"duration_sec"</span>: <span class="v">42.3</span>,
+  <span class="k">"data"</span>: [ <span class="c">// ProductData × 100（首批）</span> ]
+}</pre>
+  </div>
+
+  <!-- /v2/batch/scrape -->
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method post">POST</span> /api/v2/batch/scrape</div>
+    <div class="endpoint-desc">批量异步抓取（最多 100 URL）。</div>
+    <pre>{
+  <span class="k">"urls"</span>: [<span class="s">"https://a.com/p/1"</span>, <span class="s">"https://b.com/p/2"</span>],
+  <span class="k">"formats"</span>: [<span class="s">"structured"</span>],
+  <span class="k">"webhook"</span>: <span class="s">"https://yourapp.com/cb"</span>  <span class="c">// 可选</span>
+}</pre>
+  </div>
+
+  <!-- /v2/extract -->
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method post">POST</span> /api/v2/extract</div>
+    <div class="endpoint-desc">LLM 抽取自定义 schema（v2.1 接 claude-haiku-4-5）。</div>
+    <pre>{
+  <span class="k">"urls"</span>: [<span class="s">"https://..."</span>],
+  <span class="k">"schema"</span>: {
+    <span class="k">"price"</span>: { <span class="k">"type"</span>: <span class="s">"number"</span> },
+    <span class="k">"in_stock"</span>: { <span class="k">"type"</span>: <span class="s">"boolean"</span> },
+    <span class="k">"variant_count"</span>: { <span class="k">"type"</span>: <span class="s">"integer"</span> }
+  },
+  <span class="k">"prompt"</span>: <span class="s">"Extract pricing and stock info"</span>
+}</pre>
+  </div>
+
+  <!-- /v2/sources -->
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method get">GET</span> /api/v2/sources</div>
+    <div class="endpoint-desc">列出全部 59 数据源元数据（含 crawl_url 字段）。</div>
+    <pre>[
+  {
+    <span class="k">"site"</span>: <span class="s">"vidaxl_de"</span>,
+    <span class="k">"crawl_url"</span>: <span class="s">"https://www.vidaxl.de/"</span>,
+    <span class="k">"brand"</span>: <span class="s">"Vidaxl"</span>,
+    <span class="k">"country"</span>: <span class="s">"DE"</span>,
+    <span class="k">"platform"</span>: <span class="s">"vidaxl"</span>,
+    <span class="k">"sku_count"</span>: <span class="v">5000</span>,
+    <span class="k">"coverage_pct"</span>: <span class="v">100.0</span>,
+    <span class="k">"status"</span>: <span class="s">"healthy"</span>,
+    <span class="k">"last_crawled"</span>: <span class="s">"2026-05-24T06:05:43"</span>,
+    <span class="k">"proxy_tier"</span>: <span class="s">"residential"</span>,
+    <span class="k">"anti_bot_level"</span>: <span class="v">4</span>  <span class="c">// 1-5</span>
+  },
+  ...
+]</pre>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">4</span>数据类型 · ProductData Schema</h2>
+  <p class="lede">所有 product 接口返回统一 14 字段。可序列化为 JSON / 入 DataFrame / 直接喂 LLM 上下文。</p>
+
+  <table>
+    <thead><tr><th>字段</th><th>类型</th><th>含义</th><th>示例</th></tr></thead>
+    <tbody>
+      <tr><td><code>site</code></td><td>string</td><td>内部站点代号</td><td>songmics_us</td></tr>
+      <tr><td><code>site_url</code></td><td>url</td><td>站点根 URL（爬取域名）</td><td>https://www.songmics.com/</td></tr>
+      <tr><td><code>sku</code></td><td>string</td><td>商品唯一标识</td><td>SOL-3782</td></tr>
+      <tr><td><code>spu</code></td><td>string?</td><td>父商品标识（变体合并）</td><td>SOL-3782-G</td></tr>
+      <tr><td><code>title</code></td><td>string</td><td>商品名</td><td>电动升降桌 48 英寸</td></tr>
+      <tr><td><code>description</code></td><td>string?</td><td>商品描述</td><td>电动升降办公桌, 静音电机...</td></tr>
+      <tr><td><code>image_urls</code></td><td>string[]</td><td>商品图片 URL 列表</td><td>["https://cdn..."]</td></tr>
+      <tr><td><code>category_path</code></td><td>string?</td><td>分类路径（/分隔）</td><td>Office Furniture/Desks</td></tr>
+      <tr><td><code>sale_price</code></td><td>number?</td><td>当前售价</td><td>189.99</td></tr>
+      <tr><td><code>original_price</code></td><td>number?</td><td>原价（划线价）</td><td>209.99</td></tr>
+      <tr><td><code>currency</code></td><td>string?</td><td>货币 3 字母代码</td><td>USD / EUR / GBP</td></tr>
+      <tr><td><code>status</code></td><td>string?</td><td>状态</td><td>on_sale / out_of_stock / discontinued</td></tr>
+      <tr><td><code>ratings</code></td><td>number?</td><td>平均评分</td><td>4.6</td></tr>
+      <tr><td><code>review_count</code></td><td>integer?</td><td>评论数</td><td>412</td></tr>
+      <tr><td><code>brand</code></td><td>string?</td><td>品牌</td><td>SONGMICS</td></tr>
+      <tr><td><code>product_url</code></td><td>url</td><td>商品 PDP URL（可点击）</td><td>https://www.songmics.com/products/sol-3782</td></tr>
+      <tr><td><code>crawled_at</code></td><td>iso8601?</td><td>抓取时间戳</td><td>2026-05-24T10:30:00</td></tr>
+      <tr><td><code>confidence</code></td><td>number</td><td>数据置信度 0-1</td><td>0.97</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2><span class="n">5</span>数据类型 · DataSourceInfo</h2>
+  <table>
+    <thead><tr><th>字段</th><th>类型</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>site</code></td><td>string</td><td>内部代号 · songmics_us / vidaxl_de / wayfair_us / ...</td></tr>
+      <tr><td><code>crawl_url</code></td><td>url</td><td><b>实际爬取的网站 URL</b>（重要！告诉你这个数据从哪来）</td></tr>
+      <tr><td><code>brand</code></td><td>string</td><td>品牌</td></tr>
+      <tr><td><code>country</code></td><td>string</td><td>2 字母国家代码</td></tr>
+      <tr><td><code>platform</code></td><td>string</td><td>shopify / vue_spa / nuxt / vidaxl / wayfair / bol / cdiscount / ikea / westelm / cratebarrel / overstock / idealo / otto / allegro / ebay / houzz / article / generic</td></tr>
+      <tr><td><code>sku_count</code></td><td>integer</td><td>当前已抓 SKU 数</td></tr>
+      <tr><td><code>coverage_pct</code></td><td>number</td><td>覆盖率（已抓 / 满量）</td></tr>
+      <tr><td><code>status</code></td><td>string</td><td>healthy / warning / critical / empty</td></tr>
+      <tr><td><code>last_crawled</code></td><td>iso8601?</td><td>最后抓取时间</td></tr>
+      <tr><td><code>proxy_tier</code></td><td>string</td><td>none / datacenter / residential</td></tr>
+      <tr><td><code>anti_bot_level</code></td><td>integer</td><td><b>反爬难度 1-5</b>: 1 容易（Shopify）/ 2-3 中（Cloudflare）/ 4 难（PerimeterX）/ 5 最难（Akamai+DataDome）</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2><span class="n">6</span>59 个数据源 · 现有 crawl_url 清单</h2>
+  <p class="lede">所有 site 的爬取目标 URL（可直接看 <a href="/api/v2/sources" target="_blank">/api/v2/sources</a>）。</p>
+
+  <table>
+    <thead><tr><th>类别</th><th>站点</th><th>crawl_url 模式</th><th>反爬</th></tr></thead>
+    <tbody>
+      <tr><td><b>家居品牌自营</b></td><td>SONGMICS × 6</td><td>songmics.com / songmics.de / .fr / .uk / .es / .it</td><td>L1</td></tr>
+      <tr><td></td><td>Costway × 9</td><td>costway.com/.ca/.co.uk/.de/.fr/.it/.es/.nl/.pl</td><td>L2</td></tr>
+      <tr><td></td><td>Homary × 5</td><td>homary.com / uk.homary.com / de./es./fr.</td><td>L2</td></tr>
+      <tr><td></td><td>Vidaxl × 12</td><td>vidaxl.com/.co.uk/.ca/.ie/.de/.it/.es/.fr/.ro/.pt/.nl/.pl</td><td>L4</td></tr>
+      <tr><td></td><td>Flexispot × 9</td><td>flexispot.com/.co.uk/.ca/.de/.it/.es/.fr/.nl/.pl</td><td>L2</td></tr>
+      <tr><td><b>家居 Marketplace</b></td><td>Wayfair / Overstock / WestElm / Crate&Barrel / Article / IKEA</td><td>wayfair.com / overstock.com / westelm.com / crateandbarrel.com / article.com / ikea.com/us/en/</td><td>L2-L5</td></tr>
+      <tr><td><b>欧洲电商</b></td><td>Otto / Bol / CDiscount / Idealo</td><td>otto.de / bol.com / cdiscount.com / idealo.de</td><td>L3-L4</td></tr>
+      <tr><td><b>大型市场</b></td><td>eBay / Allegro</td><td>ebay.com / allegro.pl</td><td>L5</td></tr>
+      <tr><td><b>其他</b></td><td>BCP / Yaheetech / VonHaus / Woltu / Houzz</td><td>bestchoiceproducts.com / yaheetech.shop / vonhaus.com / woltu.eu / houzz.com</td><td>L1-L3</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2><span class="n">7</span>SDK 示例</h2>
+
+  <h3>Python（requests）</h3>
+  <pre><span class="k">import</span> requests
+
+API = <span class="s">"https://smartcrawler.io/api/v2"</span>
+KEY = <span class="s">"sck_ikuBVCAjAKygdAxu8_DNSDc9iOJkgXMY7jBf5ceMmlw"</span>
+H = {<span class="s">"Authorization"</span>: <span class="s">f"Bearer {KEY}"</span>}
+
+<span class="c"># Scrape</span>
+r = requests.post(<span class="s">f"{API}/scrape"</span>, headers=H, json={<span class="s">"url"</span>: <span class="s">"https://www.songmics.com/products/sol-3782"</span>})
+data = r.json()[<span class="s">"data"</span>]
+<span class="k">print</span>(<span class="s">f"{data['title']} · {data['sale_price']} {data['currency']}"</span>)
+
+<span class="c"># Map · 列出某站所有商品 URL</span>
+r = requests.post(<span class="s">f"{API}/map"</span>, headers=H, json={<span class="s">"url"</span>: <span class="s">"https://www.songmics.com/"</span>, <span class="s">"limit"</span>: 100})
+urls = r.json()[<span class="s">"links"</span>]
+
+<span class="c"># Crawl · 整站爬</span>
+r = requests.post(<span class="s">f"{API}/crawl"</span>, headers=H, json={<span class="s">"url"</span>: <span class="s">"https://www.songmics.com/"</span>, <span class="s">"limit"</span>: 1000})
+job = r.json()[<span class="s">"job_id"</span>]
+
+<span class="c"># Poll · 等完成</span>
+<span class="k">import</span> time
+<span class="k">while</span> <span class="v">True</span>:
+    r = requests.get(<span class="s">f"{API}/crawl/{job}"</span>, headers=H)
+    s = r.json()
+    <span class="k">if</span> s[<span class="s">"status"</span>] <span class="k">in</span> (<span class="s">"success"</span>, <span class="s">"failed"</span>): <span class="k">break</span>
+    time.sleep(5)
+<span class="k">print</span>(<span class="s">f"Got {len(s['data'])} products"</span>)</pre>
+
+  <h3>Firecrawl SDK（直接兼容）</h3>
+  <pre><span class="k">from</span> firecrawl <span class="k">import</span> FirecrawlApp
+
+<span class="c"># 把 base_url 改成我们的</span>
+app = FirecrawlApp(
+    api_key=<span class="s">"sck_ikuBVCAjAKygdAxu8_DNSDc9iOJkgXMY7jBf5ceMmlw"</span>,
+    api_url=<span class="s">"https://smartcrawler.io/api/v2"</span>
+)
+r = app.<span class="f">scrape_url</span>(<span class="s">"https://www.songmics.com/products/sol-3782"</span>)</pre>
+
+  <h3>cURL</h3>
+  <pre>curl -X POST -H <span class="s">"Authorization: Bearer sck_iku..."</span> \
+     -H <span class="s">"Content-Type: application/json"</span> \
+     -d <span class="s">'{"url":"https://www.songmics.com/"}'</span> \
+     https://smartcrawler.io/api/v2/scrape</pre>
+</section>
+
+<section>
+  <h2><span class="n">8</span>错误码</h2>
+  <table>
+    <thead><tr><th>状态</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td>200</td><td>OK</td></tr>
+      <tr><td>400</td><td>请求 body 缺字段</td></tr>
+      <tr><td>401</td><td>未登录 / API key 无效</td></tr>
+      <tr><td>404</td><td>资源不存在（site 不在 59 列表 / job 不存在）</td></tr>
+      <tr><td>429</td><td>调用频率超限</td></tr>
+      <tr><td>500</td><td>服务端错误</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2><span class="n">9</span>同时支持的旧 v1 API</h2>
+  <p>v1 (<code>/api/v1/*</code>) 仍正常工作。v1 偏向「读数据」（GET 居多），v2 偏向「爬数据」（POST 触发）。</p>
+  <ul>
+    <li>v1 · <code>GET /api/v1/products?site=xxx</code> · 列已抓商品</li>
+    <li>v1 · <code>GET /api/v1/reviews</code> · 列评论</li>
+    <li>v1 · <code>GET /api/v1/promotions</code> · 列促销</li>
+    <li>v2 · <code>POST /api/v2/scrape</code> · 主动触发单 URL 抓取 + 返结构化</li>
+    <li>v2 · <code>POST /api/v2/crawl</code> · 触发整站爬</li>
+  </ul>
+  <a href="/docs" target="_blank">→ 在 Swagger UI 试调所有端点</a>
+</section>
+
+<footer>
+  smart-crawler · API v2 Spec · 2026-05-25 · <a href="https://smartcrawler.io">smartcrawler.io</a><br>
+  关联：<a href="/d/api_integration_guide.html">对接指南</a> · <a href="/docs">Swagger UI</a> · <a href="/openapi.json">OpenAPI JSON</a>
+</footer>
+
+<script>
+function cp(el) {
+  const txt = el.querySelector('span').textContent.trim();
+  navigator.clipboard.writeText(txt).then(() => {
+    const hint = el.querySelector('.copy-hint');
+    const old = hint.textContent;
+    hint.textContent = '✓ 已复制';
+    setTimeout(() => { hint.textContent = old; }, 1600);
+  });
+}
+</script>
+</body>
+</html>
