@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>smart-crawler · 站点报表</title>
+<script src="https://unpkg.com/vue@3.4.27/dist/vue.global.prod.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif}
+body{background:#f5f6f8;color:#1f2329;font-size:13.5px;line-height:1.55}
+a{color:#7c6ce0;text-decoration:none}
+
+.wrap{max-width:1180px;margin:0 auto;padding:18px}
+
+/* breadcrumb */
+.crumb{font-size:13px;color:#6b7280;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.crumb a{color:#7c6ce0}
+.crumb .last-update{color:#9ca3af;font-size:12px}
+
+/* site banner */
+.site-card{background:linear-gradient(135deg,#eef0ff,#f7f8ff);border:1px solid #e5e7ff;border-radius:12px;padding:18px 22px;margin-bottom:18px}
+.site-card .top{display:flex;justify-content:space-between;align-items:flex-start}
+.site-card h2{font-size:18px;font-weight:800;color:#1f2329;margin-bottom:4px}
+.site-card .url{color:#7c6ce0;font-size:13px;text-decoration:underline}
+.site-card .meta{display:flex;gap:24px;margin-top:14px;font-size:12.5px;color:#6b7280}
+.site-card .meta b{color:#1f2329}
+.date-picker{display:flex;gap:8px;align-items:center}
+.date-picker select{padding:6px 12px;border:1px solid #d1d5db;border-radius:7px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit}
+.icon-btn{padding:6px 9px;border:1px solid #d1d5db;border-radius:7px;background:#fff;cursor:pointer;font-size:13px;color:#6b7280}
+.icon-btn:hover{background:#f3f4f6}
+
+/* tab nav */
+.tab-row{display:flex;gap:0;border-bottom:1px solid #e5e7eb;margin-bottom:18px}
+.tab-row button{background:none;border:none;padding:10px 18px;font-size:14px;font-weight:600;color:#6b7280;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;display:flex;align-items:center;gap:6px}
+.tab-row button:hover{color:#1f2329}
+.tab-row button.active{color:#7c6ce0;border-bottom-color:#7c6ce0}
+
+/* stats grid */
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px}
+.stat{background:#fff;border:1px solid #e5e7eb;border-radius:11px;padding:14px 16px}
+.stat .lbl{font-size:11.5px;color:#6b7280;margin-bottom:4px}
+.stat .val{font-size:22px;font-weight:800;color:#1f2329;letter-spacing:-0.3px;line-height:1.15}
+.stat .sub{font-size:11px;color:#9ca3af;margin-top:3px}
+
+/* section card */
+.section{background:#fff;border:1px solid #e5e7eb;border-radius:11px;padding:18px 20px;margin-bottom:18px}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.section-head h3{font-size:15.5px;font-weight:800;color:#1f2329;display:flex;align-items:center;gap:8px}
+.section-head h3 .desc{font-size:12px;font-weight:400;color:#9ca3af;margin-left:6px}
+.section-head .actions{display:flex;gap:8px;align-items:center}
+
+/* chart */
+.chart-wrap{position:relative}
+.legend{display:flex;justify-content:center;gap:18px;margin-bottom:12px;font-size:12px;color:#6b7280}
+.legend-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+.chart-svg{width:100%;height:260px;background:#fafbfc;border-radius:8px}
+.chart-svg .grid{stroke:#e5e7eb;stroke-dasharray:3,3}
+.chart-svg .axis-label{font-size:10px;fill:#9ca3af}
+
+/* sub tabs (product analysis) */
+.sub-tabs{display:flex;gap:8px;margin-bottom:14px}
+.sub-tabs button{padding:6px 14px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:12.5px;font-weight:600;color:#6b7280;font-family:inherit}
+.sub-tabs button.active{background:#eef0ff;border-color:#7c6ce0;color:#7c6ce0}
+.sub-tabs .right{margin-left:auto;display:flex;gap:8px}
+.search-box{padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:12.5px;font-family:inherit;width:200px;outline:none}
+.search-box:focus{border-color:#7c6ce0}
+
+/* product table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:11px 12px;background:#fafbfc;color:#6b7280;font-size:11.5px;letter-spacing:.5px;font-weight:600;border-bottom:1px solid #e5e7eb}
+td{padding:12px;border-bottom:1px solid #f0f1f3;color:#1f2329;vertical-align:middle}
+tr:hover td{background:#fafbfc}
+.thumb{width:48px;height:48px;border-radius:6px;background:linear-gradient(135deg,#e0e7ff,#c7d2fe);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.sku-link{color:#7c6ce0;text-decoration:underline;font-weight:600;font-size:12.5px}
+.add-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:#eef0ff;color:#7c6ce0;border:none;cursor:pointer;font-size:14px;margin-right:6px}
+.title-cell{display:flex;align-items:center;gap:12px}
+.title-cell .info{flex:1;font-size:12.5px;line-height:1.45}
+.attr-cell{font-size:12px;color:#6b7280;line-height:1.5}
+.new-badge{display:inline-block;padding:1px 6px;border-radius:9px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;margin-left:4px}
+.op-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;color:#7c6ce0;font-size:14px}
+
+/* pagination */
+.pagination{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:14px;font-size:12.5px}
+.pagination button{min-width:30px;height:30px;padding:0 8px;border:1px solid #d1d5db;background:#fff;color:#1f2329;cursor:pointer;border-radius:6px;font-family:inherit;font-size:12.5px}
+.pagination button:hover:not(:disabled){background:#f3f4f6}
+.pagination button.active{background:#7c6ce0;color:#fff;border-color:#7c6ce0}
+.pagination button:disabled{opacity:.4;cursor:not-allowed}
+.pagination select{padding:5px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12.5px;font-family:inherit;margin-left:8px}
+
+.loading{text-align:center;padding:32px;color:#9ca3af;font-size:13px}
+.empty{text-align:center;padding:32px;color:#9ca3af}
+
+@media(max-width:900px){
+  .stats{grid-template-columns:repeat(3,1fr)}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const { createApp, ref, computed, onMounted, watch } = Vue;
+
+const SITE_BRAND = {
+  songmics_us:'SONGMICS', songmics_de:'SONGMICS', songmics_uk:'SONGMICS', songmics_it:'SONGMICS', songmics_fr:'SONGMICS', songmics_es:'SONGMICS',
+  costway_us:'Costway', costway_ca:'Costway', costway_uk:'Costway',
+  homary_us:'Homary', vidaxl_de:'Vidaxl', wayfair_us:'Wayfair',
+  westelm_us:'WestElm', cratebarrel_us:'Crate&Barrel', overstock_us:'Overstock',
+  idealo_de:'Idealo', bol_nl:'Bol', cdiscount_fr:'CDiscount', ikea_us:'IKEA',
+  article_us:'Article', allegro_pl:'Allegro', ebay_us:'eBay', otto_de:'Otto',
+};
+
+const App = {
+  setup() {
+    /* Auth */
+    const token = ref(localStorage.getItem('sc_token') || '');
+    function authH() { return { 'Authorization': 'Bearer ' + token.value }; }
+    if (!token.value) {
+      // 简易跳登录
+      window.location.href = '/app';
+    }
+
+    /* Site picker */
+    const url = new URL(window.location.href);
+    const initialSite = url.searchParams.get('site') || 'songmics_us';
+    const site = ref(initialSite);
+    const sites = ref([]);
+
+    const tab = ref('shop'); // shop / product / promo
+    const subTab = ref('all'); // all / bestseller / new
+    const search = ref('');
+    const page = ref(1);
+    const pageSize = ref(10);
+
+    const cards = ref({});
+    const trends = ref([]);
+    const products = ref({ items:[], total:0 });
+    const promos = ref({ items:[], total:0 });
+    const loading = ref(false);
+
+    const dateRange = ref({ from:'2025-10-01', to:'2026-04-16' });
+    const lastUpdate = ref('2026.05.15');
+
+    /* Loads */
+    async function loadSites() {
+      try {
+        const r = await fetch('/api/sites', { headers: authH() });
+        sites.value = await r.json();
+      } catch(e) {}
+    }
+
+    async function loadOverview() {
+      loading.value = true;
+      try {
+        const r = await fetch(`/api/sites/${site.value}/overview`, { headers: authH() });
+        const d = await r.json();
+        cards.value = d.cards || {};
+        trends.value = d.trends || [];
+      } catch(e) { cards.value = {}; trends.value = []; }
+      finally { loading.value = false; }
+    }
+
+    async function loadProducts() {
+      try {
+        const params = new URLSearchParams({
+          site: site.value, page: page.value, page_size: pageSize.value,
+        });
+        if (search.value) params.set('search', search.value);
+        if (subTab.value === 'new') params.set('status', 'new');
+        else if (subTab.value === 'bestseller') params.set('label', 'bestseller');
+        const r = await fetch(`/api/products?${params}`, { headers: authH() });
+        const d = await r.json();
+        products.value = { items: d.items || [], total: d.total || 0 };
+      } catch(e) { products.value = { items:[], total:0 } }
+    }
+
+    async function loadPromotions() {
+      try {
+        const r = await fetch(`/api/promotions?site=${site.value}&page_size=20`, { headers: authH() });
+        const d = await r.json();
+        promos.value = { items: d.items || d || [], total: (d.total||0) };
+      } catch(e) { promos.value = { items:[], total:0 } }
+    }
+
+    async function loadAll() {
+      await Promise.all([loadOverview(), loadProducts(), loadPromotions()]);
+    }
+
+    watch(site, () => { page.value = 1; loadAll(); });
+    watch([page, subTab, search], () => loadProducts());
+
+    /* Helpers */
+    const siteUrl = computed(() => {
+      const s = sites.value.find(s => s.site === site.value);
+      return s?.url || `https://www.${site.value.replace('_','.')}/`;
+    });
+    const brand = computed(() => SITE_BRAND[site.value] || (sites.value.find(s=>s.site===site.value)?.brand) || 'Brand');
+
+    const totalPages = computed(() => Math.max(1, Math.ceil(products.value.total / pageSize.value)));
+
+    /* Chart data prep */
+    const chartLines = computed(() => {
+      if (!trends.value.length) return null;
+      // map series
+      const dates = trends.value.map(t => t.date);
+      const series = {
+        sku: trends.value.map(t => t.sku_count || 0),
+        new: trends.value.map(t => t.new_product_count || 0),
+        sales: trends.value.map(t => t.estimated_sales || 0),
+        revenue: trends.value.map(t => Math.round(t.estimated_revenue || 0)),
+      };
+      const max = Math.max(
+        Math.max(...series.sku, 1),
+        Math.max(...series.new, 1),
+        Math.max(...series.sales, 1),
+        Math.max(...series.revenue, 1),
+      );
+      return { dates, series, max };
+    });
+
+    function makePath(values, max, w, h, pad=20) {
+      if (!values.length) return '';
+      const stepX = (w - 2*pad) / Math.max(values.length - 1, 1);
+      return values.map((v, i) => {
+        const x = pad + i * stepX;
+        const y = h - pad - (v / max) * (h - 2*pad);
+        return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+    }
+
+    onMounted(() => {
+      loadSites();
+      loadAll();
+    });
+
+    return {
+      token, site, sites, tab, subTab, search, page, pageSize,
+      cards, trends, products, promos, loading, dateRange, lastUpdate,
+      siteUrl, brand, totalPages,
+      loadAll, loadProducts,
+      chartLines, makePath,
+    };
+  },
+  template: `
+    <div class="wrap">
+      <div class="crumb">
+        <div><a href="/app">首页</a> &gt; <b>{{ site }} | {{ (site||'').split('_')[1]?.toUpperCase() || 'US' }}</b></div>
+        <div class="last-update">最后更新时间: {{ lastUpdate }}</div>
+      </div>
+
+      <div class="site-card">
+        <div class="top">
+          <div>
+            <h2>{{ site }} | {{ (site||'').split('_')[1]?.toUpperCase() || 'US' }}</h2>
+            <a class="url" :href="siteUrl" target="_blank">{{ siteUrl }}</a>
+          </div>
+          <div class="date-picker">
+            <select v-model="site">
+              <option v-for="s in sites" :key="s.site" :value="s.site">{{ s.site }} ({{ s.brand }})</option>
+            </select>
+            <button class="icon-btn" @click="loadAll">↓ 导出</button>
+          </div>
+        </div>
+        <div class="meta">
+          <span>总产品数: <b>{{ cards.sku_count || '--' }}</b></span>
+          <span>总类别数: <b>{{ products.total ? '--' : '--' }}</b></span>
+        </div>
+      </div>
+
+      <div class="tab-row">
+        <button :class="{active: tab==='shop'}" @click="tab='shop'">🏬 店铺分析</button>
+        <button :class="{active: tab==='product'}" @click="tab='product'">📦 产品分析</button>
+        <button :class="{active: tab==='promo'}" @click="tab='promo'">🎁 销售促销</button>
+      </div>
+
+      <!-- 店铺分析 -->
+      <template v-if="tab==='shop'">
+        <div class="stats">
+          <div class="stat"><div class="lbl">SKU</div><div class="val">{{ cards.sku_count ? cards.sku_count.toLocaleString() : '--' }}</div><div class="sub">在售 SKU</div></div>
+          <div class="stat"><div class="lbl">新增产品</div><div class="val">{{ cards.new_product_count ? cards.new_product_count.toLocaleString() : '--' }}</div><div class="sub">New Arrivals</div></div>
+          <div class="stat"><div class="lbl">30天销量</div><div class="val">{{ cards.thirty_day_sales ? cards.thirty_day_sales.toLocaleString() : '--' }}</div><div class="sub">上个周期: --</div></div>
+          <div class="stat"><div class="lbl">30天收入</div><div class="val">{{ cards.thirty_day_revenue ? '$' + (cards.thirty_day_revenue/1000).toFixed(1) + 'k' : '--' }}</div><div class="sub">上个周期: --</div></div>
+          <div class="stat"><div class="lbl">30天流量</div><div class="val">{{ cards.traffic || '--' }}</div><div class="sub">PV/UV</div></div>
+          <div class="stat"><div class="lbl">30天转化率</div><div class="val">{{ cards.conversion_rate || '--' }}</div><div class="sub">--</div></div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <h3>📈 销售趋势 <span class="desc">分析整体销售情况和品牌市场份额</span></h3>
+            <div class="actions">
+              <select class="icon-btn" style="padding:6px 10px">
+                <option>按天</option>
+                <option>按周</option>
+                <option>按月</option>
+              </select>
+              <span style="font-size:12px;color:#6b7280">{{ dateRange.from }} → {{ dateRange.to }}</span>
+              <button class="icon-btn">↓</button>
+            </div>
+          </div>
+
+          <div class="chart-wrap">
+            <div class="legend">
+              <span><span class="legend-dot" style="background:#3b82f6"></span>库存单位</span>
+              <span><span class="legend-dot" style="background:#10b981"></span>新SKU</span>
+              <span><span class="legend-dot" style="background:#f59e0b"></span>销售</span>
+              <span><span class="legend-dot" style="background:#ef4444"></span>收入</span>
+              <span><span class="legend-dot" style="background:#8b5cf6"></span>流量</span>
+              <span><span class="legend-dot" style="background:#06b6d4"></span>转化率</span>
+            </div>
+
+            <svg v-if="chartLines" class="chart-svg" viewBox="0 0 900 260" preserveAspectRatio="none">
+              <g class="grid">
+                <line x1="40" y1="40" x2="880" y2="40"/>
+                <line x1="40" y1="100" x2="880" y2="100"/>
+                <line x1="40" y1="160" x2="880" y2="160"/>
+                <line x1="40" y1="220" x2="880" y2="220"/>
+              </g>
+              <g class="axis-label">
+                <text x="32" y="44" text-anchor="end">{{ chartLines.max }}</text>
+                <text x="32" y="104" text-anchor="end">{{ Math.round(chartLines.max*0.66) }}</text>
+                <text x="32" y="164" text-anchor="end">{{ Math.round(chartLines.max*0.33) }}</text>
+                <text x="32" y="224" text-anchor="end">0</text>
+              </g>
+              <g>
+                <path :d="makePath(chartLines.series.sku, chartLines.max, 900, 240)" stroke="#3b82f6" fill="none" stroke-width="2"/>
+                <path :d="makePath(chartLines.series.new, chartLines.max, 900, 240)" stroke="#10b981" fill="none" stroke-width="2"/>
+                <path :d="makePath(chartLines.series.sales, chartLines.max, 900, 240)" stroke="#f59e0b" fill="none" stroke-width="2"/>
+                <path :d="makePath(chartLines.series.revenue, chartLines.max, 900, 240)" stroke="#ef4444" fill="none" stroke-width="2"/>
+              </g>
+              <g class="axis-label">
+                <text v-for="(d, i) in chartLines.dates.filter((_, i) => i % Math.ceil(chartLines.dates.length/10) === 0)"
+                      :key="i" :x="40 + i * (860/Math.max(chartLines.dates.length-1, 1)) * Math.ceil(chartLines.dates.length/10)"
+                      y="248" transform="rotate(-30 240 248)" text-anchor="end">{{ d.slice(5) }}</text>
+              </g>
+            </svg>
+            <div v-else class="loading">趋势数据加载中…</div>
+          </div>
+        </div>
+      </template>
+
+      <!-- 产品分析 -->
+      <template v-if="tab==='product' || tab==='shop'">
+        <div v-if="tab==='product' || true" class="section">
+          <div class="section-head">
+            <h3>📦 产品分析 <span class="desc">查看产品的基本信息和详细属性</span></h3>
+            <div class="actions">
+              <button class="icon-btn" @click="loadProducts">↻ 刷新</button>
+              <button class="icon-btn">↓ 导出</button>
+            </div>
+          </div>
+
+          <div class="sub-tabs">
+            <button :class="{active: subTab==='all'}" @click="subTab='all';page=1">所有产品({{ products.total || 0 }})</button>
+            <button :class="{active: subTab==='bestseller'}" @click="subTab='bestseller';page=1">畅销产品(0)</button>
+            <button :class="{active: subTab==='new'}" @click="subTab='new';page=1">最新产品({{ cards.new_product_count || 0 }})</button>
+            <div class="right">
+              <input class="search-box" v-model="search" placeholder="🔍 搜索" @keyup.enter="loadProducts"/>
+              <button class="icon-btn">☷ 筛选</button>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width:50px">NO.</th>
+                <th>库存单位</th>
+                <th>产品详情</th>
+                <th style="width:70px">变体</th>
+                <th>属性</th>
+                <th style="width:60px">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(p, i) in products.items" :key="p.id || p.sku">
+                <td>{{ (page-1)*pageSize + i + 1 }}</td>
+                <td>
+                  <button class="add-btn">+</button>
+                  <a class="sku-link">{{ p.sku }}</a>
+                </td>
+                <td>
+                  <div class="title-cell">
+                    <div class="thumb">📦</div>
+                    <div class="info">{{ (p.title || '').slice(0, 65) }}<span v-if="p.is_new" class="new-badge">NEW</span></div>
+                  </div>
+                </td>
+                <td>{{ p.variant_count || 1 }}</td>
+                <td>
+                  <div class="attr-cell">
+                    <div v-if="p.attributes && p.attributes.color">Color: {{ p.attributes.color }}</div>
+                    <div v-if="p.attributes && p.attributes.size">Size: {{ p.attributes.size }}</div>
+                    <div v-if="p.attributes && p.attributes.material">Material: {{ p.attributes.material }}</div>
+                    <div v-if="!p.attributes || Object.keys(p.attributes).length === 0" style="color:#9ca3af">--</div>
+                  </div>
+                </td>
+                <td><button class="op-btn">⊞</button></td>
+              </tr>
+              <tr v-if="!products.items.length">
+                <td colspan="6" class="empty">暂无数据 · 切换 site 或先抓取</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="pagination">
+            <button @click="page=Math.max(1,page-1)" :disabled="page<=1">‹</button>
+            <button v-for="p in Math.min(totalPages, 5)" :key="p" @click="page=p" :class="{active: page===p}">{{ p }}</button>
+            <span v-if="totalPages > 5">…</span>
+            <button v-if="totalPages > 5" @click="page=totalPages">{{ totalPages }}</button>
+            <button @click="page=Math.min(totalPages,page+1)" :disabled="page>=totalPages">›</button>
+            <select v-model="pageSize" @change="page=1">
+              <option :value="10">10 条/页</option>
+              <option :value="20">20 条/页</option>
+              <option :value="50">50 条/页</option>
+            </select>
+          </div>
+        </div>
+      </template>
+
+      <!-- 销售促销 -->
+      <template v-if="tab==='promo' || tab==='shop'">
+        <div class="section">
+          <div class="section-head">
+            <h3>🎁 销售促销 <span class="desc">查看产品的促销信息</span></h3>
+            <div class="actions">
+              <select class="icon-btn" style="padding:6px 10px">
+                <option>2025-07-31</option>
+              </select>
+              <button class="icon-btn">↓</button>
+            </div>
+          </div>
+
+          <div class="sub-tabs">
+            <input class="search-box" placeholder="🔍 搜索"/>
+            <select class="icon-btn" style="padding:6px 10px;margin-left:8px">
+              <option>类型</option>
+              <option>价格促销</option>
+              <option>满减</option>
+            </select>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width:50px">NO.</th>
+                <th>库存单位</th>
+                <th>更新时间</th>
+                <th>产品详情</th>
+                <th>类型</th>
+                <th style="width:60px">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(pr, i) in (promos.items||[]).slice(0,20)" :key="pr.id">
+                <td>{{ i + 1 }}</td>
+                <td><button class="add-btn">+</button><a class="sku-link">{{ pr.sku }}</a></td>
+                <td>{{ (pr.detected_time || '').slice(0, 16) }}</td>
+                <td>
+                  <div class="title-cell">
+                    <div class="thumb">🏷️</div>
+                    <div class="info">{{ (pr.product_title || pr.title || '').slice(0, 50) }}</div>
+                  </div>
+                </td>
+                <td>{{ pr.promotion_type || pr.type || '价格促销' }}</td>
+                <td><button class="op-btn">⊞</button></td>
+              </tr>
+              <tr v-if="!(promos.items||[]).length">
+                <td colspan="6" class="empty">暂无促销数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
+    </div>
+  `
+};
+
+createApp(App).mount('#app');
+</script>
+</body>
+</html>

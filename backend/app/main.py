@@ -131,6 +131,15 @@ def favicon():
     return FileResponse(FRONTEND_DIR / "favicon.svg")
 
 
+@app.get("/report")
+def report():
+    """站点报表（还原 PDF report 完整内容）。"""
+    return FileResponse(
+        FRONTEND_DIR / "report.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
 @app.get("/d/{path:path}")
 def deliverables(path: str):
     from pathlib import Path
