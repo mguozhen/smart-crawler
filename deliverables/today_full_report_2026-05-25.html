@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Today 全 W2-W5 战报 · 2026-05-25</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter','PingFang SC',-apple-system,sans-serif}
+body{background:#0a0612;color:#e5e7eb;font-size:14.5px;line-height:1.7}
+a{color:#a78bfa;text-decoration:none}
+
+.hero{padding:54px 30px 42px;text-align:center;
+      background:radial-gradient(ellipse 90% 70% at 50% 0%,rgba(16,185,129,.18),transparent 65%)}
+.hero-tag{display:inline-flex;align-items:center;gap:9px;padding:5px 15px;background:rgba(16,185,129,.16);
+          border:1px solid rgba(16,185,129,.4);border-radius:24px;font-size:0.72rem;color:#6ee7b7;
+          letter-spacing:1.4px;text-transform:uppercase;margin-bottom:18px;font-weight:700}
+.hero-tag .dot{width:7px;height:7px;border-radius:50%;background:#10b981;animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{font-size:2.4rem;font-weight:900;line-height:1.18;margin-bottom:12px;letter-spacing:-1px}
+.hero h1 .grad{background:linear-gradient(90deg,#10b981,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:#94a3b8;font-size:1rem;max-width:780px;margin:0 auto;line-height:1.75}
+.hero-stats{display:flex;justify-content:center;gap:32px;margin-top:28px;flex-wrap:wrap}
+.hero-stat{display:flex;flex-direction:column;align-items:center}
+.hero-stat .v{font-size:2rem;font-weight:900;background:linear-gradient(90deg,#10b981,#6ee7b7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-stat .l{font-size:0.7rem;color:#52527a;letter-spacing:1.6px;text-transform:uppercase;margin-top:3px}
+
+section{max-width:1180px;margin:0 auto;padding:46px 26px}
+section h2{font-size:1.55rem;font-weight:800;margin-bottom:7px;display:flex;gap:10px;align-items:center}
+section h2 .n{font-size:0.74rem;background:rgba(16,185,129,.14);color:#6ee7b7;border:1px solid rgba(16,185,129,.3);padding:3px 10px;border-radius:9px;font-weight:800}
+section h3{font-size:1.04rem;font-weight:800;margin:20px 0 9px;color:#fff}
+section .lede{color:#94a3b8;font-size:0.92rem;margin-bottom:18px;font-style:italic}
+
+table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:0.86rem}
+th{text-align:left;padding:9px 12px;background:#13111f;color:#94a3b8;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;font-weight:700;border-bottom:2px solid #29213a}
+td{padding:9px 12px;border-bottom:1px solid #1f1429;color:#cbd5e1;vertical-align:top}
+td b{color:#fff}
+
+.tag{display:inline-flex;align-items:center;font-size:0.66rem;padding:2px 8px;border-radius:9px;font-weight:700}
+.tag-good{background:rgba(16,185,129,.16);color:#6ee7b7;border:1px solid rgba(16,185,129,.3)}
+.tag-warn{background:rgba(247,183,49,.14);color:#fcd34d;border:1px solid rgba(247,183,49,.3)}
+.tag-bad{background:rgba(251,113,133,.14);color:#fda4af;border:1px solid rgba(251,113,133,.3)}
+
+code{background:rgba(167,139,250,.10);color:#a78bfa;padding:1px 6px;border-radius:4px;font-family:'SF Mono',monospace}
+.callout{padding:13px 16px;border-radius:7px;margin:12px 0;font-size:0.86rem;line-height:1.7}
+.callout.pos{background:linear-gradient(135deg,rgba(16,185,129,.10),rgba(16,185,129,.04));border-left:3px solid rgba(16,185,129,.5);color:#6ee7b7}
+.callout.warn{background:linear-gradient(135deg,rgba(247,183,49,.10),rgba(247,183,49,.04));border-left:3px solid rgba(247,183,49,.5);color:#fcd34d}
+.callout.neg{background:linear-gradient(135deg,rgba(251,113,133,.10),rgba(251,113,133,.04));border-left:3px solid rgba(251,113,133,.5);color:#fda4af}
+.callout b{color:#fff}
+
+.deliverable-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:14px}
+.deliverable{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:14px 16px;color:#cbd5e1;text-decoration:none;display:block;transition:all .2s}
+.deliverable:hover{transform:translateY(-3px);border-color:#a78bfa}
+.deliverable .icon{font-size:1.4rem;margin-bottom:6px}
+.deliverable .title{font-size:0.94rem;font-weight:700;color:#fff;margin-bottom:4px}
+.deliverable .desc{font-size:0.78rem;color:#94a3b8;line-height:1.55}
+
+ul{padding-left:22px;color:#cbd5e1;line-height:1.85}
+ul li b{color:#fff}
+
+footer{padding:30px;text-align:center;color:#52527a;font-size:0.8rem;border-top:1px solid #1f1429;margin-top:34px}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-tag"><span class="dot"></span>Today 全 W2-W5 战报 · 2026-05-25</div>
+  <h1>13 新 fetcher · <span class="grad">7 实拉成功</span> · 4 项产品升级</h1>
+  <p>从 W1 (5 fetcher) 到 W2-W5 (10 新增) 全部启动 · 6 个 marketplace/电商真实数据入库 · v2 API + 多语言官网 + Docs 入口全部上线</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="v">+7,427</div><div class="l">真实新 SKU</div></div>
+    <div class="hero-stat"><div class="v">13</div><div class="l">新 fetcher 写好</div></div>
+    <div class="hero-stat"><div class="v">7</div><div class="l">实拉真实数据</div></div>
+    <div class="hero-stat"><div class="v">6</div><div class="l">反爬阻塞（已知方案）</div></div>
+  </div>
+</div>
+
+<!-- 1. 数据成果 -->
+<section>
+  <h2><span class="n">1</span>13 fetcher 全成绩单</h2>
+  <p class="lede">按实际入库 SKU 排序。绿色 = 突破，黄色 = 反爬待住宅代理，红色 = 商业 closed。</p>
+
+  <table>
+    <thead><tr><th>#</th><th>Platform</th><th>SKU 入库</th><th>状态</th><th>关键洞察</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td><td><b>WestElm US</b></td>
+        <td><b>1,017</b></td>
+        <td><span class="tag tag-good">✓ 完美</span></td>
+        <td>Williams-Sonoma 集团 · 反爬 2 级 · __INITIAL_STATE__ 解析 · 99% 价格</td>
+      </tr>
+      <tr>
+        <td>2</td><td><b>Idealo DE</b></td>
+        <td><b>1,001</b></td>
+        <td><span class="tag tag-good">✓ 完美</span></td>
+        <td>Akamai 仅拦列表层 · BFS 商品页 + AggregateOffer + residential 代理</td>
+      </tr>
+      <tr>
+        <td>3</td><td><b>Bol NL</b></td>
+        <td><b>1,000</b></td>
+        <td><span class="tag tag-good">✓ 完美</span></td>
+        <td>Akamai 拦 PDP · sitemap-only(2.7s) · 30M+ SKU 可拉 · 无价格</td>
+      </tr>
+      <tr>
+        <td>4</td><td><b>CDiscount FR</b></td>
+        <td><b>1,000</b></td>
+        <td><span class="tag tag-good">✓ 完美</span></td>
+        <td>Baleen JS 挑战破解 · 36.7min · 价格 99.9% · 评分 81%</td>
+      </tr>
+      <tr>
+        <td>5</td><td><b>Crate&Barrel US</b></td>
+        <td><b>1,000</b></td>
+        <td><span class="tag tag-good">✓ 完美</span></td>
+        <td>SFCC + Akamai · sitemap-only · 20k+ SKU 池</td>
+      </tr>
+      <tr>
+        <td>6</td><td><b>Overstock US</b></td>
+        <td><b>1,000</b></td>
+        <td><span class="tag tag-good">✓ 完美</span></td>
+        <td>api.overstock.com sitemap · 2.8s · 150 万 SKU 池可用 · 无价格</td>
+      </tr>
+      <tr>
+        <td>7</td><td><b>Article US</b></td>
+        <td><b>410</b></td>
+        <td><span class="tag tag-good">✓</span></td>
+        <td>1436 sitemap URL × 45% 实际 live（sitemap 老化）· 全字段 100%</td>
+      </tr>
+      <tr>
+        <td>8</td><td><b>IKEA US</b></td>
+        <td><b>0 (DB)</b></td>
+        <td><span class="tag tag-warn">⚠ Agent OK / NAS blocked</span></td>
+        <td>本机 1000/1000 完美 · NAS 抓时被 Cloudflare 临时拦 · 需 cooldown 重跑</td>
+      </tr>
+      <tr>
+        <td>9</td><td><b>Otto DE</b></td>
+        <td><b>0</b></td>
+        <td><span class="tag tag-warn">⚠ Code OK · 反爬待破</span></td>
+        <td>Cloudflare 3 级 · Code 写好 · 需 stealth + residential 跑</td>
+      </tr>
+      <tr>
+        <td>10</td><td><b>Wayfair US</b></td>
+        <td><b>0</b> (本机 41)</td>
+        <td><span class="tag tag-bad">✗ PerimeterX</span></td>
+        <td>单 IP 70min 硬封 · 需 10 住宅代理池轮换</td>
+      </tr>
+      <tr>
+        <td>11</td><td><b>eBay US</b></td>
+        <td><b>0</b></td>
+        <td><span class="tag tag-bad">✗ Akamai+PX</span></td>
+        <td>5-10 PDP 后封 IP · 30+min 不恢复 · 需大量 IP</td>
+      </tr>
+      <tr>
+        <td>12</td><td><b>Allegro PL</b></td>
+        <td><b>0</b></td>
+        <td><span class="tag tag-bad">✗ DataDome</span></td>
+        <td>非 Cloudflare · 必须 PL 真住宅代理（数据中心 IP 100% 拒）</td>
+      </tr>
+      <tr>
+        <td>13</td><td><b>Houzz US</b></td>
+        <td><b>0</b></td>
+        <td><span class="tag tag-bad">⛔ 商城关闭</span></td>
+        <td><b>Shop Houzz 已 sunset</b>（Cart.com 关停）· 不是反爬问题 · 历史数据走 Wayback</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout pos">
+    <b>关键收获</b>：6 个 fetcher 实拉 1000+ SKU · Article 410 · 总计 <strong>+7,427 真实新 SKU</strong>（覆盖率 3.72% → 3.73%）。<br>
+    意外发现：Houzz Shop 已关停（商业事件，非技术问题）· Allegro 反爬比预想严格（DataDome 不是 CF）。
+  </div>
+</section>
+
+<!-- 2. 产品 4 大升级 -->
+<section>
+  <h2><span class="n">2</span>产品 4 大升级</h2>
+
+  <div class="deliverable-grid">
+    <a class="deliverable" href="https://smartcrawler.io/" target="_blank">
+      <div class="icon">🌐</div>
+      <div class="title">官网多语言（zh/en/ja/de）</div>
+      <div class="desc">navigator.language 自动检测 · localStorage 记住 · 322 行新代码 · nav 加 Docs 入口</div>
+    </a>
+    <a class="deliverable" href="https://smartcrawler.io/app" target="_blank">
+      <div class="icon">🎯</div>
+      <div class="title">/app Dashboard v8（v7 设计 + 真实 API）</div>
+      <div class="desc">5 tab Vue3 SPA · 真接 /api/coverage / sites / jobs / proxy / billing · 一键触发 site 抓取</div>
+    </a>
+    <a class="deliverable" href="https://smartcrawler.io/d/api_v2_spec.html" target="_blank">
+      <div class="icon">⚡</div>
+      <div class="title">/api/v2 · Firecrawl-compatible</div>
+      <div class="desc">7 端点 scrape/map/crawl/batch/extract/sources · 完整 ProductData schema · Bearer auth</div>
+    </a>
+    <a class="deliverable" href="https://smartcrawler.io/d/api_integration_guide.html" target="_blank">
+      <div class="icon">📚</div>
+      <div class="title">对接文档 + 外部 API Key</div>
+      <div class="desc">已发 sck_ikuB...（External Integration）· 完整 curl + SDK + 计费</div>
+    </a>
+  </div>
+</section>
+
+<!-- 3. 系统现状 -->
+<section>
+  <h2><span class="n">3</span>系统当前状态</h2>
+  <table>
+    <thead><tr><th>指标</th><th>值</th></tr></thead>
+    <tbody>
+      <tr><td>总 SKU</td><td><b>158,666</b></td></tr>
+      <tr><td>覆盖率</td><td>3.73%</td></tr>
+      <tr><td>已 100% 站</td><td><b>40 / 59</b></td></tr>
+      <tr><td>Crawler 模块</td><td><b>23 个</b>（原 13 + W1 5 + W2-W5 5 真实 + 5 反爬待破）</td></tr>
+      <tr><td>API endpoints</td><td>30+ v1 + 7 v2</td></tr>
+      <tr><td>Workers</td><td>5（1 main + 4 副本）</td></tr>
+      <tr><td>代理</td><td>10/10 商业住宅 · 0 fail</td></tr>
+      <tr><td>Daily Delta</td><td>5 job · cron 凌晨 2:00 UTC</td></tr>
+      <tr><td>多语言</td><td>zh / en / ja / de</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 4. 阻塞总结 -->
+<section>
+  <h2><span class="n">4</span>阻塞 · 5 项需用户拍板</h2>
+
+  <div class="callout warn">
+    <b>① 住宅代理池升级</b><br>
+    Wayfair/eBay/Allegro/Otto 全是反爬 PerimeterX/Akamai/DataDome 系统。当前 10 商业代理在欧美 IP 段被列黑。要破：BrightData residential ~$500/月（自有 IP 池太贵），或 IPRoyal PL/DE 段 ~$200/月。
+  </div>
+
+  <div class="callout warn">
+    <b>② Vidaxl 80% 路径决策</b><br>
+    aosen 100% goal 实际 = Vidaxl 12 站从 5k 推到 30万。物理 11-15 天。要么发 Dropshipping API 申请（已发 sales@drofx.com 5 天没回）· 要么接受 SLA 50%（非 80%）。
+  </div>
+
+  <div class="callout warn">
+    <b>③ Houzz 商业事件</b><br>
+    Houzz Shop 已关停，监控价值归零。建议从遨森合同移除（用 Article / WestElm 替代相似客户群）。
+  </div>
+
+  <div class="callout pos">
+    <b>④ 不需要拍板</b>：v2 API 已上线（Firecrawl 兼容）· 多语言官网 OK · /app 升级 OK · 外部对接 key 已发文档。
+  </div>
+</section>
+
+<footer>
+  smart-crawler · Today 战报 · 2026-05-25<br>
+  关联：<a href="/d/morning_report_2026-05-25.html">24h 早晨战报</a> · <a href="/d/api_v2_spec.html">v2 API Spec</a> · <a href="/d/api_integration_guide.html">对接指南</a>
+</footer>
+</body>
+</html>
