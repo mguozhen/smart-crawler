@@ -13,6 +13,7 @@ from .api.routes import public_router, router as api_router
 from .api.output import router as v1_router
 from .api.v2 import router as v2_router
 from .api.discovery import router as discovery_router
+from .api.influencer_discover import router as influencer_discover_router
 from .config import FRONTEND_DIR, PROJECT_DIR
 from .db import init_db
 from .mcp_server import mcp
@@ -70,9 +71,11 @@ async def lifespan(app: FastAPI):
             print(f"[scheduler] 未启动: {exc}")
         try:
             from .worker import run_loop
-            threading.Thread(target=run_loop, daemon=True,
-                             name="sc-worker").start()
-            print("[worker] 进程内 worker 线程已启动")
+            n_workers = int(os.environ.get("WORKER_THREADS", "1"))
+            for i in range(n_workers):
+                threading.Thread(target=run_loop, daemon=True,
+                                 name=f"sc-worker-{i+1}").start()
+            print(f"[worker] 进程内 {n_workers} 个 worker 线程已启动")
         except Exception as exc:
             print(f"[worker] 未启动: {exc}")
     # MCP 服务器生命周期（嵌套）
@@ -95,6 +98,7 @@ app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 app.include_router(discovery_router)     # Agent 发现层 (llms.txt / .well-known)
+app.include_router(influencer_discover_router)  # 红人发现 /discover/runs · /discover/datasets
 app.include_router(public_router)
 app.include_router(api_router)
 app.include_router(v1_router)
