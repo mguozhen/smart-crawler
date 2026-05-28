@@ -19,6 +19,13 @@ _ENV_KEY = {
     "facebook": "FB_COOKIES_PATH",
 }
 
+# Sensible defaults so deploys don't have to touch compose env;
+# operator drops jar at this path on the NAS host (mounted via ./data:/app/data).
+_DEFAULT_PATH = {
+    "instagram": "/app/data/cookies/ig.json",
+    "facebook": "/app/data/cookies/fb.json",
+}
+
 _cache: dict[str, dict[str, str]] = {}
 _lock = threading.RLock()
 
@@ -43,9 +50,9 @@ def load_cookies(platform: str) -> dict[str, str]:
         env_key = _ENV_KEY.get(platform)
         if not env_key:
             raise CookieExpiredError(platform, f"no env key for {platform}")
-        path = os.environ.get(env_key)
+        path = os.environ.get(env_key) or _DEFAULT_PATH.get(platform)
         if not path:
-            raise CookieExpiredError(platform, f"env {env_key} unset")
+            raise CookieExpiredError(platform, f"env {env_key} unset and no default")
         p = Path(path)
         if not p.is_file():
             raise CookieExpiredError(platform, f"file {path} not found")

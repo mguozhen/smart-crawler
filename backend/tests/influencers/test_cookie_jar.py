@@ -49,12 +49,14 @@ def test_load_cookies_caches(monkeypatch, tmp_path):
     assert jar3["sessionid"] == "CHANGED"
 
 
-def test_load_cookies_missing_env_raises(monkeypatch):
+def test_load_cookies_falls_back_to_default_path(monkeypatch):
+    # Default path /app/data/cookies/ig.json doesn't exist on a dev box, so we
+    # still get CookieExpiredError — but on "file not found", not "env unset".
     monkeypatch.delenv("IG_COOKIES_PATH", raising=False)
     invalidate("instagram")
     with pytest.raises(CookieExpiredError) as ei:
         load_cookies("instagram")
-    assert "instagram" in str(ei.value)
+    assert "file" in str(ei.value).lower() or "/app/data/cookies/" in str(ei.value)
 
 
 def test_load_cookies_missing_file_raises(monkeypatch, tmp_path):
