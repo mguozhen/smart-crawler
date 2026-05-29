@@ -16,6 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ..influencers.discover import dispatch
+from ..influencers.discover_models import map_tiktok
 from ..influencers.run_registry import REGISTRY, RunStatus
 
 log = logging.getLogger(__name__)
@@ -23,6 +24,20 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/discover", tags=["influencer-discover"])
 
 _SUPPORTED = {"tiktok", "instagram", "facebook", "youtube_about"}
+
+# Platforms whose data comes from external pushers (phones), not from
+# server-side fetches. Use POST /discover/ingest instead of /discover/runs.
+_INGEST_PLATFORMS = {"tiktok_phone"}
+
+_INGEST_MAPPERS = {
+    "tiktok_phone": map_tiktok,
+}
+
+# Map the ingest platform string to the canonical platform name we emit on
+# CreatorRecord. tiktok_phone is just TikTok harvested via a different lane.
+_INGEST_DISPLAY_PLATFORM = {
+    "tiktok_phone": "TikTok",
+}
 
 
 class RunRequest(BaseModel):
@@ -80,6 +95,48 @@ def get_run(run_id: str) -> RunStatusResponse:
     if r is None:
         raise HTTPException(status_code=404, detail=f"run not found: {run_id}")
     return RunStatusResponse(**r)
+
+
+class IngestRequest(BaseModel):
+    platform: str
+    hashtag: str
+    items: list[dict] = Field(default_factory=list)
+
+
+class IngestResponse(BaseModel):
+    runId: str
+    datasetId: str
+    status: str
+    itemCount: int
+    error: str | None
+    startedAt: str
+    finishedAt: str | None
+
+
+@router.post("/ingest", response_model=IngestResponse)
+def ingest(req: IngestRequest):
+    """Receive a batch of raw items from an external pusher (e.g. phone driver).
+
+    Each item is mapped via the platform's mapper, invalid items dropped, and
+    a new run is created and marked SUCCEEDED with the results.
+    """
+    if req.platform not in _INGEST_PLATFORMS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported ingest platform: {req.platform}. "
+                   f"Supported: {sorted(_INGEST_PLATFORMS)}",
+        )
+    mapper = _INGEST_MAPPERS[req.platform]
+    mapped: list[dict] = []
+    for raw in req.items:
+        rec = mapper(raw)
+        if rec is not None:
+            mapped.append(rec.to_dict())
+
+    rid = REGISTRY.create_run()
+    REGISTRY.mark_succeeded(rid, items=mapped)
+    run = REGISTRY.get_run(rid)
+    return IngestResponse(runId=rid, datasetId=rid, **run)
 
 
 @router.get("/datasets/{dataset_id}/items")
