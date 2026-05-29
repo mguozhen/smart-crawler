@@ -691,15 +691,37 @@ def data_coverage(
     db: Session = Depends(get_db),
     include_hidden: bool = Query(default=False, description="是否包含 hidden_sites（默认排除）"),
 ):
-    """每站点数据覆盖率：当前 SKU / 估算全量。"""
+    """每站点数据覆盖率：fetched URL / sitemap 总 URL.
+
+    优先用 fetched_urls 表（每次 fetch 都记录 · 含 4xx/5xx/parse_none）
+    回退 Product.product_url（旧路径 · 只算成功落库的 unique SKU）。
+    """
+    from sqlalchemy import text
     from ..models import Site as SiteModel
     hidden = _load_hidden_sites() if not include_hidden else set()
     sitemap_totals = _load_sitemap_totals()
+    # 一次查全部 site 的 fetched_urls count（vs 逐 site 查避免 N+1）
+    try:
+        fetched_counts = {
+            row[0]: row[1]
+            for row in db.execute(
+                text("SELECT site, count(*) FROM fetched_urls GROUP BY site")
+            ).all()
+        }
+    except Exception:
+        fetched_counts = {}
+        try:
+            db.rollback()
+        except Exception:
+            pass
     rows = []
     for s in db.query(SiteModel).all():
         if s.site in hidden:
             continue
-        cur = db.query(Product).filter(Product.site == s.site).count()
+        # 真实 fetched URL count（包含 SKU dup 的）优先于 SKU-unique row count
+        fetched = fetched_counts.get(s.site, 0)
+        sku_count = db.query(Product).filter(Product.site == s.site).count()
+        cur = fetched if fetched >= sku_count else sku_count
         # 真实 sitemap 总数优先（爬虫每次跑都更新），缺失时回退人工估算
         est = sitemap_totals.get(s.site) or _FULL_ESTIMATES.get(s.site, 0)
         pct = round(cur / est * 100, 2) if est > 0 else None

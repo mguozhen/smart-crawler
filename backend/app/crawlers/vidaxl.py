@@ -227,6 +227,7 @@ class VidaxlCrawler(BaseCrawler):
                 status, html = _try_fetch(url)
                 last_status = status
                 if status == 200 and html:
+                    _log_fetched(self.site.site, url, 200)
                     self.snapshot(url.rstrip("/").split("/")[-1], html)
                     row = self._parse_jsonld(html, url)
                     if row:
@@ -239,9 +240,11 @@ class VidaxlCrawler(BaseCrawler):
                 if status == -1 or status >= 500:
                     continue  # 临时错误，重试
                 if 400 <= status < 500:
+                    _log_fetched(self.site.site, url, status)
                     _inc("http_4xx")
                     return  # 4xx 不重试（除 429 已在内部 ban 代理）
-            # 重试用尽
+            # 重试用尽 —— 即使失败也记录已尝试，避免下轮再抓
+            _log_fetched(self.site.site, url, last_status if last_status > 0 else 0)
             if last_status == -1:
                 _inc("timeout")
             elif last_status >= 500:
@@ -370,19 +373,64 @@ def _persist_sitemap_total(site: str, total: int) -> None:
 
 
 def _already_crawled_urls(site: str) -> set[str]:
-    """读取该 site 已落库的 product_url，供 resume 跳过（按 URL 去重，保留兜底）。"""
+    """读取该 site 已 fetched 过的所有 URL —— 100% 推进 sitemap 的关键。
+
+    优先 fetched_urls 表（每次 fetch 都记录 · 即便 SKU dup 也算已抓过）。
+    回退 Product.product_url（旧路径 · 不全 · upsert 会 overwrite）。
+    """
     try:
         from ..db import SessionLocal
-        from ..models import Product
+        from sqlalchemy import text
     except Exception:
         return set()
     db = SessionLocal()
     try:
-        rows = (db.query(Product.product_url)
-                .filter(Product.site == site)
-                .filter(Product.product_url.isnot(None))
-                .all())
-        return {r[0] for r in rows if r[0]}
+        try:
+            rows = db.execute(
+                text("SELECT url FROM fetched_urls WHERE site = :s"),
+                {"s": site},
+            ).all()
+            return {r[0] for r in rows if r[0]}
+        except Exception:
+            # 表不存在 → fallback 旧路径
+            db.rollback()
+            from ..models import Product
+            rows = (db.query(Product.product_url)
+                    .filter(Product.site == site)
+                    .filter(Product.product_url.isnot(None))
+                    .all())
+            return {r[0] for r in rows if r[0]}
+    finally:
+        db.close()
+
+
+def _log_fetched(site: str, url: str, status_code: int) -> None:
+    """记录每次 URL fetch · 即便 4xx / 5xx / parse_none 也记 · 防再抓.
+
+    INSERT ... ON CONFLICT DO NOTHING · 同 URL 重复进表只算一次。
+    SQL 错误一律静默 (主流程优先 · 不能因 logging 失败拖崩 crawl)。
+    """
+    try:
+        from ..db import SessionLocal
+        from sqlalchemy import text
+    except Exception:
+        return
+    db = SessionLocal()
+    try:
+        db.execute(
+            text(
+                "INSERT INTO fetched_urls (site, url, fetched_at, status_code) "
+                "VALUES (:s, :u, NOW(), :c) "
+                "ON CONFLICT (site, url) DO NOTHING"
+            ),
+            {"s": site, "u": url, "c": status_code},
+        )
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
     finally:
         db.close()
 
