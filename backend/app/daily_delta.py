@@ -23,7 +23,7 @@ from sqlalchemy import desc, func
 
 from .db import SessionLocal
 from .models import (
-    Job, Product, PriceHistory, Promotion, Review, Site, Trend,
+    CrawlJob, Product, PriceHistory, Promotion, Review, Site, Trend,
 )
 
 logger = logging.getLogger("smart-crawler.daily-delta")

@@ -376,16 +376,24 @@ class IkeaCrawler(BaseCrawler):
     @staticmethod
     def _is_blocked_body(html: str) -> bool:
         """Cloudflare challenge / Access denied 等 body 特征识别。
-        IKEA PDP 正常 ~300-420KB；challenge 页 < 50KB。"""
+        IKEA PDP 正常 ~300-420KB；challenge 页 < 50KB。
+
+        坑：IKEA 每个正常 PDP 都嵌入 `/cdn-cgi/challenge-platform/scripts/jsd/main.js`
+        的 Cloudflare bot beacon —— 不能作为 challenge 判据。
+        只识别明确的 "正在挑战 / 已拒绝" 标志，且要求页面很小（< 30KB）。"""
         if not html:
             return True
         if len(html) < 30_000:
             return True
+        # 仅识别 active challenge / hard-block 标志
         markers = (
-            "Just a moment...", "cf-browser-verification",
-            "cf-challenge-running", "Access denied",
-            "Pardon Our Interruption", "captcha-bypass",
-            "/cdn-cgi/challenge-platform",
+            "Just a moment...",                # CF JS challenge title
+            "cf-browser-verification",          # 老版 CF challenge body class
+            "cf-challenge-running",             # CF challenge runtime
+            "Pardon Our Interruption",          # PerimeterX
+            "Sorry, you have been blocked",     # CF block page
+            "Attention Required! | Cloudflare", # CF firewall page
+            "captcha-bypass",                   # captcha pages
         )
         return any(m in html for m in markers)
 

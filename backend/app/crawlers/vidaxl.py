@@ -18,6 +18,8 @@ import gzip
 import json
 import os
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from curl_cffi import requests as creq
 
@@ -153,7 +155,10 @@ class VidaxlCrawler(BaseCrawler):
                 f"已知原因（vidaxl_ca）：VidaXL 已暂停该市场运营，"
                 f"类别页显示 'pausing orders until further notice'，"
                 f"无商品可采集，需等业务重开。")
-        # 累积所有 sitemap URLs 后去重（vidaxl 多个 sub-sitemap 经常重复同一 SKU）
+        # 全量读 sitemap（不再受 self.limit 截断）
+        # 注意：URL 中的 EAN-13 ≠ JSON-LD 里的 SKU（vidaxl 用内部 item code），
+        # 所以按 URL dedup 才能让 resume 正确推进，按 EAN 反而把所有 URL 视作未抓。
+        # 同一 product 的 variant URL 会在 upsert 阶段被 JSON-LD-SKU 自然去重。
         urls_seen: set[str] = set()
         urls: list[str] = []
         for sm in prod_sitemaps:
@@ -166,47 +171,98 @@ class VidaxlCrawler(BaseCrawler):
                         continue
                     urls_seen.add(u)
                     urls.append(u)
-                    if len(urls) >= self.limit:
-                        break
             except Exception:
                 continue
-            if len(urls) >= self.limit:
-                break
-        targets = urls[: self.limit]
+        _persist_sitemap_total(self.site.site, len(urls))
+        # Resume：按 product_url 跳过 DB 里已抓，让多轮 run 推进 sitemap
+        already = _already_crawled_urls(self.site.site)
+        fresh = [u for u in urls if u not in already]
+        # 随机洗牌：sitemap 把同一 parent 的 variant URL 聚集在一起，
+        # 顺序切片会让每个 run 只命中少量 unique parent。随机采样能让
+        # 每个 run 覆盖更多 parent（vidaxl 平均每 parent ~5 变体，
+        # 期望 unique parent 数 ≈ 总 parent × (1 - (1 - limit/总URL)^5)）
+        import random
+        random.shuffle(fresh)
+        targets = fresh[: self.limit]
         result.notes.append(
-            f"路径2 storefront：{len(prod_sitemaps)} 个商品 sitemap，"
-            f"本次抓取 {len(targets)} 个商品")
+            f"路径2 storefront：{len(prod_sitemaps)} 个 sitemap · "
+            f"sitemap 总 URL {len(urls)} · 已抓 URL {len(already)} · "
+            f"本次目标 {len(targets)}")
 
-        # 走代理池：每个 SKU 都轮换代理（避免单代理被压死）
+        # 走代理池：并发 N 线程（默认 10，与 residential 池容量匹配）
         from .. import proxy_pool
-        ok = 0
-        fail = 0
-        for url in targets:
-            # 每个请求重新取一个代理（轮换，10 代理均衡）
+        max_workers = int(os.environ.get("VIDAXL_CONCURRENCY", "10"))
+        retries = int(os.environ.get("VIDAXL_RETRIES", "2"))
+        counters = {"ok": 0, "http_4xx": 0, "http_5xx": 0,
+                    "timeout": 0, "parse_none": 0, "exception": 0}
+        counters_lock = threading.Lock()
+        products_lock = threading.Lock()
+
+        def _inc(key: str) -> None:
+            with counters_lock:
+                counters[key] = counters.get(key, 0) + 1
+
+        def _try_fetch(url: str) -> tuple[int, str]:
+            """返回 (status_code, html)；status -1 表示 timeout/连接错误。"""
             cur_proxy = proxy_pool.get_proxy("residential")
+            local_sess = creq.Session(impersonate="chrome")
             if cur_proxy:
-                sess.proxies = {"http": cur_proxy, "https": cur_proxy}
+                local_sess.proxies = {"http": cur_proxy, "https": cur_proxy}
             try:
-                resp = sess.get(url, timeout=30)
+                resp = local_sess.get(url, timeout=30)
                 if resp.status_code in (429, 403):
                     proxy_pool.report_failure(cur_proxy, hard=True)
-                    fail += 1
-                    result.notes.append(f"⚠ 代理被封 → 切换 ({fail})")
-                    continue
-                html = resp.text
-                self.snapshot(url.rstrip("/").split("/")[-1], html)
-                row = self._parse_jsonld(html, url)
-                if row:
-                    result.products.append(row)
-                    ok += 1
-                proxy_pool.report_success(cur_proxy)
-            except Exception as exc:
+                elif 500 <= resp.status_code < 600:
+                    proxy_pool.report_failure(cur_proxy)
+                else:
+                    proxy_pool.report_success(cur_proxy)
+                return resp.status_code, resp.text
+            except Exception:
                 proxy_pool.report_failure(cur_proxy)
-                fail += 1
-                result.notes.append(f"跳过 {url[:50]}: {exc}")
-            self.sleep()
-        result.notes.append(
-            f"成功解析 {ok}/{len(targets)} 个商品 · 代理失败 {fail} 次")
+                return -1, ""
+
+        def _fetch_one(url: str) -> None:
+            last_status = 0
+            for attempt in range(retries + 1):
+                status, html = _try_fetch(url)
+                last_status = status
+                if status == 200 and html:
+                    self.snapshot(url.rstrip("/").split("/")[-1], html)
+                    row = self._parse_jsonld(html, url)
+                    if row:
+                        with products_lock:
+                            result.products.append(row)
+                        _inc("ok")
+                        return
+                    _inc("parse_none")
+                    return  # 解析失败不重试（页面就那样）
+                if status == -1 or status >= 500:
+                    continue  # 临时错误，重试
+                if 400 <= status < 500:
+                    _inc("http_4xx")
+                    return  # 4xx 不重试（除 429 已在内部 ban 代理）
+            # 重试用尽
+            if last_status == -1:
+                _inc("timeout")
+            elif last_status >= 500:
+                _inc("http_5xx")
+            else:
+                _inc("exception")
+
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = [ex.submit(_fetch_one, u) for u in targets]
+            for _ in as_completed(futures):
+                pass
+        msg = (f"并发 {max_workers}·重试 {retries} · "
+               f"成功 {counters['ok']}/{len(targets)} · "
+               f"4xx={counters['http_4xx']} 5xx={counters['http_5xx']} "
+               f"timeout={counters['timeout']} "
+               f"parse_none={counters['parse_none']} exc={counters['exception']}")
+        result.notes.append(msg)
+        # 同时输出到 stdout 让 docker logs 可见
+        print(f"[vidaxl/{self.site.site}] {msg}", flush=True)
+        for n in result.notes:
+            print(f"[vidaxl/{self.site.site}] note: {n}", flush=True)
         return result
 
     def _parse_jsonld(self, html: str, url: str) -> dict | None:
@@ -288,6 +344,65 @@ class VidaxlCrawler(BaseCrawler):
         except Exception:
             pass
         return None
+
+
+_SITEMAP_TOTALS_PATH = os.environ.get(
+    "SITEMAP_TOTALS_PATH", "/app/data/sitemap_totals.json")
+
+
+def _persist_sitemap_total(site: str, total: int) -> None:
+    """记录某站 sitemap 真实 URL 总数 —— dashboard 用它做「应抓」基准。"""
+    import json
+    try:
+        os.makedirs(os.path.dirname(_SITEMAP_TOTALS_PATH), exist_ok=True)
+        try:
+            with open(_SITEMAP_TOTALS_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+        except Exception:
+            data = {}
+        data[site] = int(total)
+        tmp = _SITEMAP_TOTALS_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, _SITEMAP_TOTALS_PATH)
+    except Exception:
+        pass
+
+
+def _already_crawled_urls(site: str) -> set[str]:
+    """读取该 site 已落库的 product_url，供 resume 跳过（按 URL 去重，保留兜底）。"""
+    try:
+        from ..db import SessionLocal
+        from ..models import Product
+    except Exception:
+        return set()
+    db = SessionLocal()
+    try:
+        rows = (db.query(Product.product_url)
+                .filter(Product.site == site)
+                .filter(Product.product_url.isnot(None))
+                .all())
+        return {r[0] for r in rows if r[0]}
+    finally:
+        db.close()
+
+
+def _already_crawled_skus(site: str) -> set[str]:
+    """读取该 site 已落库的 SKU 集合 —— resume 推荐用 SKU 去重（不是 URL）。"""
+    try:
+        from ..db import SessionLocal
+        from ..models import Product
+    except Exception:
+        return set()
+    db = SessionLocal()
+    try:
+        rows = (db.query(Product.sku)
+                .filter(Product.site == site)
+                .filter(Product.sku.isnot(None))
+                .all())
+        return {r[0] for r in rows if r[0]}
+    finally:
+        db.close()
 
 
 def _num(v):

@@ -25,6 +25,32 @@ channels:
   # ===== Reviews.io（UK，公开 API）=====
   - {site: aosom_uk, platform: reviews_io, country: UK, store: aosom-uk}
 
+  # ===== 竞品品牌 Trustpilot 评论（2026-05-25 新增，覆盖 9 大家居品牌核心市场）=====
+  - {site: vidaxl_us, platform: trustpilot, country: US, domain: www.vidaxl.com, host: www.trustpilot.com}
+  - {site: vidaxl_uk, platform: trustpilot, country: UK, domain: www.vidaxl.co.uk, host: www.trustpilot.com}
+  - {site: vidaxl_de, platform: trustpilot, country: DE, domain: www.vidaxl.de, host: www.trustpilot.com}
+  - {site: songmics_us, platform: trustpilot, country: US, domain: www.songmics.com, host: www.trustpilot.com}
+  - {site: songmics_de, platform: trustpilot, country: DE, domain: www.songmics.de, host: www.trustpilot.com}
+  - {site: costway_us, platform: trustpilot, country: US, domain: www.costway.com, host: www.trustpilot.com}
+  - {site: homary_us, platform: trustpilot, country: US, domain: www.homary.com, host: www.trustpilot.com}
+  - {site: yaheetech_us, platform: trustpilot, country: US, domain: www.yaheetech.shop, host: www.trustpilot.com}
+  - {site: flexispot_us, platform: trustpilot, country: US, domain: www.flexispot.com, host: www.trustpilot.com}
+  - {site: bcp_us, platform: trustpilot, country: US, domain: www.bestchoiceproducts.com, host: www.trustpilot.com}
+  - {site: cratebarrel_us, platform: trustpilot, country: US, domain: www.crateandbarrel.com, host: www.trustpilot.com}
+  - {site: westelm_us, platform: trustpilot, country: US, domain: www.westelm.com, host: www.trustpilot.com}
+  - {site: wayfair_us, platform: trustpilot, country: US, domain: www.wayfair.com, host: www.trustpilot.com}
+  - {site: ikea_us, platform: trustpilot, country: US, domain: www.ikea.com, host: www.trustpilot.com}
+  - {site: walmart_us, platform: trustpilot, country: US, domain: www.walmart.com, host: www.trustpilot.com}
+  - {site: target_us, platform: trustpilot, country: US, domain: www.target.com, host: www.trustpilot.com}
+  - {site: bestbuy_us, platform: trustpilot, country: US, domain: www.bestbuy.com, host: www.trustpilot.com}
+  - {site: etsy_us, platform: trustpilot, country: US, domain: www.etsy.com, host: www.trustpilot.com}
+  - {site: aliexpress_global, platform: trustpilot, country: US, domain: www.aliexpress.com, host: www.trustpilot.com}
+  - {site: overstock_us, platform: trustpilot, country: US, domain: www.overstock.com, host: www.trustpilot.com}
+  - {site: ebay_us, platform: trustpilot, country: US, domain: www.ebay.com, host: www.trustpilot.com}
+  - {site: idealo_de, platform: trustpilot, country: DE, domain: www.idealo.de, host: www.trustpilot.com}
+  - {site: otto_de, platform: trustpilot, country: DE, domain: www.otto.de, host: www.trustpilot.com}
+  - {site: cdiscount_fr, platform: trustpilot, country: FR, domain: www.cdiscount.com, host: www.trustpilot.com}
+
   # ===== 可导出平台：走 feed 导入（规格 F2-007，非爬取）=====
   # TrustedShop（DE）/ Opiniones Verificadas（ES/PT）—— 平台后台导出 CSV/Excel，
   # 用 `cli reviews-import --file X --platform trustedshop --site aosom_de` 导入

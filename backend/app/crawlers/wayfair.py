@@ -1,9 +1,10 @@
-"""Wayfair 采集器 —— 北美家居电商，PerimeterX / Akamai 双层防护。
+"""Wayfair 采集器 —— 北美家居电商，PerimeterX (PX3Vk96I6i) 反爬。
 
 入口：robots.txt 暴露了 6 个 sitemap，PDP 子图为 `seo-pdp-index.xml`，
-下挂数十个 `seo-pdp-sitemap~N.xml`（每个 ~370 商品 URL）。
+下挂 1000+ 个 `seo-pdp-sitemap~N.xml`（每个 ~370-500 商品 URL，总量
+约 38 万商品页可达）。
 
-商品页结构：
+商品页结构（实测 2026-05-24）：
   · 无 Product JSON-LD（只有 WebSite 和 BreadcrumbList 两块）
   · 没有公开的 __APP_INIT__ 全量 JSON（被打散进 webpack chunks）
   · 价格、标题、SKU 全在 SSR HTML 里，靠 data-test-id 锚定：
@@ -15,14 +16,21 @@
   · BreadcrumbList JSON-LD 拿分类路径
   · og:image / og:title / og:description 拿描述
 
-策略：
-  1. 顺序读 seo-pdp-index.xml → 列出 50+ 个子 sitemap
-  2. 顺序读子 sitemap，累积 product URL（默认 limit 1000）
-  3. 用 curl_cffi(impersonate=chrome) 请求每个 PDP，正则 + selectolax 解析
-  4. 命中 401/403/451/429 即 fallback 到 StealthyFetcher（Camoufox）
+反爬实测（2026-05-24 本机直连 99.x.x.x，无代理）：
+  · 单 session + 完整 Sec-Fetch-* + homepage warmup 后，curl_cffi 可
+    连发 ~30-40 个 PDP（~3s/页）后触发 PerimeterX 429
+  · 触发后该 IP 进入 60+ 分钟硬封禁（实测 70 min 后仍 429），所有
+    fingerprint（chrome/safari/firefox/tor）一律拒
+  · StealthyFetcher (Camoufox) 单页 ~60s，对 1000 SKU 不可行（17h+）
+  · 结论：本地直连最多抓 ~40 SKU/IP，1000 SKU 必须配住宅代理池
+    （proxy_tier="residential"），轮换出口 IP
 
-实测（2026-05-24，本机直连，无代理）：curl_cffi 路径 200 OK，
-~0.7-0.9s/页，1000 SKU 约 15-25 分钟（含拟人 sleep）。
+策略：
+  1. 顺序读 seo-pdp-index.xml → 列出 1000+ 个子 sitemap
+  2. 顺序读子 sitemap，累积 product URL（默认 limit 1000）
+  3. curl_cffi(impersonate=chrome) + homepage warmup + 浏览器头
+  4. 命中 429/403 → sleep 90s + 重建 session（不走 stealth）
+  5. WAYFAIR_USE_STEALTH=1 显式启用 StealthyFetcher 兜底
 """
 from __future__ import annotations
 
@@ -62,6 +70,10 @@ class WayfairCrawler(BaseCrawler):
         super().__init__(site)
         self.base = site.url.rstrip("/")
         self.limit = limit if limit is not None else DEFAULT_LIMIT
+        # Wayfair PerimeterX：实测 1.5s 间隔会在 ~40 次后被打入观察名单。
+        # 强制最小 3.5s 基础延迟 + jitter，把单次请求节奏拉到 3.5-5.6s。
+        # 用 env WAYFAIR_DELAY 可调（NAS 走代理时可放回 1.5）。
+        self.delay = float(os.environ.get("WAYFAIR_DELAY", "3.5"))
 
     # ---------- session ----------
     def _session(self, warmup: bool = False) -> creq.Session:
@@ -204,6 +216,10 @@ class WayfairCrawler(BaseCrawler):
                     self.snapshot(row["sku"], html)
                     result.products.append(row)
                     ok += 1
+                    # 每 50 条做一次轻量进度 note —— 大盘可观察
+                    if ok and ok % 50 == 0:
+                        result.notes.append(
+                            f"  进度 ok={ok} blocked={blocked} 404={missing}")
                 else:
                     fail += 1
             except BlockedError:

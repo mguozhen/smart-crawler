@@ -20,9 +20,12 @@ router = APIRouter(tags=["discovery"])
 BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://smartcrawler.io")
 
 _SUMMARY = (
-    "为 AI Agent 打造的跨境电商竞品数据采集引擎。覆盖 9 大家居品牌 "
-    "46 个独立站 + 21 个评论渠道，持续采集结构化的竞品商品 / 价格 / 促销、"
-    "消费者口碑(VOC)评论 + NLP 情感分析、Google Shopping 竞争格局。"
+    "Agent 时代电商情报采集引擎。覆盖 62 个跨境电商站点："
+    "Walmart / Target / AliExpress / eBay / Etsy / Vidaxl / Songmics / Costway / "
+    "Homary / Idealo / Otto / BOL / CDiscount / IKEA / Crate&Barrel / WestElm / "
+    "Wayfair / Allegro / Article / Flexispot / VonHaus / Yaheetech / BCP / "
+    "Overstock / Woltu —— 持续采集结构化竞品商品 / 价格 / 促销、"
+    "消费者口碑(VOC)评论 + NLP 情感分析、Google Shopping 竞争格局、Reddit 社媒讨论。"
 )
 
 # MCP 工具清单（与 mcp_server.py 保持一致）—— 发现层用，便于目录收录。
@@ -81,8 +84,9 @@ smart-crawler 把"网页采集"做成 AI Agent 可直接调用的数据服务：
 ## 覆盖范围
 
 - 品牌: SONGMICS / VASAGLE / FEANDREA / Costway / Homary / Vidaxl / Flexispot / VonHaus
-- 站点: 46 个独立站，覆盖 US/UK/DE/FR/IT/ES/CA 等 12 国
+- 站点: 62 个跨境电商站点（独立站 + 主流平台 Walmart/Target/AliExpress/eBay/Etsy），覆盖 US/UK/DE/FR/IT/ES/CA/NL/PL/IE/PT/RO 等 12 国
 - 口碑: Trustpilot / Reviews.io / Google Maps 共 21 个评论渠道
+- 社媒: Reddit 子系统支持 subreddit 数据抓取 + LLM playbook 生成
 """
 
 

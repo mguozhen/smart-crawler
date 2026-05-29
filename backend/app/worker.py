@@ -11,8 +11,11 @@ import os
 import signal
 import socket
 import time
+from datetime import datetime
 
 from .analytics import recompute
+from .db import session_scope
+from .models import CrawlJob
 from .runner import claim_job, execute_job
 
 logging.basicConfig(level=logging.INFO,
@@ -21,13 +24,50 @@ logger = logging.getLogger("smart-crawler.worker")
 
 WORKER_ID = os.environ.get("WORKER_ID") or f"{socket.gethostname()}-{os.getpid()}"
 POLL_INTERVAL = int(os.environ.get("WORKER_POLL", "10"))
+JOB_TIMEOUT = int(os.environ.get("WORKER_JOB_TIMEOUT", "1800"))  # 30 min 默认
 _running = True
+
+
+class JobTimeout(Exception):
+    """单条 job 超时（worker hang 在死代理上的兜底）。"""
+
+
+def _alarm_handler(signum, frame):
+    raise JobTimeout(f"job exceeded {JOB_TIMEOUT}s")
+
+
+def _set_alarm(seconds: int) -> None:
+    """signal.alarm 只能在主线程调用；in-process worker 跑在守护线程时跳过。"""
+    try:
+        signal.alarm(seconds)
+    except (ValueError, AttributeError):
+        pass
+
+
+def _mark_job_timeout(job_id: int) -> None:
+    """标 job 为 failed（worker 自我兜底，不依赖 clean_stale daemon）。"""
+    try:
+        with session_scope() as s:
+            job = s.get(CrawlJob, job_id)
+            if job and job.status == "running":
+                job.status = "failed"
+                job.finished_at = datetime.utcnow()
+                job.error = f"worker timeout {JOB_TIMEOUT}s（死代理 hang 兜底）"
+    except Exception as exc:
+        logger.error("mark_job_timeout 失败 job=%s: %s", job_id, exc)
 
 
 def run_loop(should_continue=None) -> None:
     """领取并执行队列任务，直到 should_continue() 为假。"""
     should_continue = should_continue or (lambda: _running)
-    logger.info("worker %s 启动，轮询间隔 %ds", WORKER_ID, POLL_INTERVAL)
+    # 注册超时 alarm handler（main thread only —— worker.py 主线程跑没问题）
+    try:
+        signal.signal(signal.SIGALRM, _alarm_handler)
+    except ValueError:
+        # 非主线程（in-process mode）—— alarm 不可用，靠 clean_stale daemon 兜底
+        pass
+    logger.info("worker %s 启动，轮询间隔 %ds，单 job 超时 %ds",
+                WORKER_ID, POLL_INTERVAL, JOB_TIMEOUT)
     while should_continue():
         try:
             job_id = claim_job(WORKER_ID)
@@ -39,12 +79,21 @@ def run_loop(should_continue=None) -> None:
             time.sleep(POLL_INTERVAL)
             continue
         try:
-            result = execute_job(job_id)
+            _set_alarm(JOB_TIMEOUT)
+            try:
+                result = execute_job(job_id)
+            finally:
+                _set_alarm(0)
             if result["status"] == "success":
                 recompute(result["site"])
             logger.info("job %s %s -> %s", job_id, result["site"],
                         result["status"])
+        except JobTimeout as exc:
+            _set_alarm(0)
+            _mark_job_timeout(job_id)
+            logger.warning("job %s 超时: %s", job_id, exc)
         except Exception as exc:
+            _set_alarm(0)
             logger.error("job %s 执行异常: %s", job_id, exc)
     logger.info("worker %s 退出", WORKER_ID)
 

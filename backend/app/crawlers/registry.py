@@ -73,4 +73,19 @@ def get_crawler(site: Site) -> BaseCrawler:
     if platform == "ebay":
         from .ebay import EbayCrawler
         return EbayCrawler(site)
+    if platform == "walmart":
+        from .walmart import WalmartCrawler
+        return WalmartCrawler(site)
+    if platform == "target":
+        from .target import TargetCrawler
+        return TargetCrawler(site)
+    if platform == "aliexpress":
+        from .aliexpress import AliExpressCrawler
+        return AliExpressCrawler(site)
+    if platform == "etsy":
+        from .etsy import EtsyCrawler
+        return EtsyCrawler(site)
+    if platform == "bestbuy":
+        from .bestbuy import BestBuyCrawler
+        return BestBuyCrawler(site)
     raise ValueError(f"未知平台: {platform}")

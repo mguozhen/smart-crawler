@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import os
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -640,12 +641,12 @@ def proxy_reload():
 
 
 # ---------- 数据覆盖率（3B 仪表盘）----------
-# 估算全量 SKU 数 —— **校准为现实可达上限**，不是站点真实全量
-# 现实约束：Vidaxl 直连 401，需住宅代理 + 反爬，每日单站可稳定抓 5k-15k
-# 旧的"30-50万"是站点理论总量，但我们当前未走 API 授权路径，达不到
-# 2026-05-27 aosen 反馈后校准：以"24h 内能稳定产出的上限"为 estimated_full
+# 估算全量 SKU 数。
+# Vidaxl: 改为从 data/sitemap_totals.json 读取真实 sitemap 总数（爬虫每次跑都写）。
+#   首次跑前 sidecar 文件不存在 → 回退到 _FULL_ESTIMATES 兜底数。
+# 其他平台：保留人工校准值。
 _FULL_ESTIMATES: dict[str, int] = {
-    # Vidaxl（住宅代理 + sitemap 限流，单站日上限约 12-15k）
+    # Vidaxl 兜底（仅在 sitemap 总数尚未落地时使用，落地后被 sidecar 覆盖）
     "vidaxl_de": 12000, "vidaxl_uk": 8000, "vidaxl_fr": 8000,
     "vidaxl_es": 12000, "vidaxl_it": 8000, "vidaxl_nl": 6000,
     "vidaxl_pl": 8000, "vidaxl_pt": 12000, "vidaxl_ro": 12000,
@@ -654,6 +655,19 @@ _FULL_ESTIMATES: dict[str, int] = {
     # Costway: API 分页采集，已接近全量
     # 其他：缺数据，0 = 不计入覆盖率
 }
+
+_SITEMAP_TOTALS_PATH = os.environ.get(
+    "SITEMAP_TOTALS_PATH", "/app/data/sitemap_totals.json")
+
+
+def _load_sitemap_totals() -> dict[str, int]:
+    """爬虫端写入的真实 sitemap URL 总数 —— 优先于 _FULL_ESTIMATES。"""
+    import json
+    try:
+        with open(_SITEMAP_TOTALS_PATH, "r", encoding="utf-8") as f:
+            return {k: int(v) for k, v in (json.load(f) or {}).items()}
+    except Exception:
+        return {}
 
 
 def _load_hidden_sites() -> set[str]:
@@ -680,12 +694,14 @@ def data_coverage(
     """每站点数据覆盖率：当前 SKU / 估算全量。"""
     from ..models import Site as SiteModel
     hidden = _load_hidden_sites() if not include_hidden else set()
+    sitemap_totals = _load_sitemap_totals()
     rows = []
     for s in db.query(SiteModel).all():
         if s.site in hidden:
             continue
         cur = db.query(Product).filter(Product.site == s.site).count()
-        est = _FULL_ESTIMATES.get(s.site, 0)
+        # 真实 sitemap 总数优先（爬虫每次跑都更新），缺失时回退人工估算
+        est = sitemap_totals.get(s.site) or _FULL_ESTIMATES.get(s.site, 0)
         pct = round(cur / est * 100, 2) if est > 0 else None
         if est == 0:
             # 没有估算时，假定当前就是全量

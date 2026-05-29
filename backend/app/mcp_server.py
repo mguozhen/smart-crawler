@@ -18,10 +18,14 @@ from .models import (Keyword, PriceHistory, Product, Promotion, Review,
 mcp = FastMCP(
     "smart-crawler",
     instructions=(
-        "遨森标杆竞品数据采集平台。为 AI Agent 提供跨境电商竞品情报："
-        "竞品商品/价格/促销、消费者口碑评论(VOC)、Google Shopping 竞争格局，"
-        "以及按 Amazon ASIN 的评论采集与 AI 口碑分析。"
-        "覆盖 9 大家居品牌 46 个独立站 + 21 个评论渠道。所有数据持续采集、结构化。"
+        "Agent 时代电商情报采集引擎。覆盖主流跨境电商 / 平台市场 / 社媒渠道："
+        "Walmart / Target / AliExpress / eBay / Vidaxl / Songmics / Costway / "
+        "Homary / Idealo / Otto / BOL / CDiscount / IKEA / Crate&Barrel / "
+        "WestElm / Wayfair / Allegro / Article / Yaheetech / VonHaus / "
+        "Flexispot / Overstock / BCP / Woltu —— 61 站点矩阵持续采集。"
+        "数据维度：商品 / 价格历史 / 促销 / 评分 / 评论(VOC) / Google Shopping / "
+        "Amazon ASIN 评论 + AI 口碑分析。"
+        "为 AI Agent 设计的 MCP 工具集 + Firecrawl-compatible v2 API + 结构化 JSON 输出。"
     ),
 )
 
