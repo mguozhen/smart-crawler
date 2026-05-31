@@ -285,6 +285,98 @@ def reddit_subreddit_playbook(subreddit: str, top_n: int = 3) -> dict:
         return {"error": str(exc), "subreddit": subreddit}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Influencer Discovery Tools — TikTok / Instagram / Facebook / YouTube
+# Native replacement for Apify + ScraperAPI (deployed 2026-05-28).
+# ─────────────────────────────────────────────────────────────────────────────
+
+@mcp.tool
+def discover_creators_by_hashtag(
+    platform: str, hashtags: list[str], limit: int = 38,
+) -> dict:
+    """按 hashtag 发现创作者 —— 替代 Apify TikTok/Instagram/Facebook scraper。
+
+    platform: "tiktok" / "instagram" / "facebook"
+      - tiktok 走 HTTP 抓取，当前被 2026-05 反爬挡（返回 0 items，需走 tiktok_phone）
+      - instagram 需要 NAS 路径有 IG_COOKIES_PATH 指向的 cookie 文件
+      - facebook 需要 FB_COOKIES_PATH cookie；hashtags 字段作为搜索关键词
+    hashtags: 不带 # 的列表，如 ["amazonfba", "amazonseller"]
+    limit: 返回创作者上限（1-200，默认 38）
+
+    返回每条 CreatorRecord:
+      {channelId, name, platform, profileUrl, handle,
+       followerCount, email, websiteUrl}
+    """
+    from .influencers.discover import dispatch
+    if platform not in ("tiktok", "instagram", "facebook"):
+        return {"error": f"platform must be tiktok/instagram/facebook, got {platform}"}
+    try:
+        items = dispatch(platform, {"hashtags": hashtags}, limit=max(1, min(limit, 200)))
+        return {"platform": platform, "hashtags": hashtags,
+                "itemCount": len(items), "items": items}
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}",
+                "platform": platform, "hashtags": hashtags}
+
+
+@mcp.tool
+def enrich_youtube_about(urls: list[str]) -> dict:
+    """从 YouTube About 页抽取 email + 外链 —— 替代 ScraperAPI。
+
+    urls: YouTube 频道 URL 列表，如 ["https://www.youtube.com/@MrBeast",
+          "https://www.youtube.com/@MKBHD/about"]
+    返回每个 url 对应的 {email, websiteUrl}（按输入顺序）。
+    """
+    from .influencers.discover import dispatch
+    try:
+        items = dispatch("youtube_about", {"urls": urls}, limit=len(urls))
+        return {"itemCount": len(items),
+                "items": [{"url": u, **it} for u, it in zip(urls, items)]}
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}", "urls": urls}
+
+
+@mcp.tool
+def ingest_tiktok_phone_results(hashtag: str, items: list[dict]) -> dict:
+    """收 matrix-mvp 手机驱动推上来的 TikTok 创作者批次。
+
+    items: 每条为 {"authorMeta": {"uniqueId", "nickName", "fans", ...}}（Apify 兼容形态）
+    返回 {runId, datasetId, itemCount} —— 调用方可后续用 get_discover_run_items 取数据。
+    主要给 matrix-mvp/poc-tiktok/phone_driver.py 调用。
+    """
+    from .influencers.discover_models import map_tiktok
+    from .influencers.run_registry import REGISTRY
+    mapped = []
+    for raw in items:
+        rec = map_tiktok(raw)
+        if rec is not None:
+            mapped.append(rec.to_dict())
+    rid = REGISTRY.create_run()
+    REGISTRY.mark_succeeded(rid, items=mapped)
+    return {"runId": rid, "datasetId": rid, "itemCount": len(mapped),
+            "hashtag": hashtag}
+
+
+@mcp.tool
+def get_discover_run_items(
+    run_id: str, limit: int = 1000, offset: int = 0,
+) -> dict:
+    """取一个 discover run 已采集到的 items（带分页）。
+
+    主要用于回看之前 discover_creators_by_hashtag / ingest_tiktok_phone_results 的结果。
+    run/dataset 在内存里保留 1 小时后 GC。
+    """
+    from .influencers.run_registry import REGISTRY
+    run = REGISTRY.get_run(run_id)
+    if run is None:
+        return {"error": f"run not found: {run_id}"}
+    items = REGISTRY.get_items(run_id, limit=max(1, min(limit, 10000)),
+                                offset=max(0, offset))
+    return {"runId": run_id, "status": run["status"],
+            "itemCount": run["itemCount"], "items": items,
+            "startedAt": run["startedAt"], "finishedAt": run["finishedAt"]}
+
+
 if __name__ == "__main__":
     import os
     mcp.run(transport="http", host="0.0.0.0",
