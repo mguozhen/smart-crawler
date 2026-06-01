@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>红人发现 MCP · 团队接入指南</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.65;color:#0d1117;background:#fff;margin:0;font-size:16px}
+  .wrap{max-width:920px;margin:0 auto;padding:40px 32px 80px}
+  header{border-bottom:1px solid #d0d7de;padding-bottom:20px;margin-bottom:28px}
+  h1{margin:0 0 4px;font-size:30px;letter-spacing:-0.01em}
+  .sub{color:#57606a;margin:4px 0 0;font-size:15px}
+  h2{font-size:22px;margin:40px 0 12px;border-bottom:1px solid #d0d7de;padding-bottom:6px}
+  h3{font-size:17px;margin:24px 0 8px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f6f8fa;padding:2px 6px;border-radius:4px;font-size:13.5px}
+  pre{background:#0d1117;color:#e6edf3;border-radius:8px;padding:18px;overflow-x:auto;font-size:13px;line-height:1.55;border:1px solid #21262d}
+  pre code{background:none;padding:0;color:inherit;font-size:inherit}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  th,td{border:1px solid #d0d7de;padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:#f6f8fa;font-weight:600}
+  .box{border:1px solid #d0d7de;border-radius:8px;padding:14px 20px;margin:14px 0;background:#f6f8fa}
+  .ok{border-left:4px solid #1a7f37}
+  .warn{border-left:4px solid #9a6700;background:#fff8c5}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:#dafbe1;color:#1a7f37;margin-left:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em}
+  .pill.warn{background:#fff8c5;color:#9a6700}
+  .pill.cold{background:#ddf4ff;color:#0969da}
+  a{color:#0969da;text-decoration:none}
+  a:hover{text-decoration:underline}
+  ol,ul{padding-left:22px}
+  li{margin:4px 0}
+  .endpoint{font-size:20px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#0d1117;color:#7ee787;padding:14px 18px;border-radius:8px;display:inline-block;margin:6px 0}
+  footer{margin-top:60px;padding-top:18px;border-top:1px solid #d0d7de;font-size:13px;color:#57606a}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>红人发现 MCP · 团队接入指南</h1>
+  <p class="sub">smart-crawler 暴露的 Influencer Discovery MCP 工具 · 替代 Apify + ScraperAPI · 内部团队使用</p>
+</header>
+
+<h2>1. 端点</h2>
+
+<div class="endpoint">https://smartcrawler.io/mcp/</div>
+
+<p>HTTP Streamable MCP transport（fastmcp 实现）。所有请求必须带 API Key。</p>
+
+<h2>2. 拿 API Key</h2>
+
+<ol>
+  <li>登录 smartcrawler 看板：<a href="https://smartcrawler.io/" target="_blank">https://smartcrawler.io</a></li>
+  <li>进 <b>API 接入</b> 页面 → <b>生成新 Key</b></li>
+  <li>得到形如 <code>sck_xxxxxxxxxxxxxxxx</code> 的 token，<b>只显示一次，立即复制保存</b></li>
+  <li>每个团队成员各自生成一个，方便审计 / 单独撤销</li>
+</ol>
+
+<h2>3. Claude Desktop 配置</h2>
+
+<p>编辑 <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>（macOS），加 <code>mcpServers</code> 块：</p>
+
+<pre><code>{
+  "mcpServers": {
+    "smartcrawler": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://smartcrawler.io/mcp/",
+        "--header",
+        "Authorization: Bearer sck_PASTE_YOUR_KEY_HERE"
+      ]
+    }
+  }
+}</code></pre>
+
+<p>保存后<b>完全退出 Claude Desktop 再打开</b>（Cmd+Q，不是关窗口）。聊天框左下角应该出现 🔌 图标，点开能看到 smartcrawler 的 16 个工具。</p>
+
+<h2>4. Cursor / Windsurf / Cline 配置</h2>
+
+<p>同样格式，路径换成各自的 MCP 配置文件：</p>
+
+<table>
+<tr><th>客户端</th><th>配置路径</th></tr>
+<tr><td>Cursor</td><td><code>~/.cursor/mcp.json</code> 或项目内 <code>.cursor/mcp.json</code></td></tr>
+<tr><td>Windsurf</td><td><code>~/.codeium/windsurf/mcp_config.json</code></td></tr>
+<tr><td>Cline (VS Code)</td><td>VS Code Settings → Cline → MCP Servers</td></tr>
+<tr><td>Continue.dev</td><td><code>~/.continue/config.json</code> 的 <code>mcpServers</code> 段</td></tr>
+</table>
+
+<h2>5. 红人发现 4 个新工具</h2>
+
+<div class="box ok">
+<h3 style="margin-top:0">discover_creators_by_hashtag <span class="pill">替代 Apify</span></h3>
+<p>按 hashtag 发现 TikTok / Instagram / Facebook 创作者。</p>
+<p><b>参数</b>：</p>
+<ul>
+  <li><code>platform</code>: <code>"tiktok"</code> / <code>"instagram"</code> / <code>"facebook"</code></li>
+  <li><code>hashtags</code>: 字符串数组，不带 #，如 <code>["amazonfba", "amazonseller"]</code>。Facebook 平台下当搜索关键词用。</li>
+  <li><code>limit</code>: 1-200，默认 38</li>
+</ul>
+<p><b>返回</b>：</p>
+<pre><code>{
+  "platform": "instagram",
+  "hashtags": ["amazonfba"],
+  "itemCount": 12,
+  "items": [
+    {
+      "channelId": "ig:sellerjoe",
+      "name": "Seller Joe",
+      "platform": "Instagram",
+      "profileUrl": "https://www.instagram.com/sellerjoe/",
+      "handle": "sellerjoe",
+      "followerCount": 12345,
+      "email": "biz@sellerjoe.com",
+      "websiteUrl": "https://sellerjoe.com"
+    }
+    ...
+  ]
+}</code></pre>
+</div>
+
+<div class="box ok">
+<h3 style="margin-top:0">enrich_youtube_about <span class="pill">替代 ScraperAPI</span></h3>
+<p>从 YouTube 频道 About 页抽取邮箱 + 外链。</p>
+<p><b>参数</b>：<code>urls</code>: YouTube 频道 URL 列表</p>
+<p><b>返回</b>：</p>
+<pre><code>{
+  "itemCount": 2,
+  "items": [
+    {"url": "https://www.youtube.com/@MrBeast",
+     "email": null, "websiteUrl": "https://bit.ly/mrbeastbowandarrow"},
+    {"url": "https://www.youtube.com/@MKBHD/about",
+     "email": null, "websiteUrl": "https://www.shopmkbhd.com"}
+  ]
+}</code></pre>
+</div>
+
+<div class="box ok">
+<h3 style="margin-top:0">ingest_tiktok_phone_results <span class="pill">手机驱动专用</span></h3>
+<p>给 matrix-mvp 手机驱动调用 —— 接收从安卓 TikTok app 解析出来的创作者批次。</p>
+<p><b>参数</b>：<code>hashtag</code>: 字符串，<code>items</code>: <code>[{authorMeta: {...}}, ...]</code>（Apify 兼容形态）</p>
+<p><b>返回</b>：<code>{runId, datasetId, itemCount}</code> —— 后续用 <code>get_discover_run_items</code> 取数据</p>
+</div>
+
+<div class="box ok">
+<h3 style="margin-top:0">get_discover_run_items</h3>
+<p>取一个 discover run 已采集到的 items（带 limit/offset 分页）。runs 在内存里保留 1 小时后 GC。</p>
+</div>
+
+<h2>6. 当前各平台状态</h2>
+
+<table>
+<tr><th>platform</th><th>状态</th><th>备注</th></tr>
+<tr><td><code>youtube_about</code></td><td><span class="pill">live</span></td><td>已 smoke 验证（MrBeast / MKBHD）</td></tr>
+<tr><td><code>tiktok</code></td><td><span class="pill warn">live but empty</span></td><td>TikTok 2026-05 反爬关了 SSR JSON · HTTP 抓取返回 0 items · 改走 <code>tiktok_phone</code></td></tr>
+<tr><td><code>tiktok_phone</code></td><td><span class="pill">live</span></td><td>等手机驱动 (<code>matrix-mvp/poc-tiktok/phone_driver.py</code>) 推数据</td></tr>
+<tr><td><code>instagram</code></td><td><span class="pill cold">cookies pending</span></td><td>需运维丢 <code>ig.json</code> 到 NAS <code>/volume1/docker/smart-crawler/app/data/cookies/</code></td></tr>
+<tr><td><code>facebook</code></td><td><span class="pill cold">cookies pending</span></td><td>需运维丢 <code>fb.json</code> 同路径</td></tr>
+</table>
+
+<h2>7. 其它已暴露工具（同一 MCP server）</h2>
+
+<table>
+<tr><th>工具</th><th>用途</th></tr>
+<tr><td><code>list_data_sources</code></td><td>列出 46 个采集站点 + 评论平台 + Google Shopping</td></tr>
+<tr><td><code>search_competitor_products</code></td><td>按品牌/国家/品类/价格搜竞品商品</td></tr>
+<tr><td><code>get_product_detail</code></td><td>取单品详情 + 历史价格曲线</td></tr>
+<tr><td><code>list_promotions</code></td><td>列竞品当前促销活动</td></tr>
+<tr><td><code>get_voc_reviews</code></td><td>取 Trustpilot / Reviews.io / Google Map 评论</td></tr>
+<tr><td><code>voc_summary</code></td><td>VOC 情感分布 + 痛点分类</td></tr>
+<tr><td><code>competitor_landscape</code></td><td>Google Shopping 关键词商家份额</td></tr>
+<tr><td><code>amazon_voc_report</code></td><td>按 ASIN 取评论 + AI 口碑分析</td></tr>
+<tr><td><code>fetch_amazon_reviews</code></td><td>按 ASIN 取原始评论数组</td></tr>
+<tr><td><code>reddit_top_contributors</code></td><td>找 subreddit top N 贡献者</td></tr>
+<tr><td><code>reddit_user_activity</code></td><td>取 Reddit 用户活动</td></tr>
+<tr><td><code>reddit_subreddit_playbook</code></td><td>生成 subreddit 一键 playbook</td></tr>
+</table>
+
+<h2>8. 验证接入是否成功</h2>
+
+<p>Claude Desktop / Cursor 配好后，在聊天里直接说：</p>
+
+<pre><code>用 smartcrawler 帮我抓 instagram 上 hashtag amazonfba 的前 20 个创作者</code></pre>
+
+<p>客户端会触发 <code>discover_creators_by_hashtag(platform="instagram", hashtags=["amazonfba"], limit=20)</code> 并把 JSON 结果展示出来。如果看到 <code>cookies_expired_instagram</code>，说明工具通了但运维还没丢 cookie 文件。</p>
+
+<p>命令行直测（替换 <code>sck_...</code>）：</p>
+
+<pre><code>curl -sS -X POST https://smartcrawler.io/mcp/ \
+  -H "Authorization: Bearer sck_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'</code></pre>
+
+<div class="box warn">
+<h3 style="margin-top:0">速率限制 / 注意事项</h3>
+<ul>
+  <li>每个工具调用按 fastmcp 的默认并发处理；<b>discover_creators_by_hashtag</b> 同步阻塞直到结果返回，limit=100 大概 10–30 秒</li>
+  <li>IG/FB 走住宅代理池，每个账号每天合理上限 ~200 次搜索，避免触发风控</li>
+  <li>runs/datasets 在 NAS 内存里保留 <b>1 小时</b> 后 GC —— 拿到结果要及时落库</li>
+  <li>API key 泄露 → 立刻去看板撤销，重新生成</li>
+</ul>
+</div>
+
+<footer>
+<p>基础设施：smart-crawler @ NAS 192.168.1.80:8077 → smartcrawler.io (Cloudflare tunnel)</p>
+<p>代码：<code>backend/app/mcp_server.py</code> · <code>backend/app/influencers/</code> · 接入文档 <code>backend/app/influencers/README.md</code></p>
+</footer>
+
+</div>
+</body>
+</html>

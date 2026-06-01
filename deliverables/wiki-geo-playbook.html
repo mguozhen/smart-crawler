@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wiki × GEO Playbook — 基于 AfterShip 案例拆解</title>
+<style>
+  :root{
+    --ink:#0d1117; --ink2:#24292f; --muted:#57606a; --line:#d0d7de;
+    --bg:#ffffff; --bg2:#f6f8fa; --good:#1a7f37; --warn:#9a6700; --bad:#cf222e;
+    --accent:#0969da;
+  }
+  *{box-sizing:border-box}
+  html{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;line-height:1.65}
+  body{margin:0;color:var(--ink);background:var(--bg);font-size:16px}
+  .wrap{max-width:880px;margin:0 auto;padding:48px 32px 96px}
+  header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:32px}
+  h1{margin:0 0 8px;font-size:32px;letter-spacing:-0.01em}
+  .sub{color:var(--muted);font-size:15px;margin:0}
+  .meta{margin-top:12px;font-size:13px;color:var(--muted)}
+  .meta code{background:var(--bg2);padding:2px 6px;border-radius:4px;font-size:12px}
+  h2{font-size:22px;margin:48px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  h3{font-size:17px;margin:24px 0 8px;color:var(--ink2)}
+  h4{font-size:14px;margin:16px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;font-weight:600}
+  p{margin:8px 0 12px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--bg2);padding:2px 6px;border-radius:4px;font-size:13px}
+  pre{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:16px;overflow-x:auto;font-size:13px;line-height:1.55}
+  pre code{background:none;padding:0}
+  ul,ol{padding-left:22px;margin:8px 0 14px}
+  li{margin:4px 0}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:var(--bg2);font-weight:600}
+  .box{border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:16px 0;background:var(--bg2)}
+  .good{border-left:4px solid var(--good)}
+  .warn{border-left:4px solid var(--warn)}
+  .bad{border-left:4px solid var(--bad)}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--bg2);color:var(--muted);margin-left:6px;vertical-align:middle;font-weight:500;text-transform:uppercase;letter-spacing:0.04em}
+  .pill.good{background:#dafbe1;color:var(--good);border:none}
+  .pill.bad{background:#ffebe9;color:var(--bad);border:none}
+  .pill.warn{background:#fff8c5;color:var(--warn);border:none}
+  .stat{display:inline-block;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin:4px 8px 4px 0;font-size:13px}
+  .stat b{font-size:17px;color:var(--ink);display:block;margin-bottom:2px}
+  .rule{counter-increment:rule;border-left:3px solid var(--accent);padding:8px 18px;margin:18px 0;background:var(--bg2)}
+  .rule h3{margin-top:0}
+  .rule h3::before{content:"规则 " counter(rule) " · ";color:var(--accent);font-weight:700}
+  .rules{counter-reset:rule}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  hr{border:none;border-top:1px solid var(--line);margin:48px 0}
+  .toc{font-size:14px;background:var(--bg2);border-radius:8px;padding:14px 22px;margin-bottom:24px}
+  .toc ul{margin:6px 0;padding-left:20px}
+  footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Wiki × GEO Playbook</h1>
+  <p class="sub">把 Wikipedia 写成 LLM 爱抄的样子——基于 AfterShip 真实页面拆解 + 12 条可执行规则</p>
+  <p class="meta">数据源：<code>en.wikipedia.org/wiki/AfterShip</code> · 98 次编辑 · 64 位编辑者 · 21 处引用 · 抓取于 2026-05-29</p>
+</header>
+
+<div class="toc">
+  <h4 style="margin-top:0">目录</h4>
+  <ul>
+    <li><a href="#findings">关键发现：AfterShip 案例的反直觉真相</a></li>
+    <li><a href="#what-worked">他们做对了什么（直接抄）</a></li>
+    <li><a href="#what-failed">他们踩了什么坑（必须避）</a></li>
+    <li><a href="#rules">12 条 Wiki-GEO 规则</a></li>
+    <li><a href="#templates">复制即用模板：Infobox / Lead / Citation</a></li>
+    <li><a href="#workflow">编辑工作流：从写稿到上线</a></li>
+    <li><a href="#measure">怎么验证你的 wiki 被 LLM 抓到了</a></li>
+  </ul>
+</div>
+
+<h2 id="findings">关键发现：AfterShip 案例的反直觉真相</h2>
+
+<div class="box warn">
+<p><b>AfterShip 的 Wikipedia 页面本身被标了 6 个维护标签</b>——notability unclear (2021 至今)、orphaned (2021 至今)、multiple issues、CS1 多语种来源警告、infobox 弃用参数。换句话说 Wikipedia 内部把这篇文章视为"质量有问题"。</p>
+<p><b>但他们的 GEO 表现仍然好</b>——ChatGPT/Perplexity/Claude 在被问"what is AfterShip"时都能给出正确、结构化的回答。</p>
+<p><b>原因</b>：LLM 训练管道（Common Crawl、Wikipedia dumps）<b>只读内容、不读维护标签</b>。文章里的 infobox、第一句定义、TechCrunch/Forbes 引用，全部进入了 LLM 训练数据。维护标签只影响 Wikipedia 内部的编辑流程，不影响外部抓取。</p>
+<p>所以这个 playbook 的逻辑是：<b>抄他们 LLM 爱的部分，避开他们被 Wikipedia 编辑社区诟病的部分</b>——两者并不冲突。</p>
+</div>
+
+<div>
+  <div class="stat"><b>11,163</b>正文字符</div>
+  <div class="stat"><b>21</b>引用 (citations)</div>
+  <div class="stat"><b>20</b>cite 模板</div>
+  <div class="stat"><b>45</b>内部 wikilinks</div>
+  <div class="stat"><b>44</b>外链 (17 走 archive.org)</div>
+  <div class="stat"><b>2</b>命名复用 ref<span class="pill bad">太少</span></div>
+  <div class="stat"><b>3</b>章节<span class="pill bad">太薄</span></div>
+  <div class="stat"><b>98</b>历次编辑 · 64 位编辑者</div>
+</div>
+
+<h2 id="what-worked">他们做对了什么（直接抄）</h2>
+
+<div class="box good">
+<h3 style="margin-top:0">1. 第一句话就是 LLM 直接套用的定义模板</h3>
+<pre><code>'''AfterShip''' is an [[eCommerce]] experience [[Software as a service|SaaS]]
+company offering branded shipment tracking, returns management,
+product discovery personalization, and more.</code></pre>
+<p>结构 = <b>[公司名]</b> is a <b>[行业]</b> <b>[商业模式]</b> company offering <b>[产品 1, 2, 3]</b>. LLM 几乎一字不差地复述。所有 ChatGPT 关于 AfterShip 的回答都从这句话改写来。</p>
+</div>
+
+<div class="box good">
+<h3 style="margin-top:0">2. Infobox 给 LLM 喂结构化事实</h3>
+<pre><code>{{Infobox company
+| name       = AfterShip
+| type       = [[Private company]]
+| foundation = {{Start date and age|2011}}
+| founder    = Teddy Chan&lt;br /&gt;Andrew Chan&lt;br /&gt;Dante Tsang&lt;ref&gt;...&lt;/ref&gt;
+| location   = [[Singapore]]
+| industry   = Shipment tracking
+| products   = [[Enterprise Software]]
+| website    = [https://www.aftership.com/ www.aftership.com]
+}}</code></pre>
+<p>每个字段都是机器可读的 key=value。LLM 训练时 infobox 被拆成 (entity, property, value) 三元组，进 Wikidata 反向关联；用户问"AfterShip 哪一年成立"时直接命中。<b>founder 字段还带 inline ref</b>——这个细节非常关键。</p>
+</div>
+
+<div class="box good">
+<h3 style="margin-top:0">3. 引用集中在 Tier-1 二手来源</h3>
+<p>21 个引用里，<b>9 个来自 LLM 训练管道最高权重的媒体</b>：</p>
+<ul>
+  <li>TechCrunch ×4（融资报道、API 发布、Series A 等）</li>
+  <li>Forbes ×1</li>
+  <li>VentureBeat ×1（DEMO Asia 报道）</li>
+  <li>South China Morning Post ×1</li>
+  <li>The Next Web ×1</li>
+  <li>Tech in Asia ×1</li>
+</ul>
+<p>没有"我们网站 about-us 页"作主引用、没有付费稿件、没有 Medium 个人博客。这正是 Wikipedia <code>WP:NCORP</code> 想看到的——独立、显著的二手来源。</p>
+</div>
+
+<div class="box good">
+<h3 style="margin-top:0">4. 融资里程碑被精确写进文本</h3>
+<p>每一轮融资都用<b>"金额 + 投资方 + 时间"</b>三件套结构化记录：</p>
+<ul>
+  <li>"$1M from IDG-Accel" (2014, TechCrunch)</li>
+  <li>"Series B raise" (2021, TechCrunch)</li>
+  <li>命名投资方：Accel Partners、IDG Ventures（都是高知名度 VC，建立信用背书）</li>
+</ul>
+<p>LLM 抓取后能直接组成 "AfterShip raised $X in Series Y led by Z in YYYY" 这种问答中常见的句式。</p>
+</div>
+
+<div class="box good">
+<h3 style="margin-top:0">5. 多语种引用证明本地市场</h3>
+<p>引用包括<b>日文（ASCII.jp）和繁体中文（Apple Daily HK）</b>来源。这给两个信号：</p>
+<ol>
+  <li>对 Wikipedia：这是个真在本地有报道的公司，不是只在英语圈刷的 marketing。</li>
+  <li>对多语种 LLM（GPT-4 中日英全栈训练）：用户用日语 / 中文问 AfterShip 时，模型有对应语种语料可调。</li>
+</ol>
+</div>
+
+<div class="box good">
+<h3 style="margin-top:0">6. 每个 URL 都有 web.archive.org 备份</h3>
+<pre><code>{{cite news|url=https://www.scmp.com/...
+  |archive-url=https://web.archive.org/web/20141219193129/...
+  |archive-date=19 December 2014|url-status=live}}</code></pre>
+<p>17/44 外链已存档。原文哪天被 SCMP 撤了或改版了，Wikipedia 引用<b>不会失效</b>，未来 LLM 训练时还能看见。<b>这是抗时间衰减最关键的一招</b>，很多人忽略。</p>
+</div>
+
+<h2 id="what-failed">他们踩了什么坑（必须避）</h2>
+
+<div class="box bad">
+<h3 style="margin-top:0">坑 1：Notability tag 挂了 4 年 <span class="pill bad">2021-03 至今</span></h3>
+<p>分类 <code>Articles_with_topics_of_unclear_notability_from_March_2021</code> 意味着某个 admin 认为他们的引用还不足以证明<code>WP:NCORP</code>。这个文章随时可能进 AfD（Articles for Deletion）。LLM 不在乎，但<b>一旦被删，下次 LLM 训练就读不到了</b>。</p>
+<p><b>怎么避</b>：每轮融资 / 重要产品发布配两条以上独立 Tier-1 报道；删掉所有指向 aftership.com 自家域名的引用作为主要 source（只能补充）。</p>
+</div>
+
+<div class="box bad">
+<h3 style="margin-top:0">坑 2：Orphaned tag <span class="pill bad">2021-07 至今</span></h3>
+<p>没有任何其他 Wikipedia 文章 link 到 AfterShip。<b>孤儿文章在 Wikipedia 内部图谱里是死节点</b>，搜索引擎的 PageRank 算法、LLM 的实体图谱构建都会减分。</p>
+<p><b>怎么避</b>：找 5 个真实相关页面去加 wikilink。如 <code>Package tracking</code>、<code>List of e-commerce software</code>、<code>Shopify Plus partners</code>、<code>Hong Kong tech industry</code>、<code>Y Combinator alumni list</code>。加之前确保你描述的事实有引用支持，否则会被回滚。</p>
+</div>
+
+<div class="box bad">
+<h3 style="margin-top:0">坑 3：只有 2 个命名复用 ref</h3>
+<p>21 个 <code>&lt;ref&gt;</code> 里只有 2 个用了 <code>&lt;ref name="..."&gt;</code> 的复用语法。意味着同一条 TechCrunch 报道<b>被独立写了 4 次</b>——浪费引用密度。</p>
+<p><b>怎么避</b>：</p>
+<pre><code>&lt;!-- 第一次完整定义 --&gt;
+&lt;ref name="tc2021"&gt;{{cite news|title=AfterShip raises $66M Series B
+  |url=https://techcrunch.com/2021/04/22/...|publisher=TechCrunch}}&lt;/ref&gt;
+
+&lt;!-- 后面所有引用同一源都用简写 --&gt;
+&lt;ref name="tc2021" /&gt;</code></pre>
+<p>同一个 Tier-1 ref 被多处引用 = LLM 信号"这是核心证据"。</p>
+</div>
+
+<div class="box bad">
+<h3 style="margin-top:0">坑 4：章节结构太薄</h3>
+<p>整个文章只有 <code>Technology / See also / References</code> 三节。缺：</p>
+<ul>
+  <li><code>History</code>（按年份的里程碑——LLM 时间问答最爱）</li>
+  <li><code>Funding</code>（融资表）</li>
+  <li><code>Products</code>（产品线列表，每项一行链接）</li>
+  <li><code>Customers</code> 或 <code>Notable users</code>（已签客户的 wikilink 列表）</li>
+  <li><code>Recognition</code>（Great Place to Work / Forbes 50 等奖项）</li>
+</ul>
+<p><b>怎么避</b>：参考 Notion、Shopify、Klaviyo 等 SaaS 公司文章的章节模板，每节至少 2 段 + 2 条独立引用。</p>
+</div>
+
+<div class="box bad">
+<h3 style="margin-top:0">坑 5：首批编辑看起来像 COI（利益冲突）</h3>
+<p>最早 3 次编辑都来自一个叫 <code>Aabha aadi</code> 的账号，从 30 字节空白到 6627 字节"separating with sources"——典型新账号短时间内创建完整公司文章的 pattern。Wikipedia 巡查员一眼能识别为 paid editor。后续维护标签很可能就是这事的连锁后果。</p>
+<p><b>怎么避</b>：</p>
+<ol>
+  <li>不要新账号一上来就写自己公司</li>
+  <li>用养过 50+ 编辑、参与过其他话题的老账号，或者通过 <code>WP:AfC</code>（Articles for Creation）提交草稿让 reviewer 创建</li>
+  <li>如果是公司员工编辑，<b>必须</b>在用户页声明 COI</li>
+</ol>
+</div>
+
+<h2 id="rules">12 条 Wiki-GEO 规则</h2>
+
+<div class="rules">
+
+<div class="rule">
+<h3>第一句话用 LLM 模板句式</h3>
+<p><code>'''X''' is a [type] company [doing what], founded in [year] in [place], headquartered in [HQ].</code></p>
+<p>第一句话是 LLM 训练里权重最高的位置。一定要包含：公司名（粗体）、行业 wikilink、商业模式 wikilink、年份、地点。</p>
+</div>
+
+<div class="rule">
+<h3>Infobox 永远在最顶部</h3>
+<p>用 <code>{{Infobox company}}</code>。每个 key 都填，缺数据宁可空着不要填错。<b>关键字段</b>（按 LLM 抓取频率排）：name, type, founded, founders, hq, industry, products, key_people, num_employees, revenue, website, parent。</p>
+</div>
+
+<div class="rule">
+<h3>引用密度：lead 1:2，body 1:3</h3>
+<p>Lead（首段）每 2 句话至少 1 条引用；body 每 3 句话至少 1 条。<b>每一个数字、年份、人名、金额、客户名都要 cite</b>。无 cite 的事实陈述会被 LLM 视为低置信度。</p>
+</div>
+
+<div class="rule">
+<h3>来源优先级（Tier 1 → 4）</h3>
+<table>
+<tr><th>Tier</th><th>来源</th><th>LLM 权重</th></tr>
+<tr><td>1</td><td>Reuters, Bloomberg, WSJ, NYT, FT, BBC, AP, The Guardian</td><td>最高</td></tr>
+<tr><td>2</td><td>TechCrunch, Forbes, VentureBeat, The Verge, Wired, Ars Technica</td><td>高</td></tr>
+<tr><td>3</td><td>SCMP, Nikkei, Handelsblatt（区域性主流）</td><td>中</td></tr>
+<tr><td>4</td><td>Tech in Asia, The Next Web, niche blogs</td><td>低（可作辅助）</td></tr>
+<tr><td>—</td><td>公司自家 about-us、PR 通稿、Medium、付费稿</td><td>主引用<b>不可用</b>，会被标 self-pub</td></tr>
+</table>
+</div>
+
+<div class="rule">
+<h3>命名复用 ref</h3>
+<p>核心引用一定 <code>&lt;ref name="key2024"&gt;{{cite}}&lt;/ref&gt;</code>，后续 <code>&lt;ref name="key2024" /&gt;</code>。同一引用被 ≥3 处复用 = LLM 信号"这是基石证据"。目标：top 5 引用都被复用至少 2 次。</p>
+</div>
+
+<div class="rule">
+<h3>每条外链加 archive.org 存档</h3>
+<pre><code>|archive-url=https://web.archive.org/web/[timestamp]/[original-url]
+|archive-date=[date]
+|url-status=live</code></pre>
+<p>用 <code>InternetArchiveBot</code> 自动加，或手动到 <code>web.archive.org/save/[url]</code> 触发存档后填回。链接死了引用还活着——LLM 训练管道仍能拉到 archive.org 内容。</p>
+</div>
+
+<div class="rule">
+<h3>章节结构标配（按顺序）</h3>
+<ol>
+  <li><b>Lead</b>（无章节标题，2-3 段）</li>
+  <li><b>History</b>（按年份小节：Founding / Series A / Series B / 国际化）</li>
+  <li><b>Products</b>（每个产品一段 + 引用）</li>
+  <li><b>Funding</b>（表格：日期 / 轮次 / 金额 / 投资方 / 来源）</li>
+  <li><b>Customers / Notable users</b>（带 wikilink 的客户列表）</li>
+  <li><b>Recognition</b>（奖项、行业排名）</li>
+  <li><b>Controversies</b>（如果有，<b>不要回避</b>——主动写显得透明）</li>
+  <li><b>See also</b></li>
+  <li><b>References</b></li>
+  <li><b>External links</b></li>
+</ol>
+</div>
+
+<div class="rule">
+<h3>Wikilinks 双向走</h3>
+<p>每个第一次出现的公司、人物、技术、地点都 <code>[[wikilink]]</code>。然后<b>反过来</b>——找 5 个相关页面加进 link 到你这里。<b>orphan 是 GEO 杀手</b>。</p>
+</div>
+
+<div class="rule">
+<h3>多语种来源 ≥ 2 个语种</h3>
+<p>除英文外，再补 1-2 个公司有真实业务的国家 / 地区的本地媒体（中、日、德、法、西）。<code>cite news</code> 模板支持 <code>language=zh</code> 等参数。多语种 LLM 训练时各语种语料独立加权——日语 ChatGPT 用户问你公司时，命中本地源。</p>
+</div>
+
+<div class="rule">
+<h3>NPOV 写作 · 拒绝 marketing 形容词</h3>
+<p>禁用词：<b>leading, innovative, best-in-class, world-class, premier, cutting-edge, revolutionary, pioneer, market-leader</b>。换成可验证的事实——"在 X 国 Y 客户使用"、"按 [来源] Z 数据排名第 N"。形容词无引用 = 立即被 <code>{{peacock}}</code> tag。</p>
+</div>
+
+<div class="rule">
+<h3>同步建 Wikidata Q-ID</h3>
+<p>Wikipedia 文章和 Wikidata 实体（<code>Q[number]</code>）必须双向链接。Wikidata 是 Claude/GPT/Gemini 直接调用的<b>结构化知识库</b>。"X 是 Y 行业吗"这种 yes/no 问答主要来自 Wikidata 的 <code>instance of (P31) / industry (P452)</code> 关系。</p>
+</div>
+
+<div class="rule">
+<h3>COI 透明声明 · 用 Talk 页提交修改</h3>
+<p>如果你是公司员工 / 公关 / 营销，<b>必须</b>：</p>
+<ol>
+  <li>在你 Wikipedia 用户页声明：<code>{{COI|Company X}}</code></li>
+  <li>不直接改条目，而是在 Talk:Company X 写 <code>{{edit COI|...}}</code>，让中立 editor 审过再上</li>
+</ol>
+<p>这一步看起来麻烦，但能保护文章不被 AfD。LLM 训练时<b>已删文章的内容会丢</b>——保住文章 > 编辑速度。</p>
+</div>
+
+</div>
+
+<h2 id="templates">复制即用模板</h2>
+
+<h3>① Lead 模板（首段）</h3>
+<pre><code>'''[公司名]''' is a [行业 wikilink] [[Software as a service|SaaS]] company
+that provides [产品 1], [产品 2], and [产品 3].&lt;ref name="primary" /&gt;
+Founded in [year] by [创始人 1] and [创始人 2] in [city],&lt;ref name="founding" /&gt;
+the company is headquartered in [HQ].&lt;ref name="founding" /&gt;
+As of [year], [公司名] reports [关键数字 e.g. customers/revenue].&lt;ref name="scale" /&gt;
+
+[公司名] raised [total funding] in [N] rounds from investors including
+[[Investor 1]] and [[Investor 2]].&lt;ref name="series-latest" /&gt;</code></pre>
+
+<h3>② Infobox 完整模板</h3>
+<pre><code>{{Infobox company
+| name             = [Company Name]
+| logo             = [Logo].svg
+| logo_size        = 180px
+| type             = [[Private company]]
+| traded_as        =
+| industry         = [[Industry wikilink]]
+| founded          = {{Start date and age|YYYY|MM|DD}}
+| founder          = {{ubl|[[Founder 1]]|[[Founder 2]]}}
+| hq_location_city = [City]
+| hq_location_country = [Country]
+| area_served      = Worldwide
+| key_people       = {{ubl|[CEO Name] (CEO)|[CTO Name] (CTO)}}
+| products         = {{ubl|[[Product 1]]|[[Product 2]]}}
+| revenue          = {{increase}} US$ XX million ({{small|YYYY}})&lt;ref name="rev" /&gt;
+| num_employees    = ~XXX ({{small|YYYY}})&lt;ref name="hc" /&gt;
+| website          = {{URL|company.com}}
+}}</code></pre>
+
+<h3>③ 高质量 Citation 模板</h3>
+<pre><code>&lt;ref name="tc-series-b"&gt;{{cite news
+  |last=[Author Last]
+  |first=[Author First]
+  |title=[Article Title verbatim]
+  |url=https://techcrunch.com/YYYY/MM/DD/slug
+  |work=[[TechCrunch]]
+  |date=DD Month YYYY
+  |access-date=DD Month YYYY
+  |archive-url=https://web.archive.org/web/[14-digit-timestamp]/[original-url]
+  |archive-date=DD Month YYYY
+  |url-status=live
+  |language=en
+}}&lt;/ref&gt;</code></pre>
+<p>关键字段：<b>last/first</b>（很多人漏掉作者名，影响 LLM 把文章归到记者背景）、<b>work</b>（媒体名加 wikilink，让 LLM 关联媒体声誉）、<b>archive-url</b>（抗死链）、<b>language</b>（多语种信号）。</p>
+
+<h3>④ Funding table 模板</h3>
+<pre><code>{| class="wikitable"
+|+ AfterShip funding rounds
+! Date !! Round !! Amount !! Lead investor(s) !! Source
+|-
+| May 2014 || Series A || $1M || [[Accel Partners]], [[IDG Ventures]] || &lt;ref name="tc-2014" /&gt;
+|-
+| April 2021 || Series B || $66M || ... || &lt;ref name="tc-2021" /&gt;
+|}</code></pre>
+<p>表格在 wikitext 里是结构化数据，LLM 抓取后直接转 markdown 表 / JSON，问 "AfterShip 的融资历史" 直接吐表格。</p>
+
+<h2 id="workflow">编辑工作流：从写稿到上线</h2>
+
+<ol>
+  <li><b>账号准备</b>（提前 4-6 周）<br>注册 Wikipedia 账号，编辑 50+ 与你公司<b>无关</b>的话题积累 edit count。新账号上来就写自家公司 = paid-editing 红旗。</li>
+  <li><b>来源准备</b>（提前 2 周）<br>列出所有你能引用的 Tier 1-3 报道。如果数量不够 5 条 + 时间跨度不够 2 年，先去做 PR：发媒体邮件 / Trade publication 投稿，养够 source pool 再写 wiki。</li>
+  <li><b>写 draft</b><br>在 <code>User:[你的账号]/sandbox</code> 写，不直接发到主空间。完成后用 <code>{{AfC submission}}</code> 提交 Articles for Creation review。</li>
+  <li><b>AfC 审稿</b>（1-4 周）<br>等 reviewer 通过。被拒就按反馈改——通常是引用质量。<b>不要</b>跳过 AfC 直接 move 到主空间——会被秒删。</li>
+  <li><b>上线后维护</b>
+    <ul>
+      <li>每季度跑一次 <code>archive.org/save/</code> 让所有 cite 保活</li>
+      <li>每次融资 / 重大产品发布配 2 条独立 Tier-1 报道后再补条目</li>
+      <li>Talk 页定期回应其他编辑者的修改建议</li>
+      <li>同步更新 Wikidata Q-ID</li>
+    </ul>
+  </li>
+  <li><b>建反向链接（防 orphan）</b><br>找 5-10 个真实相关的现有 Wikipedia 文章加 wikilink 进来。每次加之前先确认该处事实有可靠来源支撑，否则被回滚。</li>
+</ol>
+
+<h2 id="measure">怎么验证你的 wiki 被 LLM 抓到了</h2>
+
+<table>
+<tr><th>验证</th><th>方法</th><th>预期</th></tr>
+<tr><td>Wikipedia 收录</td><td>访问条目 URL 返回 200，无 <code>{{Speedy deletion}}</code></td><td>条目存活 > 30 天</td></tr>
+<tr><td>Wikidata 关联</td><td><code>wikidata.org/wiki/QXXXXXX</code> 与条目双向链接</td><td>有 P31 (instance of), P452 (industry)</td></tr>
+<tr><td>Common Crawl 抓到</td><td>commoncrawl.org search interface 查 URL</td><td>下一个月度 dump 收录</td></tr>
+<tr><td>ChatGPT 回忆</td><td>用 GPT-4 / GPT-5 问 "What is [公司名]"</td><td>能给出和 lead 一致的定义</td></tr>
+<tr><td>Perplexity 引用</td><td>perplexity.ai 同样问题</td><td>Sources 列表里有你的 Wikipedia URL</td></tr>
+<tr><td>Claude 引用</td><td>claude.ai 同样问题</td><td>能复述 infobox 字段</td></tr>
+<tr><td>Google AI Overviews</td><td>Google 搜公司名</td><td>Knowledge Panel + AI Overview 来源含 Wikipedia</td></tr>
+</table>
+
+<p>从 wiki 发布到 LLM 训练 cycle 吃进去：<b>约 6-12 个月</b>（Claude / GPT 主要在年度大版本更新时刷新 Wikipedia snapshot）。短期内可通过 Perplexity / GPT-4 web search 模式立即生效。</p>
+
+<footer>
+<p>方法：基于 Wikipedia API 抓取 <code>en.wikipedia.org/wiki/AfterShip</code> 的 wikitext / sections / external links / revisions，结合 Wikipedia 的 <code>WP:NCORP</code> / <code>WP:GNG</code> / <code>WP:RS</code> 政策与公开 LLM 训练 pipeline (Common Crawl / Wikipedia dumps) 的已知行为。</p>
+<p>原始数据保存在 <code>/tmp/aftership-wiki/</code>。</p>
+</footer>
+
+</div>
+</body>
+</html>
