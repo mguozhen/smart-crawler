@@ -686,6 +686,30 @@ def _load_hidden_sites() -> set[str]:
         return set()
 
 
+# ── /api/coverage in-memory cache (30s TTL · invalidated on crawl success) ──
+import time as _time
+import threading as _threading
+_COVERAGE_CACHE: dict = {}
+_COVERAGE_CACHE_LOCK = _threading.Lock()
+_COVERAGE_CACHE_TTL = 30  # seconds · 数据每 30s 才可能变 · UI 体感无差异
+
+
+def _coverage_cache_get(key: str):
+    with _COVERAGE_CACHE_LOCK:
+        entry = _COVERAGE_CACHE.get(key)
+        if not entry:
+            return None
+        if _time.time() - entry["ts"] > _COVERAGE_CACHE_TTL:
+            _COVERAGE_CACHE.pop(key, None)
+            return None
+        return entry["data"]
+
+
+def _coverage_cache_set(key: str, data) -> None:
+    with _COVERAGE_CACHE_LOCK:
+        _COVERAGE_CACHE[key] = {"ts": _time.time(), "data": data}
+
+
 @router.get("/coverage")
 def data_coverage(
     db: Session = Depends(get_db),
@@ -695,12 +719,18 @@ def data_coverage(
 
     优先用 fetched_urls 表（每次 fetch 都记录 · 含 4xx/5xx/parse_none）
     回退 Product.product_url（旧路径 · 只算成功落库的 unique SKU）。
+
+    Perf: 30s in-memory cache · N+1 Product.count() 改成单 GROUP BY (chen-mj 反馈页面慢).
     """
-    from sqlalchemy import text
+    cache_key = f"cov:{include_hidden}"
+    cached = _coverage_cache_get(cache_key)
+    if cached is not None:
+        return cached
+    from sqlalchemy import text, func
     from ..models import Site as SiteModel
     hidden = _load_hidden_sites() if not include_hidden else set()
     sitemap_totals = _load_sitemap_totals()
-    # 一次查全部 site 的 fetched_urls count（vs 逐 site 查避免 N+1）
+    # 一次查全部 site 的 fetched_urls count（避免 N+1）
     try:
         fetched_counts = {
             row[0]: row[1]
@@ -714,13 +744,19 @@ def data_coverage(
             db.rollback()
         except Exception:
             pass
+    # 一次查全部 site 的 Product count（避免 N+1 · 之前 55 次 SELECT 是 4-5s 的元凶）
+    sku_counts = {
+        row[0]: row[1]
+        for row in db.query(Product.site, func.count(Product.id))
+                     .group_by(Product.site).all()
+    }
     rows = []
     for s in db.query(SiteModel).all():
         if s.site in hidden:
             continue
         # 真实 fetched URL count（包含 SKU dup 的）优先于 SKU-unique row count
         fetched = fetched_counts.get(s.site, 0)
-        sku_count = db.query(Product).filter(Product.site == s.site).count()
+        sku_count = sku_counts.get(s.site, 0)
         cur = fetched if fetched >= sku_count else sku_count
         # 真实 sitemap 总数优先（爬虫每次跑都更新），缺失时回退人工估算
         est = sitemap_totals.get(s.site) or _FULL_ESTIMATES.get(s.site, 0)
@@ -754,7 +790,7 @@ def data_coverage(
     warning = sum(1 for r in rows if r["status"] == "warning")
     healthy = sum(1 for r in rows if r["status"] == "healthy")
 
-    return {
+    result = {
         "sites": rows,
         "summary": {
             "total_sites": len(rows),
@@ -767,6 +803,8 @@ def data_coverage(
             "healthy_count": healthy,
         },
     }
+    _coverage_cache_set(cache_key, result)
+    return result
 
 
 # ---------- 按 record 计费 · 用量查询 ----------
