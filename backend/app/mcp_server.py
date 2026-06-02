@@ -32,16 +32,17 @@ from .models import (ApiKey, Keyword, PriceHistory, Product, Promotion, Review,
 mcp = FastMCP(
     "smart-crawler",
     instructions=(
-        "Agent 时代电商情报采集引擎。覆盖主流跨境电商 / 平台市场 / 社媒渠道："
-        "Walmart / Target / AliExpress / eBay / Vidaxl / Songmics / Costway / "
-        "Homary / Idealo / Otto / BOL / CDiscount / IKEA / Crate&Barrel / "
-        "WestElm / Wayfair / Allegro / Article / Yaheetech / VonHaus / "
-        "Flexispot / Overstock / BCP / Woltu —— 61 站点矩阵持续采集。"
-        "数据维度：商品 / 价格历史 / 促销 / 评分 / 评论(VOC) / Google Shopping / "
-        "Amazon ASIN 评论 + AI 口碑分析。"
-        "为 AI Agent 设计的 MCP-native 工具集：少参数、5分钟跨调用记忆、warehouse免费、"
-        "成本透明、自然语言错误建议。默认策略：先用 query_warehouse(intent) 查已有仓库；"
-        "需要页面内容再用 scrape_url(url)；crawl_site(url) 是高成本整站采集，默认 dry_run=true。"
+        "Agent 时代电商情报采集引擎。对外主推 3 个 Agent-first 工具："
+        "1) query_warehouse(intent, limit) 先查已有 warehouse，0 credits；"
+        "2) scrape_url(url) 只在需要页面内容时抓单页；"
+        "3) crawl_site(url) 默认 dry_run=true，只做可行性和成本预估。"
+        "Agent 默认只传主参数；复杂参数和其他工具属于 advanced/legacy 兼容入口。"
+        "所有主推工具返回 usage：credits_used、balance、cache_hit、source、records、"
+        "duration_ms、cost_if_retry；失败时读取 warnings[].next_step。"
+        "覆盖主流跨境电商 / 平台市场 / 社媒渠道：Walmart / Target / AliExpress / "
+        "eBay / Vidaxl / Songmics / Costway / Homary / Idealo / Otto / BOL / "
+        "CDiscount / IKEA / Crate&Barrel / WestElm / Wayfair / Allegro / Article / "
+        "Yaheetech / VonHaus / Flexispot / Overstock / BCP / Woltu。"
     ),
 )
 
@@ -168,7 +169,7 @@ def _enrich_mcp_usage(api_key_id: int | None, result: dict,
 
 @metered_tool()
 def list_data_sources() -> list[dict]:
-    """列出全部可用数据源：46 个竞品独立站 + 评论平台 + Google Shopping。
+    """[LEGACY] 列出全部可用数据源：46 个竞品独立站 + 评论平台 + Google Shopping。
     Agent 先调这个了解能查什么品牌/站点/数据类型。"""
     s = SessionLocal()
     try:
@@ -193,7 +194,7 @@ def search_competitor_products(
     min_price: float | None = None, max_price: float | None = None,
     on_promotion: bool = False, limit: int = 20,
 ) -> dict:
-    """搜索竞品商品。可按品牌(如 SONGMICS/Costway/Homary/Vidaxl)、国家(US/UK/DE…)、
+    """[LEGACY] 搜索竞品商品。可按品牌(如 SONGMICS/Costway/Homary/Vidaxl)、国家(US/UK/DE…)、
     标题关键词、品类、价格区间筛选；on_promotion=true 只看在促销的。
     返回结构化商品列表（SKU/标题/价格/促销/评分/状态/URL）。"""
     s = SessionLocal()
@@ -223,7 +224,7 @@ def search_competitor_products(
 
 @metered_tool()
 def get_product_detail(site: str, sku: str) -> dict:
-    """取单个商品的完整信息 + 历史价格曲线。site 如 songmics_us，sku 为商品编码。"""
+    """[LEGACY] 取单个商品的完整信息 + 历史价格曲线。site 如 songmics_us，sku 为商品编码。"""
     s = SessionLocal()
     try:
         p = s.query(Product).filter(Product.site == site,
@@ -243,7 +244,7 @@ def get_product_detail(site: str, sku: str) -> dict:
 
 @metered_tool()
 def list_promotions(site: str | None = None, limit: int = 30) -> dict:
-    """列出竞品当前促销活动（售价低于原价的商品），含折扣率。可按 site 筛选。"""
+    """[LEGACY] 列出竞品当前促销活动（售价低于原价的商品），含折扣率。可按 site 筛选。"""
     s = SessionLocal()
     try:
         q = s.query(Promotion)
@@ -265,7 +266,7 @@ def list_promotions(site: str | None = None, limit: int = 30) -> dict:
 def get_voc_reviews(site: str | None = None, platform: str | None = None,
                     sentiment: str | None = None, min_rating: int | None = None,
                     limit: int = 20) -> dict:
-    """取消费者口碑评论(VOC)。platform: trustpilot/reviews_io/google_map；
+    """[LEGACY] 取消费者口碑评论(VOC)。platform: trustpilot/reviews_io/google_map；
     sentiment: positive/negative/neutral；可按 site、最低评分筛选。
     返回评论 + NLP 情感/分类标注。"""
     s = SessionLocal()
@@ -294,7 +295,7 @@ def get_voc_reviews(site: str | None = None, platform: str | None = None,
 
 @metered_tool()
 def voc_summary(site: str | None = None) -> dict:
-    """口碑分析汇总：情感分布 + 痛点分类占比。看竞品/自身的消费者声音全貌。"""
+    """[LEGACY] 口碑分析汇总：情感分布 + 痛点分类占比。看竞品/自身的消费者声音全貌。"""
     s = SessionLocal()
     try:
         q = s.query(Review)
@@ -315,7 +316,7 @@ def voc_summary(site: str | None = None) -> dict:
 
 @metered_tool()
 def competitor_landscape(keyword: str) -> dict:
-    """Google Shopping 竞争格局：某关键词下各商家的出现占有率排名。"""
+    """[LEGACY] Google Shopping 竞争格局：某关键词下各商家的出现占有率排名。"""
     s = SessionLocal()
     try:
         rows = s.query(ShoppingResult).filter(
@@ -336,7 +337,7 @@ def competitor_landscape(keyword: str) -> dict:
 
 @metered_tool(required_scope="crawler:scrape")
 def amazon_voc_report(asin: str, market: str = "US", limit: int = 100) -> dict:
-    """取某亚马逊 ASIN 的真实评论并做 AI 口碑分析（整合自 voc-amazon-reviews）。
+    """[ADVANCED] 取某亚马逊 ASIN 的真实评论并做 AI 口碑分析（整合自 voc-amazon-reviews）。
     返回情感分布、痛点、卖点、Listing 优化建议、中英文总结。
     asin: 10 位商品编码；market: US/GB/DE/FR/IT/ES/JP/CA 等；limit: 评论数(1-1000)。"""
     from .voc_amazon import VocError, amazon_voc_report as _report
@@ -349,7 +350,7 @@ def amazon_voc_report(asin: str, market: str = "US", limit: int = 100) -> dict:
 @metered_tool(required_scope="crawler:scrape")
 def fetch_amazon_reviews(asin: str, market: str = "US",
                          limit: int = 100) -> dict:
-    """只取某亚马逊 ASIN 的原始评论数组（不做分析）。
+    """[ADVANCED] 只取某亚马逊 ASIN 的原始评论数组（不做分析）。
     适合 Agent 自己接分析管线。返回 {reviews, meta}。"""
     from .voc_amazon import VocError, fetch_amazon_reviews as _fetch
     try:
@@ -364,7 +365,7 @@ def fetch_amazon_reviews(asin: str, market: str = "US",
 
 @metered_tool(required_scope="crawler:scrape")
 def reddit_top_contributors(subreddit: str, top_n: int = 3) -> dict:
-    """找某 subreddit 的 top N 贡献者（按发帖数 + 总赞数综合排名）。
+    """[ADVANCED] 找某 subreddit 的 top N 贡献者（按发帖数 + 总赞数综合排名）。
     返回用户名、karma、账号年龄、帖子统计。后续可传给 reddit_user_activity 或
     reddit_subreddit_playbook 做深度分析。
     示例：reddit_top_contributors("entrepreneur", top_n=3)"""
@@ -380,7 +381,7 @@ def reddit_top_contributors(subreddit: str, top_n: int = 3) -> dict:
 def reddit_user_activity(username: str, subreddit: str | None = None,
                           post_limit: int = 100,
                           comment_limit: int = 100) -> dict:
-    """取一位 Reddit 用户的完整发帖 + 评论活动。
+    """[ADVANCED] 取一位 Reddit 用户的完整发帖 + 评论活动。
     subreddit 不填则取全站活动。返回：profile stats / top posts / 月度活跃时间线。
     示例：reddit_user_activity("user123", subreddit="entrepreneur")"""
     from .crawlers.reddit import get_user_activity
@@ -394,7 +395,7 @@ def reddit_user_activity(username: str, subreddit: str | None = None,
 
 @metered_tool(required_scope="crawler:scrape")
 def reddit_subreddit_playbook(subreddit: str, top_n: int = 3) -> dict:
-    """一键生成 subreddit 的 top N 贡献者 playbook。
+    """[ADVANCED] 一键生成 subreddit 的 top N 贡献者 playbook。
 
     完整流程：① 找 top N 贡献者 → ② 抓每人的帖子/评论 → ③ LLM 分析生成 playbook。
     每位贡献者的 playbook 包含：成长时间线、内容公式、爆款分析、5步可复制路径。
@@ -418,7 +419,7 @@ def reddit_subreddit_playbook(subreddit: str, top_n: int = 3) -> dict:
 def discover_creators_by_hashtag(
     platform: str, hashtags: list[str], limit: int = 38,
 ) -> dict:
-    """按 hashtag 发现创作者 —— 替代 Apify TikTok/Instagram/Facebook scraper。
+    """[ADVANCED] 按 hashtag 发现创作者 —— 替代 Apify TikTok/Instagram/Facebook scraper。
 
     platform: "tiktok" / "instagram" / "facebook"
       - tiktok 走 HTTP 抓取，当前被 2026-05 反爬挡（返回 0 items，需走 tiktok_phone）
@@ -445,7 +446,7 @@ def discover_creators_by_hashtag(
 
 @metered_tool(required_scope="crawler:scrape")
 def enrich_youtube_about(urls: list[str]) -> dict:
-    """从 YouTube About 页抽取 email + 外链 —— 替代 ScraperAPI。
+    """[ADVANCED] 从 YouTube About 页抽取 email + 外链 —— 替代 ScraperAPI。
 
     urls: YouTube 频道 URL 列表，如 ["https://www.youtube.com/@MrBeast",
           "https://www.youtube.com/@MKBHD/about"]
@@ -462,7 +463,7 @@ def enrich_youtube_about(urls: list[str]) -> dict:
 
 @metered_tool(required_scope="crawler:scrape")
 def ingest_tiktok_phone_results(hashtag: str, items: list[dict]) -> dict:
-    """收 matrix-mvp 手机驱动推上来的 TikTok 创作者批次。
+    """[ADVANCED] 收 matrix-mvp 手机驱动推上来的 TikTok 创作者批次。
 
     items: 每条为 {"authorMeta": {"uniqueId", "nickName", "fans", ...}}（Apify 兼容形态）
     返回 {runId, datasetId, itemCount} —— 调用方可后续用 get_discover_run_items 取数据。
@@ -485,7 +486,7 @@ def ingest_tiktok_phone_results(hashtag: str, items: list[dict]) -> dict:
 def get_discover_run_items(
     run_id: str, limit: int = 1000, offset: int = 0,
 ) -> dict:
-    """取一个 discover run 已采集到的 items（带分页）。
+    """[ADVANCED] 取一个 discover run 已采集到的 items（带分页）。
 
     主要用于回看之前 discover_creators_by_hashtag / ingest_tiktok_phone_results 的结果。
     run/dataset 在内存里保留 1 小时后 GC。
@@ -508,11 +509,14 @@ def get_discover_run_items(
 @metered_tool(required_scope="crawler:scrape", cacheable=True)
 def scrape_url(url: str, formats: list[str] | None = None,
                force_live: bool = False, mode: str = "standard") -> dict:
-    """抓取单个 URL。Agent 推荐只传 url。
+    """Agent 推荐只传 url：抓取单个页面。
 
-    默认返回 markdown + structured，优先 warehouse，未命中再 live scrape。
+    默认返回 markdown + structured，优先 warehouse，未命中再 live scrape 并消耗 credits。
     同一 API key 5 分钟内重复调用会命中 agent memory，credits_used=0。
-    失败时看 warnings[].next_step：通常先 query_warehouse，advanced 模式预留给后续浏览器执行器。
+    usage 返回 credits_used、balance、cache_hit、source、records、duration_ms、cost_if_retry。
+    formats/force_live/mode 是 advanced 兼容参数；普通 Agent 不要主动填写。
+    mode="advanced" 会走 browser_pool 本地 Playwright 渲染，成本更高，通常只在标准抓取失败后重试。
+    失败时看 warnings[].next_step：通常先 query_warehouse，再决定是否 advanced 重试。
     """
     from .agent_crawler import scrape_url as _scrape_url
     s = SessionLocal()
@@ -525,7 +529,7 @@ def scrape_url(url: str, formats: list[str] | None = None,
 
 @metered_tool(cacheable=True)
 def map_site(url: str, limit: int = 1000, search: str | None = None) -> dict:
-    """列出某个已配置站点在仓库中的已知商品 URL。
+    """[ADVANCED] 列出某个已配置站点在仓库中的已知商品 URL。
 
     适合 Agent 在大规模 crawl 前先判断已有覆盖，避免重复抓取。
     """
@@ -539,11 +543,12 @@ def map_site(url: str, limit: int = 1000, search: str | None = None) -> dict:
 
 @metered_tool()
 def crawl_site(url: str, limit: int = 1000, dry_run: bool = True) -> dict:
-    """验证或触发一个已配置站点的异步整站采集。
+    """Agent 推荐只传 url：验证或触发一个已配置站点的异步整站采集。
 
-    Agent 推荐只传 url，默认 dry_run=true，不会入队。只有用户明确要求
+    默认 dry_run=true，不会入队，credits_used=0，只返回可行性和成本提示。
+    只有用户明确要求
     "开始采集/执行整站抓取"且 API key 有 crawler:crawl scope 时，才用 dry_run=false。
-    大规模采集前应先调用 query_warehouse 或 map_site。
+    usage 返回 credits_used、balance、cache_hit、source、records、duration_ms、cost_if_retry。
     """
     from .agent_crawler import crawl_site as _crawl_site
     ctx = get_current_api_key()
@@ -558,7 +563,7 @@ def crawl_site(url: str, limit: int = 1000, dry_run: bool = True) -> dict:
 
 @metered_tool()
 def get_crawl_job(job_id: int) -> dict:
-    """查询 crawl_site 返回的采集任务状态和前 100 条结果。"""
+    """[ADVANCED] 查询 crawl_site 返回的采集任务状态和前 100 条结果。"""
     from .agent_crawler import get_crawl_job as _get_crawl_job
     s = SessionLocal()
     try:
@@ -570,7 +575,7 @@ def get_crawl_job(job_id: int) -> dict:
 @metered_tool(required_scope="crawler:scrape", cacheable=True)
 def extract_structured_data(urls: list[str], schema: dict | None = None,
                             instruction: str | None = None) -> dict:
-    """按 JSON schema 从 URL 抽结构化字段。
+    """[ADVANCED] 按 JSON schema 从 URL 抽结构化字段。
 
     当前优先使用仓库/JSON-LD/页面 metadata；LLM schema extraction 可作为后续 fallback。
     """
@@ -584,9 +589,10 @@ def extract_structured_data(urls: list[str], schema: dict | None = None,
 
 @metered_tool(cacheable=True)
 def query_warehouse(intent: str, limit: int = 20) -> dict:
-    """按自然语言意图查询 smart-crawler 商品仓库。
+    """Agent 推荐只传 intent：按自然语言意图查询 smart-crawler 商品 warehouse。
 
     这是 Agent 的首选入口：warehouse 查询不耗 credits，毫秒级返回。
+    usage 返回 credits_used、balance、cache_hit、source、records、duration_ms、cost_if_retry。
     示例：query_warehouse("vidaxl patio storage top discounts", limit=20)
     如果结果不足，再调用 scrape_url(url) 抓单页；不要一上来 live scrape。
     """
@@ -602,10 +608,10 @@ def query_warehouse(intent: str, limit: int = 20) -> dict:
 def query_crawler_warehouse(query: str, site: str | None = None,
                             brand: str | None = None,
                             limit: int = 20) -> dict:
-    """查询 smart-crawler 已有商品仓库，避免 Agent 一上来就实时抓取。
+    """[LEGACY] 查询 smart-crawler 已有商品仓库，避免 Agent 一上来就实时抓取。
 
     query 可填关键词、SKU 或类目词；site/brand 可进一步限定范围。
-    适合用户说"查一下/搜索/有没有/对比商品"时优先调用。
+    新 Agent 优先调用 query_warehouse(intent, limit)。
     """
     from .agent_crawler import query_warehouse as _query
     s = SessionLocal()

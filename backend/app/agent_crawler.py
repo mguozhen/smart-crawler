@@ -6,10 +6,13 @@ then fall back to a light live scrape when the warehouse cannot answer.
 """
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import re
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from html import unescape
 from typing import Any
@@ -22,6 +25,7 @@ from .models import CrawlJob, Product, Site
 
 
 MAX_LIVE_HTML_CHARS = 300_000
+ADVANCED_SCRAPE_CREDITS = 3
 
 
 @dataclass
@@ -107,8 +111,9 @@ def scrape_url(
     formats = formats or ["markdown", "structured"]
     scrape_id = "scr_" + uuid.uuid4().hex[:16]
     site = match_site(db, url)
+    advanced_mode = (mode or "standard").lower() == "advanced"
 
-    if site and not force_live:
+    if site and not force_live and not advanced_mode:
         product = (db.query(Product)
                    .filter(Product.site == site.site,
                            Product.product_url == url)
@@ -139,10 +144,16 @@ def scrape_url(
                 "warnings": [],
             }
 
-    live = live_scrape_url(url, wait_for_ms=wait_for_ms, timeout_ms=timeout_ms)
+    live = (
+        advanced_scrape_url(url, wait_for_ms=wait_for_ms, timeout_ms=timeout_ms)
+        if advanced_mode
+        else live_scrape_url(url, wait_for_ms=wait_for_ms, timeout_ms=timeout_ms)
+    )
     if live["success"]:
         usage = UsageInfo(
-            credits_used=2, cache_hit=False, source="live",
+            credits_used=ADVANCED_SCRAPE_CREDITS if advanced_mode else 2,
+            cache_hit=False,
+            source="advanced" if advanced_mode else "live",
             duration_ms=_now_ms(started), records=1,
         )
         return {
@@ -158,6 +169,34 @@ def scrape_url(
             "links": live["links"] if "links" in formats else [],
             "usage": usage.to_dict(),
             "warnings": live.get("warnings", []),
+        }
+
+    if advanced_mode:
+        usage = UsageInfo(
+            credits_used=0, cache_hit=False, source="advanced",
+            duration_ms=_now_ms(started), records=0,
+        )
+        return {
+            "success": False,
+            "url": url,
+            "crawl_url": None,
+            "site": site.site if site else None,
+            "scrape_id": scrape_id,
+            "metadata": {"error": live.get("error") or "advanced_scrape_failed"},
+            "data": None,
+            "markdown": None,
+            "html": None,
+            "links": [],
+            "usage": usage.to_dict(),
+            "warnings": live.get("warnings") or [{
+                "code": "advanced_scrape_failed",
+                "message": "Advanced browser scrape failed before usable page content was returned.",
+                "next_step": (
+                    "Call query_warehouse for cached data, retry standard scrape, "
+                    "or verify the browser_pool / Playwright runtime on this host."
+                ),
+                "cost_if_retry": ADVANCED_SCRAPE_CREDITS,
+            }],
         }
 
     if site:
@@ -458,6 +497,189 @@ def live_scrape_url(
             "next_step": "Call extract_structured_data with an explicit schema, or add a site-specific parser.",
         }],
     }
+
+
+def advanced_scrape_url(
+    url: str,
+    *,
+    wait_for_ms: int = 0,
+    timeout_ms: int = 30_000,
+) -> dict:
+    """Fetch one page through browser_pool, offloading when inside asyncio."""
+    if _has_running_asyncio_loop():
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            return executor.submit(
+                _advanced_scrape_url_browser_pool,
+                url,
+                wait_for_ms=wait_for_ms,
+                timeout_ms=timeout_ms,
+            ).result()
+    return _advanced_scrape_url_browser_pool(
+        url,
+        wait_for_ms=wait_for_ms,
+        timeout_ms=timeout_ms,
+    )
+
+
+def _advanced_scrape_url_browser_pool(
+    url: str,
+    *,
+    wait_for_ms: int = 0,
+    timeout_ms: int = 30_000,
+) -> dict:
+    """Fetch one page through browser_pool using the local Playwright vendor.
+
+    The helper is intentionally scoped to the Agent crawler surface. It borrows
+    a short-lived browser session, renders the page, extracts the same fields as
+    `live_scrape_url`, and always releases the session before returning.
+    """
+    session_id = None
+    pool = None
+    context = None
+    try:
+        from app.browser_pool.cluster import ClusterManager
+        from app.browser_pool.pool import BrowserPool
+        from app.browser_pool.vendors.local_playwright import (
+            LocalPlaywrightVendor,
+            PlaywrightNotInstalled,
+        )
+        from app.browser_pool.base import PoolExhausted
+    except Exception as exc:
+        return _advanced_failure(
+            "browser_pool_unavailable",
+            f"{type(exc).__name__}: {exc}",
+            "Install backend browser dependencies, then retry with mode='advanced'.",
+        )
+
+    vendor = LocalPlaywrightVendor(
+        concurrent_limit=int(os.environ.get("ADVANCED_SCRAPE_BROWSER_CONCURRENCY", "2")),
+        headless=os.environ.get("ADVANCED_SCRAPE_HEADLESS", "1").lower()
+        not in {"0", "false", "no"},
+    )
+    registry = {vendor.name: vendor}
+    cluster = ClusterManager(registry=registry)
+    pool = BrowserPool(registry=registry, cluster=cluster)
+    try:
+        session = pool.borrow(
+            [vendor.name],
+            ttl_seconds=max(30, int(timeout_ms / 1000) + 15),
+        )
+        session_id = session.session_id
+        browser = vendor.get_browser(session_id)
+        context = browser.new_context(
+            viewport={"width": 1365, "height": 900},
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0.0.0 Safari/537.36"
+            ),
+        )
+        page = context.new_page()
+        response = page.goto(
+            url,
+            wait_until="domcontentloaded",
+            timeout=max(1, timeout_ms),
+        )
+        if wait_for_ms > 0:
+            page.wait_for_timeout(min(wait_for_ms, 10_000))
+        try:
+            page.wait_for_load_state("networkidle", timeout=min(5_000, max(1, timeout_ms)))
+        except Exception:
+            pass
+        status = int(response.status) if response is not None else 200
+        final_url = page.url or url
+        html = (page.content() or "")[:MAX_LIVE_HTML_CHARS]
+    except PlaywrightNotInstalled as exc:
+        return _advanced_failure(
+            "playwright_not_installed",
+            str(exc),
+            "Install Playwright and browser binaries, then retry with mode='advanced'.",
+        )
+    except PoolExhausted as exc:
+        error = str(exc)
+        if "playwright install" in error or "Executable doesn't exist" in error:
+            return _advanced_failure(
+                "playwright_browser_missing",
+                error,
+                "Run `backend/.venv/bin/python -m playwright install chromium`, then retry with mode='advanced'.",
+            )
+        return _advanced_failure(
+            "browser_pool_exhausted",
+            error,
+            "Retry later or increase ADVANCED_SCRAPE_BROWSER_CONCURRENCY.",
+        )
+    except Exception as exc:
+        return _advanced_failure(
+            "advanced_scrape_failed",
+            f"{type(exc).__name__}: {exc}",
+            "Try query_warehouse first, retry standard scrape, or verify browser_pool on this host.",
+        )
+    finally:
+        if context is not None:
+            try:
+                context.close()
+            except Exception:
+                pass
+        if pool is not None and session_id:
+            try:
+                pool.release(session_id)
+            except Exception:
+                pass
+
+    if status >= 400:
+        return _advanced_failure(
+            "advanced_http_error",
+            f"HTTP {status}",
+            "Try query_warehouse first. If this source needs auth or proxy, configure browser_pool before retrying.",
+            status_code=status,
+        )
+    metadata = extract_metadata(html, final_url)
+    structured = extract_product_like_data(html, final_url, metadata)
+    return {
+        "success": True,
+        "crawl_url": final_url,
+        "status_code": status,
+        "metadata": metadata,
+        "structured": structured,
+        "markdown": html_to_markdown(html, metadata),
+        "html": html,
+        "links": extract_links(html, final_url, limit=200),
+        "warnings": [] if structured else [{
+            "code": "no_structured_product",
+            "message": "Rendered the page, but no product-like structured data was detected.",
+            "next_step": "Call extract_structured_data with an explicit schema, or add a site-specific parser.",
+        }],
+    }
+
+
+def _has_running_asyncio_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
+def _advanced_failure(
+    code: str,
+    error: str,
+    next_step: str,
+    *,
+    status_code: int | None = None,
+) -> dict:
+    result = {
+        "success": False,
+        "error": error,
+        "warnings": [{
+            "code": code,
+            "message": error,
+            "next_step": next_step,
+            "cost_if_retry": ADVANCED_SCRAPE_CREDITS,
+        }],
+    }
+    if status_code is not None:
+        result["status_code"] = status_code
+    return result
 
 
 def extract_metadata(html: str, base_url: str = "") -> dict:

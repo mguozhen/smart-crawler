@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -79,6 +81,143 @@ def test_scrape_url_hits_warehouse_before_live_fetch(monkeypatch):
     assert result["data"]["title"] == "Warehouse Chair"
 
 
+def test_scrape_url_advanced_uses_browser_pool_path(monkeypatch):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    db = Session()
+
+    def fail_live(*_, **__):
+        raise AssertionError("standard live scrape should not run in advanced mode")
+
+    def fake_advanced(url, *, wait_for_ms=0, timeout_ms=30_000):
+        return {
+            "success": True,
+            "crawl_url": url,
+            "status_code": 200,
+            "metadata": {"title": "Rendered Product"},
+            "structured": {"title": "Rendered Product", "product_url": url},
+            "markdown": "# Rendered Product",
+            "html": "<html><title>Rendered Product</title></html>",
+            "links": ["https://example.com/next"],
+            "warnings": [],
+        }
+
+    monkeypatch.setattr("app.agent_crawler.live_scrape_url", fail_live)
+    monkeypatch.setattr("app.agent_crawler.advanced_scrape_url", fake_advanced)
+
+    result = scrape_url(
+        db,
+        "https://example.com/products/rendered",
+        formats=["structured", "markdown", "html", "links"],
+        mode="advanced",
+    )
+
+    assert result["success"] is True
+    assert result["usage"]["source"] == "advanced"
+    assert result["usage"]["credits_used"] == 3
+    assert result["usage"]["cache_hit"] is False
+    assert result["data"]["title"] == "Rendered Product"
+    assert result["html"].startswith("<html>")
+    assert result["links"] == ["https://example.com/next"]
+
+
+def test_scrape_url_advanced_bypasses_warehouse_hit(monkeypatch):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    db = Session()
+    db.add(Site(site="example_us", brand="Example", country="US",
+                url="https://example.com/", platform="generic",
+                proxy_tier="none"))
+    db.add(Product(site="example_us", brand="Example", sku="CHAIR-001",
+                   title="Warehouse Chair",
+                   product_url="https://example.com/products/patio-chair",
+                   sale_price=42.0, currency="USD",
+                   updated_time=datetime.utcnow()))
+    db.commit()
+
+    def fake_advanced(url, *, wait_for_ms=0, timeout_ms=30_000):
+        return {
+            "success": True,
+            "crawl_url": url,
+            "status_code": 200,
+            "metadata": {"title": "Fresh Rendered Chair"},
+            "structured": {"title": "Fresh Rendered Chair", "product_url": url},
+            "markdown": "# Fresh Rendered Chair",
+            "html": "<html></html>",
+            "links": [],
+            "warnings": [],
+        }
+
+    monkeypatch.setattr("app.agent_crawler.advanced_scrape_url", fake_advanced)
+
+    result = scrape_url(
+        db,
+        "https://example.com/products/patio-chair",
+        mode="advanced",
+    )
+
+    assert result["usage"]["source"] == "advanced"
+    assert result["usage"]["credits_used"] == 3
+    assert result["data"]["title"] == "Fresh Rendered Chair"
+
+
+def test_scrape_url_advanced_failure_has_actionable_warning(monkeypatch):
+    engine = create_engine("sqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    db = Session()
+
+    def fake_advanced(*_, **__):
+        return {
+            "success": False,
+            "error": "BrowserPool exhausted",
+            "warnings": [{
+                "code": "browser_pool_exhausted",
+                "message": "BrowserPool exhausted",
+                "next_step": "Retry later or increase concurrency.",
+                "cost_if_retry": 3,
+            }],
+        }
+
+    monkeypatch.setattr("app.agent_crawler.advanced_scrape_url", fake_advanced)
+
+    result = scrape_url(db, "https://example.com/products/patio-chair", mode="advanced")
+
+    assert result["success"] is False
+    assert result["usage"]["source"] == "advanced"
+    assert result["usage"]["credits_used"] == 0
+    assert result["warnings"][0]["code"] == "browser_pool_exhausted"
+    assert result["warnings"][0]["next_step"]
+
+
+def test_advanced_scrape_offloads_when_called_inside_asyncio_loop(monkeypatch):
+    from app import agent_crawler
+
+    event_loop_thread = threading.get_ident()
+    worker_threads = []
+
+    def fake_browser_pool_scrape(url, *, wait_for_ms=0, timeout_ms=30_000):
+        worker_threads.append(threading.get_ident())
+        return {"success": True, "crawl_url": url, "warnings": []}
+
+    monkeypatch.setattr(
+        agent_crawler,
+        "_advanced_scrape_url_browser_pool",
+        fake_browser_pool_scrape,
+    )
+
+    async def call_advanced():
+        return agent_crawler.advanced_scrape_url("https://example.com/")
+
+    result = asyncio.run(call_advanced())
+
+    assert result["success"] is True
+    assert worker_threads
+    assert worker_threads[0] != event_loop_thread
+
+
 def test_agent_memory_returns_zero_credit_cache_hit():
     engine = create_engine("sqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
@@ -149,6 +288,8 @@ def test_query_warehouse_is_free_and_errors_have_next_step():
     result = query_warehouse(db, "missing product", limit=5)
     assert result["usage"]["source"] == "warehouse"
     assert result["usage"]["credits_used"] == 0
+    enrich_usage(db, result)
+    assert result["usage"]["cost_if_retry"] == 0
 
     failed = {
         "success": False,

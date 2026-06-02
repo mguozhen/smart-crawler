@@ -1,5 +1,9 @@
 # smart-crawler MCP 本地与线上接入
 
+对外工具约定见 [`docs/mcp-tool-spec.md`](mcp-tool-spec.md)。Agent-first 主推
+`query_warehouse(intent)` → `scrape_url(url)` → `crawl_site(url)`，其他 MCP 工具为
+legacy/advanced 兼容入口。
+
 ## 本地 MCP
 
 本地版只用于开发、验证 Codex/Claude 调工具，以及调试 `/api/v2` crawler 能力。
@@ -21,6 +25,18 @@
 
 本地 key 默认不能执行高成本整站采集。`crawl_site(dry_run=true)` 可以验证，
 但 `dry_run=false` 需要额外给 key 加 `crawler:crawl` scope。
+
+`scrape_url(url, mode="advanced")` 会调用 browser_pool 的本地 Playwright
+渲染路径，适合标准抓取失败后手动重试。本地/NAS 环境需要已安装 Playwright
+浏览器二进制；未安装时工具会返回 `warnings[].next_step`，不会影响标准
+`scrape_url(url)`。
+
+安装 Chromium 二进制：
+
+```bash
+cd backend
+.venv/bin/python -m playwright install chromium
+```
 
 ## 线上 MCP
 

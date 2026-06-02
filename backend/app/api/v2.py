@@ -134,7 +134,10 @@ class ScrapeRequest(BaseModel):
     wait_for: int = Field(default=0, description="Extra wait in milliseconds.")
     timeout: int = Field(default=30000, description="Timeout in milliseconds.")
     force_live: bool = Field(default=False, description="Bypass warehouse cache.")
-    mode: str = Field(default="standard", description="standard / advanced (advanced is reserved).")
+    mode: str = Field(
+        default="standard",
+        description="standard / advanced (browser_pool rendered scrape).",
+    )
 
 
 class MapRequest(BaseModel):

@@ -133,6 +133,7 @@ def enrich_usage(
         usage.setdefault("cost_if_retry", default_cost_if_retry)
     usage.setdefault("balance", _balance_after(db, api_key, usage))
     _add_natural_language_guidance(result)
+    usage.setdefault("cost_if_retry", 0)
     return result
 
 
