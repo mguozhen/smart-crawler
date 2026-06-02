@@ -77,7 +77,8 @@ codex mcp get smart-crawler-local
 npx 配置助手：
 
 ```bash
-npx -y @smart-crawler/mcp install --client codex --local --env-var SMARTCRAWLER_LOCAL_API_KEY
+npx -y @smart-crawler/mcp doctor --client codex --local
+npx -y @smart-crawler/mcp install --client codex --local
 ```
 
 线上：
@@ -97,6 +98,7 @@ export SMARTCRAWLER_API_KEY=sck_xxx
 也可以让 npx helper 打印命令：
 
 ```bash
+npx -y @smart-crawler/mcp doctor --client codex
 npx -y @smart-crawler/mcp install --client codex --env-var SMARTCRAWLER_API_KEY
 ```
 
@@ -132,6 +134,7 @@ npx helper：
 
 ```bash
 npx -y @smart-crawler/mcp install --client claude --url https://smartcrawler.io/mcp
+npx -y @smart-crawler/mcp dxt --env-var SMARTCRAWLER_API_KEY
 ```
 
 ## Cursor 使用
