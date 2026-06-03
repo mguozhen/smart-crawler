@@ -9,6 +9,13 @@ LOG="${SMARTCRAWLER_LOG:-/tmp/smart-crawler-local.screen.log}"
 KEY_NAME="${SMARTCRAWLER_KEY_NAME:-codex-local}"
 MCP_NAME="${SMARTCRAWLER_MCP_NAME:-smart-crawler-local}"
 
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
 cd "$BACKEND"
 
 if [[ ! -x ".venv/bin/python" ]]; then

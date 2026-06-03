@@ -5,7 +5,7 @@
   · 核心内容公式（什么话题/形式/时机有效）
   · 可复制步骤（别人怎么跟着做）
 
-LLM 网关与 nlp.py 一致（flatkey.ai + OpenAI SDK）。
+LLM 网关与 nlp.py 一致（flatkey.ai + Anthropic/OpenAI 兼容适配层）。
 """
 from __future__ import annotations
 
@@ -14,10 +14,11 @@ import os
 from datetime import datetime, timezone
 
 from .crawlers.reddit import get_top_contributors, get_user_activity
+from .llm import DEFAULT_BASE, DEFAULT_MODEL
 
-GATEWAY = os.environ.get("LLM_BASE_URL", "https://app.flatkey.ai/v1")
+GATEWAY = os.environ.get("LLM_BASE_URL", DEFAULT_BASE)
 PLAYBOOK_MODEL = os.environ.get("LLM_PLAYBOOK_MODEL",
-                                os.environ.get("LLM_MODEL", "gpt-5.4-mini"))
+                                os.environ.get("LLM_MODEL", DEFAULT_MODEL))
 
 
 def _llm_client():

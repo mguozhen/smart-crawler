@@ -26,6 +26,9 @@
 4. 启动 → 容器 `smart-crawler` 跑在 NAS 的 `:8077`
 5. 验证：`http://192.168.1.80:8077` 出现登录页，用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 登录
 
+> 生产环境上线前仍需执行第 5 节的 preflight / backup / verify；Docker 面板只是启动方式，
+> 不替代数据库备份和迁移验收。
+
 ## 2. 部署方式 B —— 命令行（从 iMac 操作）
 
 ```bash
@@ -91,11 +94,135 @@ with session_scope() as s:
 
 ---
 
-## 5. 上线后检查清单
+## 5. 安全部署流程（推荐）
+
+在 NAS 项目目录执行。目标是：先确认可迁移、再备份、再启动、最后验收；任何一步失败都停止。
+
+### 5.1 配置生产密钥
+
+根目录 `.env` 至少要显式设置：
+
+```bash
+POSTGRES_PASSWORD=<强随机>
+SC_SECRET=<强随机>
+ADMIN_USERNAME=<管理员用户名>
+ADMIN_PASSWORD=<强随机>
+SMARTCRAWLER_ADMIN_USERNAME=$ADMIN_USERNAME
+SMARTCRAWLER_ADMIN_PASSWORD=$ADMIN_PASSWORD
+SMARTCRAWLER_API_KEY=<一个已有或预创建的 sck_ API key>
+SMARTCRAWLER_BASE_URL=http://127.0.0.1:8077
+```
+
+不要使用 `change-me` / `changeme` / 短密码。`SMARTCRAWLER_API_KEY` 用于部署后验证
+REST v2 和 MCP，不会写进仓库。
+
+如果要启用 LLM 相关功能（Reddit playbook、VOC/NLP 分析、AI 摘要），再加：
+
+```bash
+ANTHROPIC_API_KEY=<flatkey 或 Anthropic 兼容 key>
+# 或 OPENAI_API_KEY=<flatkey 兼容 key>
+LLM_BASE_URL=https://api.flatkey.ai
+LLM_MODEL=claude-haiku-4-5
+```
+
+没有配置 LLM key 时，看板、登录、workspace、普通爬虫、warehouse、MCP 主工具仍可用；
+只是 LLM-only 功能会返回“未配置 key”。如果本次部署必须包含 LLM 能力，执行：
+
+```bash
+REQUIRE_LLM=1 scripts/deploy/preflight.sh
+```
+
+`REQUIRE_LLM=1` 会做一次极小的真实网关调用；如果 key 已禁用、额度不足或模型不可用，
+会在部署前失败。
+
+### 5.2 部署前检查
+
+```bash
+scripts/deploy/preflight.sh
+```
+
+它会检查：
+
+- git 工作区是否干净
+- 生产密钥是否为强随机值
+- 仓库中是否混入真实 API key / proxy 密码
+- workspace/auth 迁移 dry-run 会新增哪些表和字段
+- Python 编译与后端测试是否通过
+
+本地临时验证可用：
+
+```bash
+ALLOW_WEAK_SECRETS=1 RUN_TESTS=0 scripts/deploy/preflight.sh
+```
+
+### 5.3 备份
+
+```bash
+scripts/deploy/backup.sh
+```
+
+脚本会在 `backups/deploy/<timestamp>/` 下保存：
+
+- 数据库备份：SQLite `.db` 或 PostgreSQL `pg_dump`
+- `.env`、compose、`sites.yaml`、代理模板等部署配置
+- 当前 git commit / git status
+- 迁移前数据快照：关键表行数、缺失字段、待 backfill 数量
+
+### 5.4 一键受保护部署
+
+```bash
+scripts/deploy/guarded_deploy.sh
+```
+
+可选参数：
+
+```bash
+DEPLOY_BRANCH=codex/auth-registration-login scripts/deploy/guarded_deploy.sh
+COMPOSE_FILE=docker-compose.service.yml APP_SERVICE=web scripts/deploy/guarded_deploy.sh
+```
+
+流程：
+
+1. 跑 preflight
+2. 备份
+3. 可选切换/拉取指定分支
+4. `docker compose up -d --build`
+5. 容器内执行 `workspace_deploy_guard.py apply`
+6. 调 `/health`、登录、workspace、sites、keys、v2、MCP tools 做部署后验收
+
+### 5.5 单独验收
+
+如果已经手动启动容器，可以单独跑：
+
+```bash
+scripts/deploy/post_deploy_verify.sh
+```
+
+必须看到所有项目都是 `[OK]` 才算上线完成。
+
+### 5.6 回滚
+
+`guarded_deploy.sh` 结束时会打印备份目录。需要回滚时：
+
+```bash
+CONFIRM_RESTORE=YES scripts/deploy/restore.sh backups/deploy/<timestamp>
+docker compose up -d --build
+```
+
+PostgreSQL 会用 `pg_restore --clean --if-exists` 恢复；SQLite 会恢复 `.db` 文件并清理 WAL/SHM。
+
+---
+
+## 6. 上线后人工检查清单
 
 - [ ] `https://smartcrawler.io` 出现登录页，HTTPS 证书正常（Cloudflare 自动签）
-- [ ] 管理员登录成功，46 站点列表可见
+- [ ] 管理员登录成功，`/api/me` 返回 `workspaces` 和 `current_workspace_id`
+- [ ] `Internal Workspace` 可见，原有站点清单已进入 workspace site list
+- [ ] 老 API Key 仍能调用 `/api/v2/sources`
+- [ ] MCP `tools/list` 包含 `query_warehouse`、`scrape_url`、`crawl_site`
+- [ ] `/api/sites`、报告、导出按当前 workspace 过滤
+- [ ] 商品、促销、评论等 warehouse 数据行数与备份快照一致或只增不减
 - [ ] 已设置强随机 `ADMIN_PASSWORD` 和 `SC_SECRET`
-- [ ] `data/` 卷已挂载（SQLite 持久化，容器重建不丢数据）
+- [ ] `data/` 或 PostgreSQL 卷已挂载，容器重建不丢数据
 - [ ] 定时调度生效（容器内 APScheduler 自动起）
 - [ ] 如需采 Vidaxl：配置 `backend/proxies.txt` 住宅代理（见风控评估报告）

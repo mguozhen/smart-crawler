@@ -979,7 +979,8 @@ def proxy_status():
 
 # ---------- API 密钥管理（仅登录用户，供 Agent 接入数据 API）----------
 @router.get("/keys")
-def list_keys(user: str = Depends(require_user),
+def list_keys(include_inactive: bool = False,
+              user: str = Depends(require_user),
               x_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
               db: Session = Depends(get_db)):
     u = _require_dashboard_user(user, db)
@@ -990,6 +991,8 @@ def list_keys(user: str = Depends(require_user),
     else:
         q = q.filter(ApiKey.owner_user_id == u.id,
                      ApiKey.workspace_id == ws.id)
+    if not include_inactive:
+        q = q.filter(ApiKey.active.is_(True))
     rows = q.order_by(ApiKey.id.desc()).all()
     return [_key_response(k) for k in rows]
 

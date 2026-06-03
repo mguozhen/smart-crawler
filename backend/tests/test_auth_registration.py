@@ -266,6 +266,9 @@ def test_user_api_keys_are_owner_scoped_and_scope_limited():
     assert updated["scopes"] == ["crawler:read", "crawler:scrape"]
     assert updated["monthly_credit_quota"] is None
     assert updated["active"] is False
+    assert list_keys(user="alice", db=db) == []
+    assert [k["name"] for k in list_keys(include_inactive=True,
+                                         user="alice", db=db)] == ["alice-key"]
 
     admin_updated = update_key(created["id"], {
         "scopes": ["crawler:read", "crawler:crawl"],

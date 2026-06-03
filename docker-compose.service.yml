@@ -11,6 +11,10 @@ x-app: &app-base
   environment: &app-env
     DATABASE_URL: postgresql+psycopg://sc:${PG_PASSWORD:-changeme}@postgres:5432/smartcrawler
     SC_SECRET: ${SC_SECRET:-change-me-strong-random}
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    LLM_BASE_URL: ${LLM_BASE_URL:-https://api.flatkey.ai}
+    LLM_MODEL: ${LLM_MODEL:-claude-haiku-4-5}
     SNAPSHOT_DIR: /data/snapshots
     HOMARY_LIMIT: ${HOMARY_LIMIT:-500}
     COSTWAY_PAGES_PER_CAT: ${COSTWAY_PAGES_PER_CAT:-3}

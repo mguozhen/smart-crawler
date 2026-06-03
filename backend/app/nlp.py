@@ -5,8 +5,8 @@
 
 需环境变量：
   OPENAI_API_KEY   flatkey.ai 的 sk- 密钥（必填）
-  LLM_BASE_URL     默认 https://app.flatkey.ai/v1
-  LLM_MODEL        默认 gpt-5.4-mini（分类任务，便宜够用）
+  LLM_BASE_URL     默认 https://api.flatkey.ai
+  LLM_MODEL        默认 claude-haiku-4-5（分类任务，便宜够用）
 """
 from __future__ import annotations
 
@@ -15,10 +15,11 @@ import os
 from datetime import datetime
 
 from .db import session_scope
+from .llm import DEFAULT_BASE, DEFAULT_MODEL
 from .models import Review
 
-GATEWAY = os.environ.get("LLM_BASE_URL", "https://app.flatkey.ai/v1")
-MODEL = os.environ.get("LLM_MODEL", "gpt-5.4-mini")
+GATEWAY = os.environ.get("LLM_BASE_URL", DEFAULT_BASE)
+MODEL = os.environ.get("LLM_MODEL", DEFAULT_MODEL)
 
 CATEGORIES_L1 = ["质量", "物流", "客服", "价格", "外观", "包装", "尺寸", "其他"]
 

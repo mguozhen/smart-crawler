@@ -42,12 +42,13 @@ input,select{font-family:inherit}
 .tab:hover{background:rgba(167,139,250,.08);color:#c4b5fd}
 .tab.active{background:rgba(167,139,250,.16);color:#fff;box-shadow:inset 0 -2px 0 #a78bfa}
 
-.usage-strip{font-size:0.74rem;color:#94a3b8;padding:5px 11px;border-radius:8px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.25)}
-.usage-strip b{color:#6ee7b7;font-weight:700}
-.icon-btn{padding:7px 9px;border-radius:8px;color:#94a3b8;cursor:pointer;border:1px solid #29213a;background:#13111f;font-size:0.84rem}
-.icon-btn:hover{background:rgba(167,139,250,.10);color:#c4b5fd}
-.acct{display:flex;align-items:center;gap:8px;padding:5px 11px 5px 5px;border-radius:8px;background:#13111f;border:1px solid #29213a;font-size:0.78rem;cursor:pointer}
-.acct .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#f472b6);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:800;color:#fff}
+	.usage-strip{font-size:0.74rem;color:#94a3b8;padding:5px 11px;border-radius:8px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.25)}
+	.usage-strip b{color:#6ee7b7;font-weight:700}
+	.icon-btn{padding:7px 9px;border-radius:8px;color:#94a3b8;cursor:pointer;border:1px solid #29213a;background:#13111f;font-size:0.84rem}
+	.icon-btn:hover{background:rgba(167,139,250,.10);color:#c4b5fd}
+	.acct{display:flex;align-items:center;gap:8px;padding:5px 11px 5px 5px;border-radius:8px;background:#13111f;border:1px solid #29213a;font-size:0.78rem;cursor:pointer}
+	.acct:hover,.acct.active{border-color:rgba(167,139,250,.55);background:rgba(167,139,250,.10);color:#fff}
+	.acct .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#f472b6);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:800;color:#fff}
 
 .page{max-width:1400px;margin:0 auto;padding:20px 22px 50px}
 .lead{font-size:1.7rem;font-weight:900;letter-spacing:-0.6px;margin-bottom:5px}
@@ -285,14 +286,18 @@ const App = {
       } catch(e) { loginErr.value = '网络错误'; }
       finally { logging.value = false; }
     }
-    async function logout() {
-      try { await fetch('/api/auth/logout', { method:'POST', headers: authH() }); } catch(e) {}
-      localStorage.removeItem('sc_token'); localStorage.removeItem('sc_user');
-      localStorage.removeItem('sc_workspace_id');
-      token.value = ''; user.value = {};
-      currentWorkspaceId.value = '';
-    }
-    function authH() {
+	    async function logout() {
+	      try { await fetch('/api/auth/logout', { method:'POST', headers: authH() }); } catch(e) {}
+	      localStorage.removeItem('sc_token'); localStorage.removeItem('sc_user');
+	      localStorage.removeItem('sc_workspace_id');
+	      token.value = ''; user.value = {};
+	      currentWorkspaceId.value = '';
+	    }
+	    async function openAccount() {
+	      tab.value = 'account';
+	      await Promise.all([loadKeys(), loadBilling()]);
+	    }
+	    function authH() {
       const h = { 'Authorization': 'Bearer ' + token.value };
       if (currentWorkspaceId.value) h['X-Workspace-ID'] = String(currentWorkspaceId.value);
       return h;
@@ -522,7 +527,7 @@ const App = {
       selectedSite.value = '';
       await Promise.all([loadSites(), loadCoverage(), loadJobs(), loadBilling(), loadKeys(), loadWorkspaceSites()]);
       if (sites.value.length) selectedSite.value = sites.value[0].site;
-      showToast('Workspace 已切换');
+      showToast('工作区已切换');
     }
     async function createWorkspace() {
       try {
@@ -545,7 +550,7 @@ const App = {
         await apiJson(`/api/admin/workspaces/${currentWorkspaceId.value}/sites`, { method:'POST', body: JSON.stringify(addWorkspaceSiteForm.value) });
         addWorkspaceSiteForm.value = { site:'' };
         await Promise.all([loadWorkspaceSites(), loadSites(), loadCoverage()]);
-        showToast('站点已加入 workspace');
+        showToast('站点已加入工作区');
       } catch(e) { showToast(e.message); }
     }
     async function toggleWorkspaceSite(row) {
@@ -591,7 +596,7 @@ const App = {
     onMounted(()=> { if (token.value) loadAll(); });
 
     return {
-      token, user, loginMode, loginForm, registerForm, loginErr, logging, doLogin, doRegister, logout,
+	      token, user, loginMode, loginForm, registerForm, loginErr, logging, doLogin, doRegister, logout, openAccount,
       tab, sites, selectedSite, coverage, jobs, products, proxyStatus, apiKeys, billing,
       accountForm, passwordForm, newKeyName, createdKey, users, invites, inviteForm, newInviteCode,
       adminUserForm, createdUserPassword, workspaces, currentWorkspaceId, workspaceForm,
@@ -652,7 +657,7 @@ const App = {
             <input v-model="registerForm.confirm_password" type="password" placeholder="再次输入密码" @keyup.enter="doRegister"/>
           </div>
           <button class="login-btn" :disabled="logging" @click="doRegister">{{ logging ? '注册中…' : '注册并登录' }}</button>
-          <div class="login-note">邀请码只能由内部管理员生成。注册后可在 Settings 创建自己的 API Key。</div>
+	          <div class="login-note">邀请码只能由内部管理员生成。注册后可在账号页创建自己的 API Key。</div>
         </template>
         <div class="login-err">{{ loginErr }}</div>
       </div>
@@ -669,14 +674,14 @@ const App = {
           <button class="tab" :class="{active: tab==='coverage'}" @click="tab='coverage';loadCoverage()">🌐 Coverage</button>
           <button class="tab" :class="{active: tab==='jobs'}" @click="tab='jobs';loadJobs()">⚙️ Jobs</button>
           <button class="tab" :class="{active: tab==='influencers'}" @click="tab='influencers'">🌟 红人</button>
-          <button class="tab" :class="{active: tab==='settings'}" @click="tab='settings'">🔧 Settings</button>
+          <button class="tab" :class="{active: tab==='settings'}" @click="tab='settings'">🔧 设置</button>
         </div>
         <div class="usage-strip">SKU <b>{{ totalSku.toLocaleString() }}</b> · <b>{{ coveragePct }}%</b></div>
         <button class="icon-btn" @click="exportCSV" title="导出 CSV">📥</button>
-        <div class="acct" @click="logout" title="点击退出">
-          <div class="avatar">{{ (user.display_name||'A').charAt(0).toUpperCase() }}</div>
-          <span>{{ user.display_name || user.username || 'admin' }}</span>
-        </div>
+	        <button class="acct" :class="{active: tab==='account'}" @click="openAccount" title="账号与安全">
+	          <div class="avatar">{{ (user.display_name||'A').charAt(0).toUpperCase() }}</div>
+	          <span>{{ user.display_name || user.username || 'admin' }}</span>
+	        </button>
       </div>
 
       <div v-if="tab==='overview'" class="page">
@@ -934,13 +939,13 @@ const App = {
         </div>
       </div>
 
-      <div v-if="tab==='settings'" class="page">
-        <div class="lead">设置</div>
-        <div class="sub">API Keys · Billing · 代理池 · 文档</div>
+	      <div v-if="tab==='settings'" class="page">
+	        <div class="lead">设置</div>
+	        <div class="sub">工作区 · 用户管理 · 邀请码 · 代理池 · 文档</div>
 
         <div class="set-grid">
           <div class="set-block">
-            <h3>🏢 Workspace</h3>
+            <h3>🏢 工作区</h3>
             <div class="form-grid one">
               <select class="set-sel" v-model="currentWorkspaceId" @change="switchWorkspace">
                 <option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ w.name }} · {{ w.slug }}</option>
@@ -949,20 +954,20 @@ const App = {
             <div class="key-row">
               <div class="info">
                 <b>{{ (workspaces.find(w=>String(w.id)===String(currentWorkspaceId))||{}).name || '—' }}</b>
-                <span class="meta">当前看板、报告、导出和 API Key 都按这个 workspace 隔离</span>
+                <span class="meta">当前看板、报告和导出按这个工作区隔离</span>
               </div>
             </div>
             <template v-if="user.global_role==='super_admin'">
               <div class="form-grid">
-                <input class="set-inp" v-model="workspaceForm.name" placeholder="新 workspace 名称"/>
+                <input class="set-inp" v-model="workspaceForm.name" placeholder="新工作区名称"/>
                 <input class="set-inp" v-model="workspaceForm.slug" placeholder="slug"/>
-                <button class="mini-btn" @click="createWorkspace">创建 Workspace</button>
+                <button class="mini-btn" @click="createWorkspace">创建工作区</button>
               </div>
             </template>
           </div>
 
           <div v-if="user.global_role==='super_admin'" class="set-block">
-            <h3>🌐 Workspace 站点</h3>
+            <h3>🌐 工作区站点</h3>
             <div class="form-grid">
               <input class="set-inp" v-model="addWorkspaceSiteForm.site" placeholder="全局 site code，例如 songmics_us"/>
               <button class="mini-btn" @click="addWorkspaceSite">加入站点</button>
@@ -971,52 +976,13 @@ const App = {
               <div class="info">
                 <b>{{ s.site }}</b>
                 <span class="key-prefix">{{ s.brand || '—' }} · {{ s.country || '—' }}</span>
-                <span class="meta">enabled={{ s.enabled }} · hidden={{ s.hidden }}</span>
+                <span class="meta">状态={{ s.enabled ? '启用' : '停用' }} · 隐藏={{ s.hidden ? '是' : '否' }}</span>
               </div>
               <button class="mini-btn" :class="s.enabled?'bad':''" @click="toggleWorkspaceSite(s)">{{ s.enabled ? '停用' : '启用' }}</button>
             </div>
           </div>
 
-          <div class="set-block">
-            <h3>👤 我的账号</h3>
-            <div class="key-row">
-              <div class="info">
-                <b>{{ user.display_name || user.username }}</b>
-                <span class="key-prefix">{{ user.email || user.username }}</span>
-                <span class="meta">role={{ user.role }} · status={{ user.status || 'active' }}</span>
-              </div>
-            </div>
-            <div class="form-grid one">
-              <input class="set-inp" v-model="accountForm.display_name" placeholder="显示名"/>
-              <button class="mini-btn" @click="saveAccount">保存资料</button>
-            </div>
-            <div class="form-grid">
-              <input class="set-inp" type="password" v-model="passwordForm.old_password" placeholder="旧密码"/>
-              <input class="set-inp" type="password" v-model="passwordForm.new_password" placeholder="新密码"/>
-              <input class="set-inp" type="password" v-model="passwordForm.confirm_password" placeholder="确认新密码"/>
-              <button class="mini-btn" @click="changePassword">修改密码</button>
-            </div>
-          </div>
-
-          <div class="set-block">
-            <h3>🔑 API Keys</h3>
-            <div class="form-grid">
-              <input class="set-inp" v-model="newKeyName" placeholder="Key 名称"/>
-              <button class="mini-btn" @click="createMyKey">创建 Key</button>
-            </div>
-            <div v-if="createdKey" class="secret-box">{{ createdKey }}</div>
-            <div v-for="k in apiKeys" :key="k.id" class="key-row">
-              <div class="info">
-                <b>{{ k.name }}</b>
-                <span class="key-prefix">{{ k.key_prefix }}</span>
-                <span class="meta">{{ (k.request_count||0).toLocaleString() }} 次调用 · {{ (k.scopes||[]).join(', ') }}</span>
-              </div>
-              <button class="mini-btn bad" v-if="k.active" @click="revokeKey(k.id)">停用</button>
-            </div>
-            <div v-if="!apiKeys.length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">暂无 key</div>
-          </div>
-
-          <div v-if="user.role==='admin'" class="set-block">
+	          <div v-if="user.role==='admin'" class="set-block">
             <h3>👥 用户管理</h3>
             <div class="form-grid">
               <input class="set-inp" v-model="adminUserForm.username" placeholder="用户名"/>
@@ -1035,7 +1001,7 @@ const App = {
               <div class="info">
                 <b>{{ u.display_name || u.username }}</b>
                 <span class="key-prefix">{{ u.email }} · @{{ u.username }}</span>
-                <span class="meta">role={{ u.role }} · status={{ u.status }}</span>
+                <span class="meta">角色={{ u.role }} · 状态={{ u.status }}</span>
               </div>
               <div style="display:flex;gap:6px">
                 <select class="set-sel" style="width:92px" v-model="u.role" @change="updateUserRole(u)">
@@ -1065,24 +1031,12 @@ const App = {
             <div v-for="i in invites" :key="i.id" class="key-row">
               <div class="info">
                 <b>{{ i.code_prefix }}</b>
-                <span class="meta">used {{ i.used_count }}/{{ i.max_uses }} · role={{ i.default_role }}</span>
-                <span class="meta">expires {{ i.expires_at || '—' }}</span>
+                <span class="meta">已用 {{ i.used_count }}/{{ i.max_uses }} · 默认角色={{ i.default_role }}</span>
+                <span class="meta">过期时间 {{ i.expires_at || '—' }}</span>
               </div>
               <button v-if="i.active" class="mini-btn bad" @click="disableInvite(i.id)">禁用</button>
               <span v-else class="pill bad">disabled</span>
             </div>
-          </div>
-
-          <div class="set-block">
-            <h3>💰 Billing · 30 天用量</h3>
-            <div v-for="k in (billing.keys||[])" :key="k.id" class="key-row">
-              <div class="info">
-                <b>{{ k.name }}</b>
-                <span class="key-prefix">{{ k.key_prefix }}</span>
-                <span class="meta">{{ (k.request_count||0).toLocaleString() }} 次</span>
-              </div>
-            </div>
-            <div v-if="!(billing.keys||[]).length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">暂无 usage</div>
           </div>
 
           <div class="set-block">
@@ -1094,7 +1048,7 @@ const App = {
               </div>
               <span class="pill" :class="p.fail_count>3?'bad':'ok'">{{ p.fail_count>3?'⚠':'✓' }}</span>
             </div>
-            <div v-if="!(proxyStatus.details||[]).length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">代理 status 未加载</div>
+            <div v-if="!(proxyStatus.details||[]).length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">代理状态未加载</div>
           </div>
 
           <div class="set-block">
@@ -1109,10 +1063,95 @@ const App = {
               <div>🧪 <a href="/api/v1/" target="_blank">REST API v1 索引</a></div>
             </div>
           </div>
-        </div>
-      </div>
+	        </div>
+	      </div>
 
-      <div v-if="toast" class="toast">{{ toast }}</div>
+	      <div v-if="tab==='account'" class="page">
+	        <div class="lead">账号</div>
+	        <div class="sub">个人资料 · 密码安全 · API Key · 用量 · 当前工作区</div>
+
+	        <div class="set-grid">
+	          <div class="set-block">
+	            <h3>👤 个人资料</h3>
+	            <div class="key-row">
+	              <div class="info">
+	                <b>{{ user.display_name || user.username }}</b>
+	                <span class="key-prefix">{{ user.email || user.username }}</span>
+		                <span class="meta">角色={{ user.role }} · 状态={{ user.status || 'active' }} · 全局角色={{ user.global_role || '—' }}</span>
+	              </div>
+	            </div>
+	            <div class="form-grid one">
+	              <input class="set-inp" v-model="accountForm.display_name" placeholder="显示名"/>
+	              <button class="mini-btn" @click="saveAccount">保存资料</button>
+	            </div>
+	          </div>
+
+	          <div class="set-block">
+	            <h3>🔒 密码与会话</h3>
+	            <div class="form-grid">
+	              <input class="set-inp" type="password" v-model="passwordForm.old_password" placeholder="旧密码"/>
+	              <input class="set-inp" type="password" v-model="passwordForm.new_password" placeholder="新密码"/>
+	              <input class="set-inp" type="password" v-model="passwordForm.confirm_password" placeholder="确认新密码"/>
+	              <button class="mini-btn" @click="changePassword">修改密码</button>
+	            </div>
+	            <div class="key-row">
+	              <div class="info">
+	                <b>退出当前账号</b>
+	                <span class="meta">结束当前浏览器会话，返回登录页</span>
+	              </div>
+	              <button class="mini-btn bad" @click="logout">退出登录</button>
+	            </div>
+	          </div>
+
+	          <div class="set-block">
+		            <h3>🏢 当前工作区</h3>
+	            <div class="key-row">
+	              <div class="info">
+	                <b>{{ (workspaces.find(w=>String(w.id)===String(currentWorkspaceId))||{}).name || '—' }}</b>
+	                <span class="key-prefix">{{ (workspaces.find(w=>String(w.id)===String(currentWorkspaceId))||{}).slug || '—' }}</span>
+		                <span class="meta">站点、报告、导出、API Key 和用量按工作区隔离</span>
+	              </div>
+	            </div>
+	            <div class="form-grid one" v-if="workspaces.length > 1">
+	              <select class="set-sel" v-model="currentWorkspaceId" @change="switchWorkspace">
+	                <option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ w.name }} · {{ w.slug }}</option>
+	              </select>
+	            </div>
+	          </div>
+
+	          <div class="set-block">
+	            <h3>🔑 API Keys</h3>
+	            <div class="form-grid">
+	              <input class="set-inp" v-model="newKeyName" placeholder="Key 名称"/>
+	              <button class="mini-btn" @click="createMyKey">创建 Key</button>
+	            </div>
+	            <div v-if="createdKey" class="secret-box">{{ createdKey }}</div>
+	            <div v-for="k in apiKeys" :key="k.id" class="key-row">
+	              <div class="info">
+	                <b>{{ k.name }}</b>
+	                <span class="key-prefix">{{ k.key_prefix }}</span>
+	                <span class="meta">{{ (k.request_count||0).toLocaleString() }} 次调用 · {{ (k.scopes||[]).join(', ') }}</span>
+	              </div>
+	              <button class="mini-btn bad" v-if="k.active" @click="revokeKey(k.id)">停用</button>
+	            </div>
+	            <div v-if="!apiKeys.length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">暂无 key</div>
+	          </div>
+
+	          <div class="set-block">
+	            <h3>💰 30 天用量</h3>
+	            <div v-for="k in (billing.keys||[])" :key="k.id" class="key-row">
+	              <div class="info">
+	                <b>{{ k.name }}</b>
+	                <span class="key-prefix">{{ k.key_prefix }}</span>
+	                <span class="meta">{{ (k.request_count||0).toLocaleString() }} 次调用</span>
+	              </div>
+	            </div>
+	            <div v-if="!(billing.keys||[]).length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">暂无用量记录</div>
+	          </div>
+	        </div>
+	      </div>
+
+	      <div v-if="toast" class="toast">{{ toast }}</div>
     </template>
   `
 };

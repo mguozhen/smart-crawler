@@ -18,8 +18,10 @@
 ## 1. 备份现有 SQLite
 
 ```bash
-cp ./data/smart_crawler.db ./data/smart_crawler.db.bak-$(date +%Y%m%d)
+scripts/deploy/backup.sh
 ```
+
+备份目录会包含 SQLite `.db`、配置文件、git commit 和迁移前表行数快照。
 
 ## 2. 启动 PostgreSQL 容器
 
@@ -69,15 +71,34 @@ docker compose logs -f smart-crawler   # 确认启动无 DB 报错
 
 ## 5. 验证
 
-- 打开 `http://<NAS-IP>:8077` 看板，确认商品 / 促销 / 评论数量与迁移前一致。
-- 用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 登录（`_seed_users()` 若用户已迁移则不会重复创建）。
-- 触发一次采集任务，确认能正常写入 PostgreSQL。
+先跑数据库层校验：
+
+```bash
+docker compose exec -T smart-crawler \
+  python scripts/workspace_deploy_guard.py apply --json
+```
+
+再跑 HTTP 层验收：
+
+```bash
+scripts/deploy/post_deploy_verify.sh
+```
+
+最后打开 `http://<NAS-IP>:8077` 看板，确认商品 / 促销 / 评论数量与迁移前快照一致；
+用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 登录；触发一次采集任务，确认能正常写入 PostgreSQL。
 
 ## 回滚
 
-把 `docker-compose.yml` 里 `smart-crawler` 的 `DATABASE_URL` 临时改成
-`sqlite:////app/data/smart_crawler.db`（或在 `.env` 设 `DATABASE_URL`），
-再 `docker compose up -d smart-crawler` 即可退回 SQLite。
+优先使用统一恢复脚本：
+
+```bash
+CONFIRM_RESTORE=YES scripts/deploy/restore.sh backups/deploy/<timestamp>
+docker compose up -d --build
+```
+
+如果只是想临时退回 SQLite，也可以把 `docker-compose.yml` 里 `smart-crawler` 的
+`DATABASE_URL` 临时改成 `sqlite:////app/data/smart_crawler.db`
+（或在 `.env` 设 `DATABASE_URL`），再 `docker compose up -d smart-crawler`。
 SQLite 库文件未被迁移脚本修改。
 
 ## 兼容性备注
