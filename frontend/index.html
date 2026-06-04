@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>smart-crawler · 管理控制台</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <script src="https://unpkg.com/vue@3.4.27/dist/vue.global.prod.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter','PingFang SC',-apple-system,BlinkMacSystemFont,sans-serif}
@@ -518,7 +519,7 @@ html[data-theme="dark"] #theme-toggle{box-shadow:0 8px 24px rgba(0,0,0,.4)}
 /* 主题初始化：在首屏绘制前应用，避免闪烁。默认浅色。 */
 (function(){
   try{
-    var t = localStorage.getItem('sc_theme') || 'light';
+    var t = localStorage.getItem('sc_theme') || 'dark';
     if(t === 'dark') document.documentElement.setAttribute('data-theme','dark');
   }catch(e){}
 })();

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>smart-crawler · 站点报表</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <script src="https://unpkg.com/vue@3.4.27/dist/vue.global.prod.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,"PingFang SC","Segoe UI",sans-serif}
@@ -187,7 +188,7 @@ html[data-theme="dark"] #theme-toggle{background:#13111f;border-color:#29213a;co
 <script>
 /* 主题初始化（与控制台共用 localStorage.sc_theme），首屏前应用防闪烁 */
 (function(){
-  try{ if((localStorage.getItem('sc_theme')||'light')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
+  try{ if((localStorage.getItem('sc_theme')||'dark')==='dark') document.documentElement.setAttribute('data-theme','dark'); }catch(e){}
 })();
 </script>
 <div id="app"></div>
