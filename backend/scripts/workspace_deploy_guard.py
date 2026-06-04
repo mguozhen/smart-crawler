@@ -117,8 +117,15 @@ def _pre_migration_backfills() -> dict[str, int | None]:
         result["api_keys_without_workspace"] = int(_scalar(
             "SELECT COUNT(*) FROM api_keys WHERE workspace_id IS NULL") or 0)
     if _has_table(insp, "invite_codes") and "workspace_id" in _columns(insp, "invite_codes"):
-        result["invite_codes_without_workspace"] = int(_scalar(
-            "SELECT COUNT(*) FROM invite_codes WHERE workspace_id IS NULL") or 0)
+        cols = _columns(insp, "invite_codes")
+        if "target_type" in cols:
+            result["invite_codes_without_workspace"] = int(_scalar(
+                "SELECT COUNT(*) FROM invite_codes "
+                "WHERE workspace_id IS NULL "
+                "AND COALESCE(target_type, 'workspace') != 'new_workspace'") or 0)
+        else:
+            result["invite_codes_without_workspace"] = int(_scalar(
+                "SELECT COUNT(*) FROM invite_codes WHERE workspace_id IS NULL") or 0)
     if _has_table(insp, "usage_records") and "workspace_id" in _columns(insp, "usage_records"):
         result["usage_records_without_workspace"] = int(_scalar(
             "SELECT COUNT(*) FROM usage_records WHERE workspace_id IS NULL") or 0)
@@ -219,7 +226,15 @@ def validate() -> dict[str, Any]:
         if invalid_keys:
             problems.append(f"api_keys has {invalid_keys} rows pointing to missing workspaces")
     if _has_table(insp, "invite_codes") and "workspace_id" in _columns(insp, "invite_codes"):
-        null_invites = int(_scalar("SELECT COUNT(*) FROM invite_codes WHERE workspace_id IS NULL") or 0)
+        cols = _columns(insp, "invite_codes")
+        if "target_type" in cols:
+            null_invites = int(_scalar(
+                "SELECT COUNT(*) FROM invite_codes "
+                "WHERE workspace_id IS NULL "
+                "AND COALESCE(target_type, 'workspace') != 'new_workspace'") or 0)
+        else:
+            null_invites = int(_scalar(
+                "SELECT COUNT(*) FROM invite_codes WHERE workspace_id IS NULL") or 0)
         if null_invites:
             problems.append(f"invite_codes has {null_invites} rows without workspace_id")
     if _has_table(insp, "usage_records") and "workspace_id" in _columns(insp, "usage_records"):

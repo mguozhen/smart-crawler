@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>smart-crawler · Admin Dashboard v8</title>
+<title>smart-crawler · 管理控制台</title>
 <script src="https://unpkg.com/vue@3.4.27/dist/vue.global.prod.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter','PingFang SC',-apple-system,BlinkMacSystemFont,sans-serif}
 html,body{background:#0a0612;color:#e5e7eb;font-size:14px;line-height:1.55;min-height:100vh}
+#app{min-height:100vh;display:flex;flex-direction:column}
 a{color:#a78bfa;text-decoration:none}
 button{font-family:inherit}
 input,select{font-family:inherit}
@@ -50,7 +51,7 @@ input,select{font-family:inherit}
 	.acct:hover,.acct.active{border-color:rgba(167,139,250,.55);background:rgba(167,139,250,.10);color:#fff}
 	.acct .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#f472b6);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:800;color:#fff}
 
-.page{max-width:1400px;margin:0 auto;padding:20px 22px 50px}
+.page{width:100%;max-width:1400px;margin:0 auto;padding:20px 22px 50px}
 .lead{font-size:1.7rem;font-weight:900;letter-spacing:-0.6px;margin-bottom:5px}
 .sub{font-size:0.86rem;color:#94a3b8;margin-bottom:16px}
 
@@ -73,11 +74,11 @@ input,select{font-family:inherit}
 .btn-go{background:linear-gradient(135deg,#a78bfa,#f472b6);color:#fff;border:none;padding:6px 16px;border-radius:7px;font-size:0.78rem;font-weight:700;cursor:pointer}
 
 .starters{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
-.starter{background:#13111f;border:1px solid #29213a;border-radius:10px;padding:12px 14px;cursor:pointer;transition:all .15s}
+.starter{background:#13111f;border:1px solid #29213a;border-radius:10px;padding:12px 14px;cursor:pointer;transition:all .15s;min-height:104px;display:flex;flex-direction:column}
 .starter:hover{border-color:#a78bfa;transform:translateY(-2px)}
 .starter .icon{font-size:1.2rem;margin-bottom:5px}
-.starter .title{font-size:0.84rem;font-weight:700;color:#fff;margin-bottom:3px}
-.starter .desc{font-size:0.72rem;color:#94a3b8;line-height:1.45}
+.starter .title{font-size:0.84rem;font-weight:700;color:#fff;margin-bottom:3px;min-height:22px}
+.starter .desc{font-size:0.72rem;color:#94a3b8;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
 .trace{background:#13111f;border:1px solid #29213a;border-radius:12px;padding:13px 14px;font-size:0.76rem}
 .trace h4{font-size:0.66rem;color:#52527a;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
@@ -99,19 +100,19 @@ input,select{font-family:inherit}
 .thumb{width:32px;height:32px;border-radius:6px;background:linear-gradient(135deg,#475569,#1f2937);display:flex;align-items:center;justify-content:center;font-size:0.84rem}
 
 .cov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:11px;margin-top:6px}
-.cov-tile{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:13px 14px}
+.cov-tile{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:13px 14px;display:flex;flex-direction:column;min-height:174px}
 .cov-tile.critical{border-color:rgba(251,113,133,.3)}
 .cov-tile.warning{border-color:rgba(247,183,49,.3)}
 .cov-tile.healthy{border-color:rgba(16,185,129,.3)}
-.cov-tile h6{font-size:0.84rem;font-weight:800;color:#fff;margin-bottom:3px}
-.cov-tile .country{font-size:0.64rem;color:#52527a;letter-spacing:1px;margin-bottom:6px}
-.cov-tile .num{font-size:1.3rem;font-weight:900;color:#c4b5fd;margin-bottom:2px}
-.cov-tile .pct{font-size:0.72rem;color:#94a3b8;margin-bottom:6px}
+.cov-tile h6{font-size:0.84rem;font-weight:800;color:#fff;margin-bottom:2px;min-height:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cov-tile .country{font-size:0.64rem;color:#52527a;letter-spacing:1px;line-height:1.45;margin-bottom:6px;height:36px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cov-tile .num{font-size:1.3rem;font-weight:900;color:#c4b5fd;margin-bottom:0;min-height:32px;display:flex;align-items:center}
+.cov-tile .pct{font-size:0.72rem;color:#94a3b8;margin-bottom:7px;min-height:20px;display:flex;align-items:center}
 .cov-tile .bar{height:4px;background:#29213a;border-radius:3px;overflow:hidden}
 .cov-tile .bar div{height:100%;background:linear-gradient(90deg,#10b981,#6ee7b7);transition:width .3s}
 .cov-tile.warning .bar div{background:linear-gradient(90deg,#fbbf24,#fcd34d)}
 .cov-tile.critical .bar div{background:linear-gradient(90deg,#fb7185,#fda4af)}
-.cov-tile button{margin-top:8px;width:100%;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.25);color:#c4b5fd;padding:5px;border-radius:6px;font-size:0.72rem;font-weight:600;cursor:pointer}
+.cov-tile button{margin-top:10px;width:100%;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.25);color:#c4b5fd;padding:5px;border-radius:6px;font-size:0.72rem;font-weight:600;cursor:pointer}
 .cov-tile button:hover{background:rgba(167,139,250,.20)}
 
 .entry-row{margin-top:16px;cursor:pointer}
@@ -124,18 +125,19 @@ input,select{font-family:inherit}
 .entry-arrow{color:#c4b5fd;font-size:1.3rem;font-weight:700}
 
 .report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
-.report-tile{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:14px}
+.report-tile{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:14px;display:flex;flex-direction:column;min-height:214px}
+.report-tile.empty{background:linear-gradient(180deg,#ffffff,#fcfaff)}
 .report-tile.ready{border-color:rgba(167,139,250,.40);background:linear-gradient(180deg,#181024,#13111f)}
 .report-tile.warning{border-color:rgba(251,191,36,.35)}
 .report-tile.critical{border-color:rgba(248,113,113,.35)}
-.report-tile .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.report-tile h6{font-size:0.86rem;font-weight:800;color:#fff;margin:0}
+.report-tile .head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;min-height:24px}
+.report-tile h6{font-size:0.86rem;font-weight:800;color:#fff;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .report-tile .badge{font-size:0.62rem;padding:2px 7px;border-radius:9px;font-weight:700}
 .report-tile .badge.healthy{background:rgba(74,222,128,.16);color:#86efac;border:1px solid rgba(74,222,128,.35)}
 .report-tile .badge.warning{background:rgba(251,191,36,.16);color:#fcd34d;border:1px solid rgba(251,191,36,.35)}
 .report-tile .badge.critical{background:rgba(248,113,113,.16);color:#fca5a5;border:1px solid rgba(248,113,113,.35)}
-.report-tile .badge.pending{background:rgba(82,82,122,.18);color:#64647a;border:1px solid #29213a}
-.report-tile .country{font-size:0.64rem;color:#52527a;letter-spacing:1px;margin-bottom:7px}
+.report-tile .badge.pending{background:#f7f2ff;color:#7c3aed;border:1px solid #e9d5ff}
+.report-tile .country{font-size:0.64rem;color:#52527a;letter-spacing:1px;margin-bottom:7px;min-height:32px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .report-tile .nums{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
 .report-tile .nums .item{padding:6px 0}
 .report-tile .nums .lbl{font-size:0.58rem;color:#52527a;letter-spacing:0.6px;margin-bottom:2px;text-transform:uppercase}
@@ -146,22 +148,39 @@ input,select{font-family:inherit}
 .report-tile .covbar.warning > i{background:linear-gradient(90deg,#fcd34d,#fbbf24)}
 .report-tile .covbar.critical > i{background:linear-gradient(90deg,#fca5a5,#f87171)}
 .report-tile .num{font-size:1.1rem;font-weight:900;color:#c4b5fd;margin-bottom:10px}
+.report-tile .btns{margin-top:auto}
 .report-tile .btns a,.report-tile .btns button{display:block;width:100%;text-align:center;padding:6px 8px;border-radius:6px;font-size:0.74rem;font-weight:600;cursor:pointer;text-decoration:none;box-sizing:border-box}
 .report-tile .btn-prim{background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff;border:0}
 .report-tile .btn-prim:hover{filter:brightness(1.1)}
 .report-tile .btn-gen{background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.25);color:#c4b5fd}
+.report-tile .btn-muted{background:#f7f2ff;border:1px solid #d8b4fe;color:#6d28d9}
 .report-tile .btn-gen:hover:not(:disabled){background:rgba(167,139,250,.20)}
 .report-tile .btn-gen:disabled{opacity:.5;cursor:wait}
 
 /* 红人页 */
-.inf-form{display:flex;gap:10px;margin-bottom:18px;align-items:center}
+.inf-workbench{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr);gap:14px;align-items:stretch;margin-bottom:14px}
+.inf-panel{background:var(--ui-card);border:1px solid var(--ui-border);border-radius:10px;padding:14px;box-shadow:0 10px 28px rgba(37,29,61,.07)}
+.inf-panel h3{font-size:0.95rem;color:var(--ui-heading);margin-bottom:10px}
+.inf-form{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .inf-sel{padding:9px 14px;border:1px solid #29213a;background:#13111f;color:#fff;border-radius:8px;font-family:inherit;font-size:0.86rem;cursor:pointer}
 .inf-inp{flex:1;max-width:340px;padding:9px 14px;border:1px solid #29213a;background:#13111f;color:#fff;border-radius:8px;font-size:0.86rem;font-family:inherit;outline:none}
 .inf-inp:focus{border-color:rgba(167,139,250,.55)}
 .btn-prim{padding:9px 18px;border:0;background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.86rem;font-family:inherit}
 .btn-prim:disabled{opacity:.6;cursor:wait}
+.inf-quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.inf-chip{border:1px solid var(--ui-border);background:var(--ui-card-soft);border-radius:8px;padding:8px 10px;cursor:pointer;text-align:left;color:var(--ui-text)}
+.inf-chip:hover{border-color:var(--ui-purple-line);background:#fff}
+.inf-chip b{display:block;font-size:0.84rem;color:var(--ui-heading);margin-bottom:2px}
+.inf-chip span{font-size:0.7rem;color:var(--ui-muted)}
 .inf-err{background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.4);color:#fda4af;padding:12px 16px;border-radius:9px;font-size:0.84rem}
 .inf-card{background:#13111f;border:1px solid #29213a;border-radius:12px;padding:18px 22px;margin-top:10px}
+.inf-placeholder{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.inf-placeholder-card{background:var(--ui-card);border:1px solid var(--ui-border);border-radius:10px;padding:14px;min-height:150px;box-shadow:0 10px 28px rgba(37,29,61,.05)}
+.inf-placeholder-card h4{font-size:0.86rem;color:var(--ui-heading);margin-bottom:12px}
+.inf-line{height:9px;border-radius:999px;background:#eee6f7;margin:9px 0}
+.inf-line.short{width:58%}
+.inf-line.mid{width:78%}
+.inf-empty-note{font-size:0.78rem;color:var(--ui-muted);margin-top:10px}
 .inf-hero{display:flex;gap:18px;margin-bottom:18px;align-items:flex-start}
 .inf-avatar{width:88px;height:88px;border-radius:50%;border:2px solid rgba(167,139,250,.4);object-fit:cover;flex-shrink:0;background:#0d0a17}
 .inf-meta{flex:1}
@@ -183,12 +202,12 @@ input,select{font-family:inherit}
 .inf-contact a{color:#a78bfa;word-break:break-all}
 .inf-posts h4{font-size:0.86rem;color:#fff;margin-bottom:10px;font-weight:800}
 .post-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.post{background:#0d0a17;border:1px solid #29213a;border-radius:8px;overflow:hidden;text-decoration:none;color:inherit;display:block;transition:border-color .2s}
+.post{background:#0d0a17;border:1px solid #29213a;border-radius:8px;overflow:hidden;text-decoration:none;color:inherit;display:flex;flex-direction:column;transition:border-color .2s}
 .post:hover{border-color:rgba(167,139,250,.55)}
 .post img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#1f1429}
-.post-info{padding:8px 11px}
+.post-info{padding:8px 11px;display:flex;flex-direction:column;gap:6px;flex:1}
 .post-info .cap{font-size:0.72rem;color:#cbd5e1;line-height:1.5;height:42px;overflow:hidden}
-.post-info .metrics{font-size:0.68rem;color:#94a3b8;margin-top:6px;display:flex;gap:10px}
+.post-info .metrics{font-size:0.68rem;color:#94a3b8;margin-top:auto;display:flex;gap:10px;min-height:18px}
 
 .jobs-list{background:#13111f;border:1px solid #29213a;border-radius:12px;overflow:hidden;margin-top:12px}
 .job-row{display:grid;grid-template-columns:50px 1fr 100px 80px 80px 120px;gap:10px;padding:9px 14px;border-bottom:1px solid #1f1429;font-size:0.8rem;color:#cbd5e1;align-items:center}
@@ -198,6 +217,17 @@ input,select{font-family:inherit}
 .set-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .set-block{background:#13111f;border:1px solid #29213a;border-radius:11px;padding:16px}
 .set-block h3{font-size:0.94rem;font-weight:800;margin-bottom:9px;color:#fff;display:flex;justify-content:space-between;align-items:center}
+.page:has(.subnav-layout){flex:1;min-height:0;display:flex;flex-direction:column}
+.subnav-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:14px;align-items:stretch;flex:1;min-height:0}
+.subnav{position:sticky;top:82px;align-self:stretch;background:#13111f;border:1px solid #29213a;border-radius:11px;padding:8px;display:flex;flex-direction:column;gap:4px}
+.subnav-item{width:100%;border:0;background:transparent;color:#94a3b8;border-radius:8px;padding:10px 11px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.subnav-item span{font-size:0.84rem;font-weight:800;color:inherit}
+.subnav-item small{font-size:0.68rem;color:#52527a;line-height:1.35}
+.subnav-item:hover{background:rgba(167,139,250,.10);color:#c4b5fd}
+.subnav-item.active{background:rgba(167,139,250,.16);color:#fff}
+.subnav-item.active small{color:#c4b5fd}
+.subnav-content{min-width:0;display:flex}
+.subnav-content .set-block{width:100%}
 .key-row{padding:9px 0;border-bottom:1px solid #1f1429;display:flex;justify-content:space-between;align-items:center;font-size:0.8rem}
 .key-row .info{display:flex;flex-direction:column;gap:3px}
 .key-prefix{font-family:'SF Mono',monospace;font-size:0.7rem;color:#a78bfa}
@@ -213,9 +243,207 @@ input,select{font-family:inherit}
 .toast{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#a78bfa,#f472b6);color:#fff;padding:11px 18px;border-radius:10px;box-shadow:0 18px 50px rgba(167,139,250,.45);font-size:0.84rem;font-weight:700;z-index:500;animation:toastIn .25s}
 @keyframes toastIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 
+/* Light theme trial: clean SaaS surface with purple product accents. */
+:root{
+  --ui-bg:#f6f4fb;
+  --ui-bg-2:#eee8f8;
+  --ui-card:#ffffff;
+  --ui-card-soft:#fbf9ff;
+  --ui-border:#ece6f3;
+  --ui-border-strong:#ddd1ee;
+  --ui-text:#182033;
+  --ui-heading:#0f172a;
+  --ui-muted:#64748b;
+  --ui-dim:#8b7e99;
+  --ui-purple:#7c3aed;
+  --ui-purple-strong:#6d28d9;
+  --ui-purple-soft:#f2e8ff;
+  --ui-purple-line:#c4b5fd;
+  --ui-green:#059669;
+  --ui-amber:#d97706;
+  --ui-red:#dc2626;
+}
+html,body{background:linear-gradient(180deg,#efe7fb 0,#f8f5ff 210px,#fbfaff 520px);color:var(--ui-text);font-size:15px}
+a{color:var(--ui-purple)}
+.topbar{
+  background:linear-gradient(90deg,rgba(255,255,255,.96),rgba(250,245,255,.96));
+  border-bottom-color:var(--ui-border);
+  box-shadow:0 12px 30px rgba(37,29,61,.10);
+}
+.topbar:before{content:none}
+.site-picker,.icon-btn,.acct,.login-tabs{
+  background:var(--ui-card-soft);
+  border-color:var(--ui-border);
+  color:var(--ui-text);
+}
+.site-picker:hover,.icon-btn:hover,.acct:hover,.acct.active{border-color:var(--ui-purple-line);background:#fff;color:var(--ui-heading)}
+.site-picker select{color:var(--ui-text)}
+.tab{color:#5f5870}
+.tab:hover{background:var(--ui-purple-soft);color:var(--ui-purple)}
+.tab.active{background:#ede4ff;color:var(--ui-purple-strong);box-shadow:inset 0 -2px 0 var(--ui-purple)}
+.usage-strip{background:#ecfdf5;border-color:#a7f3d0;color:#047857}
+.usage-strip b{color:#047857}
+.page{padding-top:24px}
+.lead{color:var(--ui-heading);letter-spacing:-0.1px;display:flex;align-items:center;gap:9px;font-size:1.42rem}
+.lead:before{content:"";width:4px;height:19px;border-radius:4px;background:#a78bfa}
+.sub{color:var(--ui-muted)}
+.login-wrap{background:linear-gradient(180deg,#fbfaff,#efe7fb)}
+.login-card,.stat,.ask-input,.starter,.trace,.cat-filters,.cat-table-wrap,.cov-tile,.report-tile,.inf-card,.jobs-list,.set-block,.inf-contact,.post,.overview-section{
+  background:var(--ui-card);
+  border-color:var(--ui-border);
+  box-shadow:0 14px 34px rgba(37,29,61,.11);
+}
+.subnav{
+  background:rgba(255,255,255,.72);
+  border-color:var(--ui-border);
+  box-shadow:0 10px 26px rgba(37,29,61,.06);
+}
+.subnav-item{color:var(--ui-muted)}
+.subnav-item small{color:var(--ui-dim)}
+.subnav-item:hover{background:var(--ui-purple-soft);color:var(--ui-purple)}
+.subnav-item.active{background:#ede4ff;color:var(--ui-purple-strong);box-shadow:inset 3px 0 0 var(--ui-purple)}
+.subnav-item.active small{color:#6d5c82}
+.login-field input,.cat-filters select,.cat-filters input,.inf-sel,.inf-inp,.set-inp,.set-sel,.kbd,.inf-stats .stat,.secret-box{
+  background:var(--ui-card-soft);
+  border-color:var(--ui-border);
+  color:var(--ui-text);
+}
+.ask-input textarea{color:var(--ui-text)}
+.ask-input textarea::placeholder{color:#9a8fac}
+.login-sub,.login-field label,.login-tab,.login-note,.stat .lbl,.ask-input-row,.starter .desc,.trace h4,.cat-table th,.cov-tile .country,.cov-tile .pct,.report-tile .country,.report-tile .nums .lbl,.entry-sub,.inf-handle,.inf-stats .stat .lbl,.post-info .metrics,.job-row.head,.meta{
+  color:var(--ui-muted);
+}
+.login-tab.active{background:var(--ui-purple-soft);color:var(--ui-purple)}
+.login-field input:focus,.ask-input:focus-within,.cat-filters select:focus,.cat-filters input:focus,.inf-inp:focus,.set-inp:focus,.set-sel:focus{
+  border-color:var(--ui-purple-line);
+  box-shadow:0 0 0 3px rgba(124,58,237,.10);
+}
+.stat .val,.starter .title,.entry-title,.cov-tile h6,.report-tile h6,.report-tile .nums .v,.set-block h3,.inf-name,.inf-contact h4,.inf-posts h4{
+  color:var(--ui-heading);
+}
+.stat .delta{font-weight:700}
+.stat .lbl{font-size:0.7rem}
+.stat .val{font-size:1.62rem}
+.stat .delta{font-size:0.76rem}
+.entry-title{font-size:1rem}
+.entry-sub{font-size:0.8rem}
+.cov-tile h6{font-size:0.9rem}
+.cov-tile .country{font-size:0.7rem}
+.cov-tile .num{font-size:1.36rem}
+.cov-tile .pct{font-size:0.78rem}
+.cat-table,.job-row{font-size:0.86rem}
+.cat-table th{font-size:0.68rem}
+.cat-table-wrap,.jobs-list{overflow:auto}
+.cat-table{min-width:760px}
+.jobs-list{min-width:0}
+.set-block h3{font-size:1rem}
+.set-block{min-width:0}
+.key-row{font-size:0.86rem}
+.key-row{gap:12px}
+.key-row .info{min-width:0}
+.key-row .info b,.key-prefix,.meta{overflow-wrap:anywhere}
+.key-row > div:last-child:not(.info){display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.meta{font-size:0.72rem}
+.set-inp,.set-sel,.inf-sel,.inf-inp{font-size:0.84rem}
+.starter .title{font-size:0.9rem}
+.starter .desc{font-size:0.78rem}
+.trace{font-size:0.82rem}
+.report-tile h6{font-size:0.92rem}
+.report-tile .nums .v{font-size:1rem}
+.stats-hero{gap:14px}
+.stats-hero .stat{position:relative;overflow:hidden;border-color:transparent;border-top:0}
+.stats-hero .stat:before{content:"";position:absolute;inset:0 0 auto 0;height:44px;background:linear-gradient(180deg,rgba(124,58,237,.08),rgba(124,58,237,0));pointer-events:none}
+.stats-hero .stat:first-child{
+  background:linear-gradient(135deg,#ffffff,#f4ebff);
+  border-color:#e6dbff;
+  color:var(--ui-text);
+  box-shadow:0 16px 36px rgba(124,58,237,.13);
+}
+.stats-hero .stat:first-child .lbl{color:#6d5c82}
+.stats-hero .stat:first-child .val{color:var(--ui-purple-strong)}
+.stats-hero .stat:first-child .delta{color:#047857}
+.stats-hero .stat:first-child:before{background:linear-gradient(180deg,rgba(124,58,237,.08),rgba(124,58,237,0))}
+.entry-card{
+  background:linear-gradient(135deg,#fff,#f4eaff 58%,#fff7fb);
+  border-color:#e4d7f7;
+  box-shadow:0 16px 38px rgba(124,58,237,.12);
+}
+.entry-card:hover{background:linear-gradient(135deg,#fff,#f1e8ff);border-color:var(--ui-purple-line)}
+.entry-icon{background:#ede4ff;color:var(--ui-purple);box-shadow:none}
+.entry-arrow,.key-prefix,.cov-tile .num,.report-tile .num,.inf-stats .stat .val,.inf-contact b{color:var(--ui-purple)}
+.overview-section{margin-top:20px;border-radius:12px;padding:16px;border-color:transparent;background:rgba(255,255,255,.70)}
+.section-title{font-size:0.98rem;font-weight:850;color:var(--ui-heading);margin-bottom:12px;display:flex;align-items:center;gap:9px}
+.section-title:before{content:"";width:9px;height:9px;border-radius:50%;background:var(--ui-purple);box-shadow:0 0 0 4px rgba(124,58,237,.12)}
+.cov-grid{gap:12px}
+.cov-tile,.report-tile,.stat,.starter,.set-block{border-radius:10px}
+.cov-tile,.report-tile{position:relative;overflow:hidden}
+.cov-tile:before,.report-tile:before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 4px 4px 0;background:rgba(196,181,253,.55)}
+.cov-tile,.report-tile{border-color:rgba(255,255,255,.85);box-shadow:0 16px 36px rgba(37,29,61,.12)}
+.stat,.starter,.set-block,.inf-panel,.inf-placeholder-card{box-shadow:0 14px 32px rgba(37,29,61,.10)}
+.cov-tile.healthy{border-color:rgba(16,185,129,.18)}
+.cov-tile.healthy:before,.report-tile.healthy:before{background:rgba(5,150,105,.45)}
+.cov-tile.warning{border-color:rgba(247,183,49,.22)}
+.cov-tile.warning:before,.report-tile.warning:before{background:rgba(217,119,6,.45)}
+.cov-tile.critical{border-color:rgba(251,113,133,.22)}
+.cov-tile.critical:before,.report-tile.critical:before{background:rgba(220,38,38,.45)}
+.cov-tile .bar,.report-tile .covbar{background:#eee6f7}
+.cov-tile button,.mini-btn,.report-tile .btn-gen{
+  background:var(--ui-purple-soft);
+  border-color:#d8b4fe;
+  color:#6d28d9;
+}
+.cov-tile button:hover,.mini-btn:hover,.report-tile .btn-gen:hover:not(:disabled){background:#eadcff}
+.mini-btn.bad{background:#fff1f2;border-color:#fecdd3;color:#be123c}
+.cat-table th,.job-row.head{background:var(--ui-card-soft);border-bottom-color:var(--ui-border)}
+.cat-table td,.job-row,.post-info .cap,.inf-bio{color:var(--ui-text);border-bottom-color:var(--ui-border)}
+.cat-table tr:hover,.job-row:hover:not(.head){background:#faf5ff}
+.key-row{border-bottom-color:var(--ui-border)}
+.thumb{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#4c1d95}
+.report-tile.ready{background:var(--ui-card);border-color:var(--ui-border-strong)}
+.report-tile .nums .v.dim,.report-tile .badge.pending{color:var(--ui-muted)}
+.pill.ok{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
+.pill.warn{background:#fffbeb;color:#b45309;border-color:#fde68a}
+.pill.bad{background:#fff1f2;color:#be123c;border-color:#fecdd3}
+.pill.pending{background:#eff6ff;color:#2563eb;border-color:#bfdbfe}
+.inf-avatar,.post img{background:#f3e8ff;border-color:#d8b4fe}
+.secret-box{color:#4c1d95}
+.empty-state{padding:22px 16px;text-align:center;color:var(--ui-muted);font-size:0.9rem}
+.empty-state b{display:block;color:var(--ui-heading);font-size:0.95rem;margin-bottom:4px}
+.form-grid .wide{grid-column:1/-1}
+.cat-table-empty{border-top:1px solid var(--ui-border)}
+.settings-scroll-list{max-height:430px;overflow:auto;margin-top:8px;padding-right:4px}
+.settings-scroll-list .key-row:last-child{border-bottom:0}
+.settings-scroll-list::-webkit-scrollbar{width:8px}
+.settings-scroll-list::-webkit-scrollbar-thumb{background:#d8cceb;border-radius:8px}
+.hint-box{background:#f8f4ff;border:1px solid #e6d9fb;border-radius:9px;padding:10px 12px;color:var(--ui-muted);font-size:0.82rem;line-height:1.65;margin:8px 0 10px}
+.hint-box b{color:var(--ui-heading)}
+.form-field{display:flex;flex-direction:column;gap:5px}
+.form-field label{font-size:0.7rem;font-weight:800;color:var(--ui-muted);letter-spacing:.7px;text-transform:uppercase}
+.form-field small{font-size:0.68rem;color:var(--ui-dim);line-height:1.35}
+.invite-code-box{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.invite-code-box code{font-family:'SF Mono',monospace;color:#4c1d95;font-size:0.78rem;word-break:break-all}
+.invite-status{font-size:0.66rem;font-weight:800;padding:2px 7px;border-radius:999px;border:1px solid var(--ui-border)}
+#app [style*="color:#fff"]{color:var(--ui-heading)!important}
+#app [style*="color:#52527a"],#app [style*="color:#64647a"]{color:var(--ui-muted)!important}
+#app [style*="background:#13111f"],#app [style*="background:#0d0a17"]{background:var(--ui-card-soft)!important}
+#app [style*="border:1px solid #29213a"]{border-color:var(--ui-border)!important}
+
 @media(max-width:1100px){
   .ask-shell{grid-template-columns:1fr}
   .set-grid{grid-template-columns:1fr}
+  .subnav-layout{grid-template-columns:170px minmax(0,1fr)}
+  .subnav-item{padding:9px 10px}
+  .subnav-item small{font-size:0.64rem}
+}
+@media(max-width:760px){
+  .page{padding:18px 14px 42px}
+  .topbar{gap:8px;padding:10px 12px}
+  .tab-row{order:5;flex-basis:100%;overflow-x:auto;flex-wrap:nowrap}
+  .tab{white-space:nowrap}
+  .stats-hero,.cov-grid,.report-grid{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+  .job-row{grid-template-columns:48px minmax(110px,1fr) 92px 70px 70px 96px}
+  .inf-workbench,.inf-placeholder{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -236,11 +464,11 @@ const App = {
     const logging = ref(false);
     const accountForm = ref({ display_name:'' });
     const passwordForm = ref({ old_password:'', new_password:'', confirm_password:'' });
-    const newKeyName = ref('Agent API Key');
+    const newKeyName = ref('智能助手接口密钥');
     const createdKey = ref('');
     const users = ref([]);
     const invites = ref([]);
-    const inviteForm = ref({ max_uses:1, expires_in_days:7, default_role:'user' });
+    const inviteForm = ref({ target_type:'new_workspace', workspace_id:'', max_uses:1, expires_in_days:7, default_role:'user' });
     const newInviteCode = ref('');
     const adminUserForm = ref({ username:'', email:'', display_name:'', role:'user', password:'' });
     const createdUserPassword = ref('');
@@ -249,6 +477,8 @@ const App = {
     const workspaceForm = ref({ name:'', slug:'' });
     const workspaceSites = ref([]);
     const addWorkspaceSiteForm = ref({ site:'' });
+    const settingsSection = ref('workspace');
+    const accountSection = ref('profile');
 
     async function doLogin() {
       loginErr.value = ''; logging.value = true;
@@ -290,11 +520,12 @@ const App = {
 	      try { await fetch('/api/auth/logout', { method:'POST', headers: authH() }); } catch(e) {}
 	      localStorage.removeItem('sc_token'); localStorage.removeItem('sc_user');
 	      localStorage.removeItem('sc_workspace_id');
+	      history.replaceState(null, '', location.pathname + location.search);
 	      token.value = ''; user.value = {};
 	      currentWorkspaceId.value = '';
 	    }
 	    async function openAccount() {
-	      tab.value = 'account';
+	      setTab('account');
 	      await Promise.all([loadKeys(), loadBilling()]);
 	    }
 	    function authH() {
@@ -311,12 +542,32 @@ const App = {
       return d;
     }
 
-    const tab = ref('overview');
+    const allowedTabs = new Set(['overview', 'report', 'ask', 'catalog', 'coverage', 'jobs', 'influencers', 'settings', 'account']);
+    function initialTab() {
+      const hashTab = (location.hash || '').replace(/^#\/?/, '');
+      if (allowedTabs.has(hashTab)) return hashTab;
+      return 'overview';
+    }
+    const tab = ref(initialTab());
+    function setTab(next) {
+      if (!allowedTabs.has(next)) next = 'overview';
+      tab.value = next;
+      const hash = `#${next}`;
+      if (location.hash !== hash) history.replaceState(null, '', hash);
+      if (next === 'catalog') loadProducts();
+      if (next === 'coverage') loadCoverage();
+      if (next === 'jobs') loadJobs();
+    }
+    window.addEventListener('hashchange', () => {
+      const next = (location.hash || '').replace(/^#\/?/, '');
+      if (allowedTabs.has(next) && next !== tab.value) setTab(next);
+    });
     const sites = ref([]);
     const selectedSite = ref('');
     const coverage = ref({ summary:{}, sites:[] });
     const jobs = ref([]);
-    const products = ref({ items:[], total:0 });
+    const products = ref({ items:[], total:null });
+    const productsLoading = ref(false);
     const proxyStatus = ref({});
     const billing = ref({ keys:[] });
     const apiKeys = ref([]);
@@ -331,6 +582,16 @@ const App = {
     const infUsername = ref('cristiano');
     const infResult = ref(null);
     const infRunning = ref(false);
+    const infQuickTargets = [
+      { platform:'instagram', username:'cristiano', label:'Cristiano', meta:'Instagram' },
+      { platform:'youtube', username:'MrBeast', label:'MrBeast', meta:'YouTube' },
+      { platform:'tiktok', username:'khaby.lame', label:'Khaby Lame', meta:'TikTok' },
+      { platform:'twitter', username:'elonmusk', label:'Elon Musk', meta:'X' },
+    ];
+    function setInfluencerTarget(target) {
+      infPlatform.value = target.platform;
+      infUsername.value = target.username;
+    }
     async function infFetch() {
       if (!infUsername.value.trim()) return;
       infRunning.value = true;
@@ -347,12 +608,61 @@ const App = {
       finally { infRunning.value = false; }
     }
     const starters = [
-      { icon:'📊', title:'总览快照', desc:'46 站覆盖率 + 总 SKU', key:'overview' },
-      { icon:'🆕', title:'今日 delta', desc:'昨日新增/变化', key:'new' },
-      { icon:'⚠️', title:'失败 jobs', desc:'worker 异常列表', key:'failed' },
+      { icon:'📊', title:'总览快照', desc:'当前工作区覆盖率和商品总数', key:'overview' },
+      { icon:'🆕', title:'今日变化', desc:'昨日新增和变化', key:'new' },
+      { icon:'⚠️', title:'失败任务', desc:'采集异常列表', key:'failed' },
       { icon:'🔔', title:'代理池', desc:'10 代理调用统计', key:'proxy' },
-      { icon:'🚀', title:'触发抓取', desc:'手动跑特定 site', key:'trigger' },
+      { icon:'🚀', title:'触发抓取', desc:'触发当前选中站点', key:'trigger' },
     ];
+    const askTypeLabels = {
+      overview:'总览快照',
+      new:'今日变化',
+      failed:'失败任务',
+      proxy:'代理池',
+      trigger:'触发抓取',
+    };
+    function askTypeLabel(key) {
+      return askTypeLabels[key] || key;
+    }
+    function formatRole(role) {
+      return ({ admin:'管理员', user:'普通用户', viewer:'只读用户' })[role] || role || '—';
+    }
+    function formatGlobalRole(role) {
+      return ({ super_admin:'超级管理员' })[role] || role || '—';
+    }
+    function formatAccountStatus(status) {
+      return ({ active:'正常', disabled:'已禁用', pending:'待启用' })[status] || status || '正常';
+    }
+    function formatJobStatus(status) {
+      return ({ success:'成功', running:'运行中', failed:'失败', queued:'排队中', pending:'等待中' })[status] || status || '—';
+    }
+    function formatProductStatus(status) {
+      return ({ on_sale:'在售', out_of_stock:'缺货', active:'正常', inactive:'下架' })[status] || status || '—';
+    }
+    function formatScope(scope) {
+      return ({
+        'crawler:read':'读取爬虫数据',
+        'crawler:scrape':'单页抓取',
+        'crawler:crawl':'整站抓取',
+        'admin:*':'管理员',
+      })[scope] || scope;
+    }
+    function formatWorkspaceName(workspace) {
+      const name = typeof workspace === 'string' ? workspace : (workspace?.name || '');
+      return ({ 'Internal Workspace':'内部工作区' })[name] || name || '—';
+    }
+    function inferAskKey() {
+      const q = askInput.value.trim().toLowerCase();
+      if (!q) return 'overview';
+      if (q.includes('代理') || q.includes('proxy')) return 'proxy';
+      if (q.includes('失败') || q.includes('异常') || q.includes('job')) return 'failed';
+      if (q.includes('新增') || q.includes('变化') || q.includes('delta') || q.includes('今日')) return 'new';
+      if (q.includes('触发') || q.includes('抓取') || q.includes('crawl')) return 'trigger';
+      return 'overview';
+    }
+    async function runAskInput() {
+      await runStarter(inferAskKey());
+    }
     async function runStarter(key) {
       askRunning.value = true;
       askResult.value = { type:key, data:null };
@@ -371,7 +681,13 @@ const App = {
           const r = await fetch('/api/proxy/status', { headers: authH() });
           askResult.value.data = await r.json();
         } else if (key === 'trigger') {
-          askResult.value.data = { msg:'在 Coverage 页点 "触发" 按钮' };
+          if (!selectedSite.value && sites.value.length) selectedSite.value = sites.value[0].site;
+          if (!selectedSite.value) {
+            askResult.value.data = { msg:'当前工作区还没有可触发的站点' };
+          } else {
+            await triggerSite(selectedSite.value);
+            askResult.value.data = { msg:`已触发 ${selectedSite.value}`, site:selectedSite.value };
+          }
         }
       } catch(e) { showToast('查询失败'); }
       finally { askRunning.value = false; }
@@ -395,10 +711,17 @@ const App = {
     }
     async function loadProducts() {
       if (!selectedSite.value) return;
+      productsLoading.value = true;
       try {
-        const r = await fetch(`/api/products?site=${selectedSite.value}&page_size=30`, { headers: authH() });
+        const r = await fetch(`/api/products?site=${encodeURIComponent(selectedSite.value)}&page_size=30`, { headers: authH() });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         products.value = await r.json();
-      } catch(e) {}
+      } catch(e) {
+        products.value = { items:[], total:0, error:e.message };
+        showToast('商品加载失败');
+      } finally {
+        productsLoading.value = false;
+      }
     }
     async function loadProxy() {
       try {
@@ -430,6 +753,7 @@ const App = {
         }
         if (currentWorkspaceId.value) {
           localStorage.setItem('sc_workspace_id', currentWorkspaceId.value);
+          if (!inviteForm.value.workspace_id) inviteForm.value.workspace_id = String(currentWorkspaceId.value);
         } else {
           localStorage.removeItem('sc_workspace_id');
         }
@@ -440,7 +764,7 @@ const App = {
       }
     }
     async function loadAdmin() {
-      if (user.value.role !== 'admin') return;
+      if (!canAdmin.value) return;
       try {
         users.value = await apiJson('/api/admin/users');
         invites.value = await apiJson('/api/admin/invites');
@@ -473,19 +797,28 @@ const App = {
         const d = await apiJson('/api/keys', { method:'POST', body: JSON.stringify({ name:newKeyName.value }) });
         createdKey.value = d.key;
         await Promise.all([loadKeys(), loadBilling()]);
-        showToast('API Key 已创建');
+        showToast('接口密钥已创建');
       } catch(e) { showToast(e.message); }
     }
     async function revokeKey(id) {
       try {
         await apiJson(`/api/keys/${id}`, { method:'DELETE' });
         await Promise.all([loadKeys(), loadBilling()]);
-        showToast('API Key 已停用');
+        showToast('接口密钥已停用');
       } catch(e) { showToast(e.message); }
     }
     async function createInvite() {
       try {
-        const d = await apiJson('/api/admin/invites', { method:'POST', body: JSON.stringify({ ...inviteForm.value, workspace_id:Number(currentWorkspaceId.value) }) });
+        const workspaceId = inviteForm.value.target_type === 'workspace'
+          ? (inviteForm.value.workspace_id || currentWorkspaceId.value)
+          : null;
+        const d = await apiJson('/api/admin/invites', {
+          method:'POST',
+          body: JSON.stringify({
+            ...inviteForm.value,
+            workspace_id: workspaceId ? Number(workspaceId) : null,
+          })
+        });
         newInviteCode.value = d.code;
         await loadAdmin();
         showToast('邀请码已创建');
@@ -497,6 +830,15 @@ const App = {
         await loadAdmin();
         showToast('邀请码已禁用');
       } catch(e) { showToast(e.message); }
+    }
+    async function copyInviteCode() {
+      if (!newInviteCode.value) return;
+      try {
+        await navigator.clipboard.writeText(newInviteCode.value);
+        showToast('邀请码已复制');
+      } catch(e) {
+        showToast('复制失败，请手动选中邀请码');
+      }
     }
     async function toggleUser(row) {
       try {
@@ -524,9 +866,12 @@ const App = {
     }
     async function switchWorkspace() {
       localStorage.setItem('sc_workspace_id', currentWorkspaceId.value);
+      inviteForm.value.workspace_id = String(currentWorkspaceId.value || '');
       selectedSite.value = '';
+      products.value = { items:[], total:null };
       await Promise.all([loadSites(), loadCoverage(), loadJobs(), loadBilling(), loadKeys(), loadWorkspaceSites()]);
       if (sites.value.length) selectedSite.value = sites.value[0].site;
+      if (tab.value === 'catalog') await loadProducts();
       showToast('工作区已切换');
     }
     async function createWorkspace() {
@@ -534,13 +879,14 @@ const App = {
         const d = await apiJson('/api/admin/workspaces', { method:'POST', body: JSON.stringify(workspaceForm.value) });
         workspaces.value = await apiJson('/api/workspaces');
         currentWorkspaceId.value = String(d.id);
+        inviteForm.value.workspace_id = String(d.id);
         localStorage.setItem('sc_workspace_id', currentWorkspaceId.value);
         workspaceForm.value = { name:'', slug:'' };
         await switchWorkspace();
       } catch(e) { showToast(e.message); }
     }
     async function loadWorkspaceSites() {
-      if (user.value.global_role !== 'super_admin' || !currentWorkspaceId.value) return;
+      if (!canManageWorkspaces.value || !currentWorkspaceId.value) return;
       try {
         workspaceSites.value = await apiJson(`/api/admin/workspaces/${currentWorkspaceId.value}/sites`);
       } catch(e) {}
@@ -567,12 +913,14 @@ const App = {
       } catch(e) { showToast(e.message); }
     }
     async function triggerSite(site) {
-      const r = await fetch(`/api/jobs/trigger?site=${site}`, { method:'POST', headers: authH() });
+      const r = await fetch(`/api/jobs/trigger?site=${encodeURIComponent(site)}`, { method:'POST', headers: authH() });
       if (r.ok) showToast('已触发 ' + site);
       else showToast('触发失败');
       setTimeout(loadJobs, 1500);
     }
     function exportCSV() {
+      if (!selectedSite.value && sites.value.length) selectedSite.value = sites.value[0].site;
+      if (!selectedSite.value) { showToast('没有可导出的站点'); return; }
       const params = new URLSearchParams({
         token: token.value,
         site: selectedSite.value,
@@ -592,30 +940,66 @@ const App = {
     const proxyOk = computed(() => proxyStatus.value?.available || 0);
     const proxyTotal = computed(() => proxyStatus.value?.total || 0);
     const sortedCov = computed(() => (coverage.value.sites || []).slice().sort((a,b)=>b.coverage_pct - a.coverage_pct));
+    const canAdmin = computed(() => user.value.role === 'admin' || user.value.global_role === 'super_admin');
+    const canManageWorkspaces = computed(() => user.value.global_role === 'super_admin' || (user.value.username === 'admin' && user.value.role === 'admin'));
+    const settingsMenu = computed(() => [
+      { key:'workspace', label:'工作区', desc:'当前租户与切换' },
+      canManageWorkspaces.value ? { key:'workspace_sites', label:'工作区站点', desc:'可见站点清单' } : null,
+      canAdmin.value ? { key:'users', label:'用户管理', desc:'内部账号与角色' } : null,
+      canAdmin.value ? { key:'invites', label:'邀请注册', desc:'新租户或成员邀请' } : null,
+      { key:'proxy', label:'代理池', desc:'本地代理健康' },
+      { key:'docs', label:'文档工具', desc:'报告与接口文档' },
+    ].filter(Boolean));
+    const accountMenu = computed(() => [
+      { key:'profile', label:'个人资料', desc:'名称和身份信息' },
+      { key:'security', label:'密码与会话', desc:'改密码或退出' },
+      { key:'workspace', label:'当前工作区', desc:'账号所在租户' },
+      { key:'api_keys', label:'接口密钥', desc:'外部调用凭证' },
+      { key:'usage', label:'30 天用量', desc:'调用统计' },
+    ]);
+    const activeSettingsSection = computed(() => (
+      settingsMenu.value.some(item => item.key === settingsSection.value)
+        ? settingsSection.value
+        : (settingsMenu.value[0]?.key || 'workspace')
+    ));
+    const activeAccountSection = computed(() => (
+      accountMenu.value.some(item => item.key === accountSection.value)
+        ? accountSection.value
+        : 'profile'
+    ));
 
-    onMounted(()=> { if (token.value) loadAll(); });
+    onMounted(async ()=> {
+      if (token.value) {
+        await loadAll();
+        setTab(tab.value);
+      }
+    });
 
     return {
 	      token, user, loginMode, loginForm, registerForm, loginErr, logging, doLogin, doRegister, logout, openAccount,
       tab, sites, selectedSite, coverage, jobs, products, proxyStatus, apiKeys, billing,
       accountForm, passwordForm, newKeyName, createdKey, users, invites, inviteForm, newInviteCode,
       adminUserForm, createdUserPassword, workspaces, currentWorkspaceId, workspaceForm,
-      workspaceSites, addWorkspaceSiteForm,
-      toast, showToast, starters, askInput, askResult, askRunning, runStarter,
-      loadProducts, loadCoverage, loadJobs, triggerSite, exportCSV,
-      saveAccount, changePassword, createMyKey, revokeKey, createInvite, disableInvite, toggleUser,
+      workspaceSites, addWorkspaceSiteForm, settingsSection, accountSection,
+      settingsMenu, accountMenu, activeSettingsSection, activeAccountSection,
+      toast, showToast, setTab, starters, askInput, askResult, askRunning, runStarter, runAskInput,
+      productsLoading, loadProducts, loadCoverage, loadJobs, triggerSite, exportCSV,
+      saveAccount, changePassword, createMyKey, revokeKey, createInvite, disableInvite, copyInviteCode, toggleUser,
       resetUserPassword, createAdminUser, updateUserRole, switchWorkspace,
       createWorkspace, addWorkspaceSite, toggleWorkspaceSite,
+      askTypeLabel, formatRole, formatGlobalRole, formatAccountStatus,
+      formatJobStatus, formatProductStatus, formatScope, formatWorkspaceName,
       totalSku, coveragePct, healthySites, criticalSites, warningSites,
       runningJobs, successJobs, proxyOk, proxyTotal, sortedCov,
-      infPlatform, infUsername, infResult, infRunning, infFetch
+      canAdmin, canManageWorkspaces, infPlatform, infUsername, infResult, infRunning, infFetch,
+      infQuickTargets, setInfluencerTarget
     };
   },
   template: `
     <div v-if="!token" class="login-wrap">
       <div class="login-card">
         <div class="login-brand">⚡ smart-crawler</div>
-        <div class="login-sub">Aosom 竞品情报 · 授权访问</div>
+        <div class="login-sub">遨森竞品情报 · 授权访问</div>
         <div class="login-tabs">
           <button class="login-tab" :class="{active:loginMode==='login'}" @click="loginMode='login'">登录</button>
           <button class="login-tab" :class="{active:loginMode==='register'}" @click="loginMode='register'">注册</button>
@@ -623,7 +1007,7 @@ const App = {
         <template v-if="loginMode==='login'">
           <div class="login-field">
             <label>邮箱或用户名</label>
-            <input v-model="loginForm.identifier" placeholder="email@example.com 或 username" @keyup.enter="doLogin"/>
+            <input v-model="loginForm.identifier" placeholder="请输入邮箱或用户名" @keyup.enter="doLogin"/>
           </div>
           <div class="login-field">
             <label>密码</label>
@@ -638,7 +1022,7 @@ const App = {
           </div>
           <div class="login-field">
             <label>邮箱</label>
-            <input v-model="registerForm.email" placeholder="email@example.com"/>
+            <input v-model="registerForm.email" placeholder="请输入邮箱"/>
           </div>
           <div class="login-field">
             <label>显示名</label>
@@ -657,7 +1041,7 @@ const App = {
             <input v-model="registerForm.confirm_password" type="password" placeholder="再次输入密码" @keyup.enter="doRegister"/>
           </div>
           <button class="login-btn" :disabled="logging" @click="doRegister">{{ logging ? '注册中…' : '注册并登录' }}</button>
-	          <div class="login-note">邀请码只能由内部管理员生成。注册后可在账号页创建自己的 API Key。</div>
+	          <div class="login-note">邀请码只能由内部管理员生成。注册后可在账号页创建自己的接口密钥。</div>
         </template>
         <div class="login-err">{{ loginErr }}</div>
       </div>
@@ -667,49 +1051,49 @@ const App = {
       <div class="topbar">
         <div class="brand">⚡ smart-crawler</div>
         <div class="tab-row">
-          <button class="tab" :class="{active: tab==='overview'}" @click="tab='overview'">📊 总览</button>
-          <button class="tab" :class="{active: tab==='report'}" @click="tab='report'">📄 报告</button>
-          <button class="tab" :class="{active: tab==='ask'}" @click="tab='ask'">💬 Ask</button>
-          <button class="tab" :class="{active: tab==='catalog'}" @click="tab='catalog';loadProducts()">📦 Catalog</button>
-          <button class="tab" :class="{active: tab==='coverage'}" @click="tab='coverage';loadCoverage()">🌐 Coverage</button>
-          <button class="tab" :class="{active: tab==='jobs'}" @click="tab='jobs';loadJobs()">⚙️ Jobs</button>
-          <button class="tab" :class="{active: tab==='influencers'}" @click="tab='influencers'">🌟 红人</button>
-          <button class="tab" :class="{active: tab==='settings'}" @click="tab='settings'">🔧 设置</button>
+          <button class="tab" :class="{active: tab==='overview'}" @click="setTab('overview')">📊 总览</button>
+          <button class="tab" :class="{active: tab==='report'}" @click="setTab('report')">📄 报告</button>
+          <button class="tab" :class="{active: tab==='ask'}" @click="setTab('ask')">💬 问答</button>
+          <button class="tab" :class="{active: tab==='catalog'}" @click="setTab('catalog')">📦 商品库</button>
+          <button class="tab" :class="{active: tab==='coverage'}" @click="setTab('coverage')">🌐 覆盖率</button>
+          <button class="tab" :class="{active: tab==='jobs'}" @click="setTab('jobs')">⚙️ 任务</button>
+          <button class="tab" :class="{active: tab==='influencers'}" @click="setTab('influencers')">🌟 红人</button>
+          <button class="tab" :class="{active: tab==='settings'}" @click="setTab('settings')">🔧 设置</button>
         </div>
-        <div class="usage-strip">SKU <b>{{ totalSku.toLocaleString() }}</b> · <b>{{ coveragePct }}%</b></div>
-        <button class="icon-btn" @click="exportCSV" title="导出 CSV">📥</button>
+        <div class="usage-strip">商品 <b>{{ totalSku.toLocaleString() }}</b> · 覆盖 <b>{{ coveragePct }}%</b></div>
+        <button class="icon-btn" @click="exportCSV" title="导出表格">📥</button>
 	        <button class="acct" :class="{active: tab==='account'}" @click="openAccount" title="账号与安全">
 	          <div class="avatar">{{ (user.display_name||'A').charAt(0).toUpperCase() }}</div>
-	          <span>{{ user.display_name || user.username || 'admin' }}</span>
+	          <span>{{ user.display_name || user.username || '管理员' }}</span>
 	        </button>
       </div>
 
-      <div v-if="tab==='overview'" class="page">
+      <div v-if="tab==='overview'" class="page overview-page">
         <div class="lead">系统总览 · 实时数据</div>
-        <div class="sub">smart-crawler 控制台 · 客户视角统一界面</div>
+        <div class="sub">smart-crawler 控制台 · 客户视角统一看板</div>
 
         <div class="stats-hero">
-          <div class="stat"><div class="lbl">总 SKU</div><div class="val">{{ totalSku.toLocaleString() }}</div><div class="delta">{{ coveragePct }}% 覆盖</div></div>
+          <div class="stat"><div class="lbl">商品总数</div><div class="val">{{ totalSku.toLocaleString() }}</div><div class="delta">{{ coveragePct }}% 覆盖</div></div>
           <div class="stat"><div class="lbl">健康站点</div><div class="val">{{ healthySites }} / {{ sites.length }}</div><div class="delta">100% 覆盖</div></div>
           <div class="stat"><div class="lbl">警告</div><div class="val">{{ warningSites }}</div><div class="delta warn">50-90%</div></div>
           <div class="stat"><div class="lbl">关键缺口</div><div class="val">{{ criticalSites }}</div><div class="delta bad">&lt; 50%</div></div>
-          <div class="stat"><div class="lbl">Worker</div><div class="val">{{ runningJobs }}</div><div class="delta">{{ successJobs }} 成功</div></div>
+          <div class="stat"><div class="lbl">采集进程</div><div class="val">{{ runningJobs }}</div><div class="delta">{{ successJobs }} 成功</div></div>
           <div class="stat"><div class="lbl">代理池</div><div class="val">{{ proxyOk }}/{{ proxyTotal }}</div><div class="delta">健康</div></div>
         </div>
 
-        <div class="entry-row" @click="tab='report'">
+        <div class="entry-row" @click="setTab('report')">
           <div class="entry-card">
             <div class="entry-icon">📊</div>
             <div class="entry-meta">
               <div class="entry-title">站点报表</div>
-              <div class="entry-sub">交互式 HTML 报表 · 可自定义 sections / 列 / 时间范围 · 点站点打开</div>
+              <div class="entry-sub">交互式网页报表 · 可自定义模块、列和时间范围 · 点站点打开</div>
             </div>
             <div class="entry-arrow">→</div>
           </div>
         </div>
 
-        <div style="margin-top:18px">
-          <h3 style="font-size:1rem;font-weight:800;color:#fff;margin-bottom:10px">站点覆盖率 TOP 20</h3>
+        <div class="overview-section">
+          <h3 class="section-title">站点覆盖率前 20</h3>
           <div class="cov-grid">
             <div v-for="s in sortedCov.slice(0, 20)" :key="s.site" class="cov-tile" :class="s.status">
               <h6>{{ s.site }}</h6>
@@ -725,16 +1109,16 @@ const App = {
 
       <div v-if="tab==='report'" class="page">
         <div class="lead">站点报表</div>
-        <div class="sub">交互式 HTML 报表 · 可自定义 sections / 列 / 时间范围 · 点站点打开</div>
+        <div class="sub">交互式网页报表 · 可自定义模块、列和时间范围 · 点站点打开</div>
 
-        <div class="report-grid">
-          <div v-for="s in sortedCov" :key="s.site" class="report-tile" :class="[s.status, { ready: (s.current||0) > 0 }]">
+	        <div class="report-grid">
+	          <div v-for="s in sortedCov" :key="s.site" class="report-tile" :class="[s.status, { ready: (s.current||0) > 0, empty: !(s.current||0) }]">
             <div class="head">
               <h6>{{ s.site }}</h6>
               <span v-if="s.status==='healthy'" class="badge healthy">健康</span>
               <span v-else-if="s.status==='warning'" class="badge warning">部分</span>
               <span v-else-if="s.status==='critical'" class="badge critical">异常</span>
-              <span v-else class="badge pending">待抓取</span>
+              <span v-else class="badge pending">未采集</span>
             </div>
             <div class="country">{{ s.brand }} · {{ s.country }}</div>
             <div class="nums">
@@ -743,31 +1127,36 @@ const App = {
                 <div class="v">{{ (s.current||0).toLocaleString() }}</div>
               </div>
               <div class="item">
-                <div class="lbl">应抓 SKU</div>
+                <div class="lbl">预计商品</div>
                 <div class="v dim">{{ (s.estimated_full||0).toLocaleString() }}</div>
               </div>
             </div>
             <div class="covbar" :class="s.status"><i :style="{width: Math.min(s.coverage_pct||0, 100) + '%'}"></i></div>
             <div style="font-size:0.66rem;color:#64647a;margin-bottom:8px">覆盖率 {{ s.coverage_pct!=null ? s.coverage_pct + '%' : '—' }}</div>
             <div class="btns">
-              <a :href="'/report?site=' + encodeURIComponent(s.site) + (currentWorkspaceId ? '&workspace_id=' + encodeURIComponent(currentWorkspaceId) : '')" target="_blank" class="btn-prim">📊 打开报表</a>
-            </div>
-          </div>
-        </div>
-      </div>
+              <a v-if="(s.current||0) > 0" :href="'/report?site=' + encodeURIComponent(s.site) + (currentWorkspaceId ? '&workspace_id=' + encodeURIComponent(currentWorkspaceId) : '')" target="_blank" rel="noopener" class="btn-prim">📊 打开报表</a>
+              <button v-else class="btn-muted" @click="triggerSite(s.site)">▶ 触发抓取</button>
+	            </div>
+	          </div>
+	        </div>
+	        <div v-if="!sortedCov.length" class="empty-state">
+	          <b>当前工作区还没有站点报表</b>
+	          请先在设置里给工作区加入站点。
+	        </div>
+	      </div>
 
       <div v-if="tab==='ask'" class="page">
-        <div class="lead">问 smart-crawler 一句话</div>
-        <div class="sub">点 starter 查实时数据</div>
+        <div class="lead">智能问答</div>
+	        <div class="sub">输入关键词或点击快捷入口查询实时数据</div>
 
         <div class="ask-shell">
           <div class="ask-main">
             <div class="ask-input">
-              <textarea v-model="askInput" placeholder="(预览版 · 点 starter 直接查实时数据)"></textarea>
-              <div class="ask-input-row">
-                <span>v9 上 NL → SQL，现在用 starter</span>
-                <button class="btn-go" @click="runStarter('overview')">▶ 总览</button>
-              </div>
+	              <textarea v-model="askInput" placeholder="例如：代理状态 / 失败任务 / 今日新增 / 触发抓取" @keydown.enter.prevent="runAskInput"></textarea>
+	              <div class="ask-input-row">
+	                <span>按回车查询，或点击下方快捷入口</span>
+	                <button class="btn-go" :disabled="askRunning" @click="runAskInput">{{ askRunning ? '查询中…' : '▶ 查询' }}</button>
+	              </div>
             </div>
 
             <div v-if="!askResult" class="starters">
@@ -780,7 +1169,7 @@ const App = {
 
             <div v-if="askResult" style="background:#13111f;border:1px solid #29213a;border-radius:12px;padding:14px;font-size:0.82rem">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                <span style="color:#a78bfa;font-weight:700">{{ askResult.type }}</span>
+                <span style="color:#a78bfa;font-weight:700">{{ askTypeLabel(askResult.type) }}</span>
                 <button @click="askResult=null" style="background:transparent;border:1px solid #29213a;color:#94a3b8;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:0.72rem">清除</button>
               </div>
               <pre style="background:#0d0a17;padding:11px;border-radius:7px;color:#cbd5e1;overflow-x:auto;font-size:0.74rem;line-height:1.55;max-height:520px">{{ JSON.stringify(askResult.data, null, 2) }}</pre>
@@ -790,7 +1179,7 @@ const App = {
           <div class="trace">
             <h4>实时数据</h4>
             <div style="font-size:0.78rem;line-height:1.8">
-              <div>📦 SKU: <b style="color:#fff">{{ totalSku.toLocaleString() }}</b></div>
+              <div>📦 商品: <b style="color:#fff">{{ totalSku.toLocaleString() }}</b></div>
               <div>🌐 覆盖: <b style="color:#fff">{{ coveragePct }}%</b></div>
               <div>⚙️ 跑中: <b style="color:#fff">{{ runningJobs }}</b></div>
               <div>🔔 代理: <b style="color:#fff">{{ proxyOk }}/{{ proxyTotal }}</b></div>
@@ -802,20 +1191,20 @@ const App = {
       </div>
 
       <div v-if="tab==='catalog'" class="page">
-        <div class="lead">商品 Catalog</div>
-        <div class="sub">{{ products.total ? products.total.toLocaleString() + ' 条' : '加载中' }} · {{ selectedSite }}</div>
+        <div class="lead">商品库</div>
+	        <div class="sub">{{ productsLoading ? '加载中' : ((products.total ?? 0).toLocaleString() + ' 条') }} · {{ selectedSite || '未选择站点' }}</div>
 
         <div class="cat-filters">
           <select v-model="selectedSite" @change="loadProducts">
             <option v-for="s in sites" :key="s.site" :value="s.site">{{ s.site }}</option>
           </select>
-          <button class="btn-go" @click="loadProducts">🔄 刷新</button>
-          <button class="btn-go" @click="exportCSV">📥 导出 CSV</button>
+	          <button class="btn-go" :disabled="productsLoading" @click="loadProducts">{{ productsLoading ? '刷新中…' : '🔄 刷新' }}</button>
+	          <button class="btn-go" @click="exportCSV">📥 导出表格</button>
         </div>
 
-        <div class="cat-table-wrap">
-          <table class="cat-table">
-            <thead><tr><th></th><th>SKU</th><th>商品</th><th>价格</th><th>评分</th><th>30d</th><th>状态</th></tr></thead>
+	        <div class="cat-table-wrap">
+	          <table class="cat-table">
+            <thead><tr><th></th><th>商品编码</th><th>商品</th><th>价格</th><th>评分</th><th>30 天销量</th><th>状态</th></tr></thead>
             <tbody>
               <tr v-for="p in (products.items||[]).slice(0,30)" :key="p.id || p.sku">
                 <td><div class="thumb">📦</div></td>
@@ -824,16 +1213,20 @@ const App = {
                 <td>{{ p.sale_price ? '$' + p.sale_price : '—' }}</td>
                 <td>{{ p.ratings || '—' }}</td>
                 <td>{{ p.thirty_day_sales || 0 }}</td>
-                <td><span class="pill" :class="p.status==='on_sale'?'ok':p.status==='out_of_stock'?'bad':'warn'">{{ p.status||'?' }}</span></td>
+                <td><span class="pill" :class="p.status==='on_sale'?'ok':p.status==='out_of_stock'?'bad':'warn'">{{ formatProductStatus(p.status) }}</span></td>
               </tr>
-            </tbody>
-          </table>
-        </div>
+	            </tbody>
+	          </table>
+	          <div v-if="!productsLoading && !(products.items||[]).length" class="empty-state cat-table-empty">
+	            <b>当前站点暂无商品数据</b>
+	            可先在覆盖率页面触发抓取，或切换到已有数据的站点。
+	          </div>
+	        </div>
       </div>
 
       <div v-if="tab==='coverage'" class="page">
         <div class="lead">数据覆盖率 · 全 {{ sites.length }} 站</div>
-        <div class="sub">总 SKU {{ totalSku.toLocaleString() }} / 满 {{ (coverage.summary?.total_estimated_full||0).toLocaleString() }} = {{ coveragePct }}%</div>
+        <div class="sub">商品总数 {{ totalSku.toLocaleString() }} / 预计 {{ (coverage.summary?.total_estimated_full||0).toLocaleString() }} = {{ coveragePct }}%</div>
 
         <div class="stats-hero">
           <div class="stat"><div class="lbl">健康</div><div class="val">{{ healthySites }}</div><div class="delta">≥ 90%</div></div>
@@ -841,54 +1234,98 @@ const App = {
           <div class="stat"><div class="lbl">关键</div><div class="val">{{ criticalSites }}</div><div class="delta bad">&lt; 50%</div></div>
         </div>
 
-        <div class="cov-grid">
-          <div v-for="s in sortedCov" :key="s.site" class="cov-tile" :class="s.status">
+	        <div class="cov-grid">
+	          <div v-for="s in sortedCov" :key="s.site" class="cov-tile" :class="s.status">
             <h6>{{ s.site }}</h6>
             <div class="country">{{ s.brand }} · {{ s.country }}</div>
             <div class="num">{{ (s.current||0).toLocaleString() }}</div>
             <div class="pct">{{ s.coverage_pct }}% · 满 {{ (s.estimated_full||0).toLocaleString() }}</div>
             <div class="bar"><div :style="{width: Math.min(s.coverage_pct||0, 100)+'%'}"></div></div>
-            <button @click="triggerSite(s.site)">▶ 触发</button>
-          </div>
-        </div>
-      </div>
+	            <button @click="triggerSite(s.site)">▶ 触发</button>
+	          </div>
+	        </div>
+	        <div v-if="!sortedCov.length" class="empty-state">
+	          <b>当前工作区还没有覆盖率数据</b>
+	          请先在设置里加入站点，或切换到已有站点的工作区。
+	        </div>
+	      </div>
 
       <div v-if="tab==='jobs'" class="page">
-        <div class="lead">采集任务 · Worker 状态</div>
+        <div class="lead">采集任务 · 进程状态</div>
         <div class="sub">{{ runningJobs }} 跑中 · {{ successJobs }} 成功 · 共 {{ jobs.length }} 显示</div>
         <button class="btn-go" @click="loadJobs" style="margin-bottom:10px">🔄 刷新</button>
 
         <div class="jobs-list">
-          <div class="job-row head"><div>#</div><div>SITE</div><div>STATUS</div><div>SKU</div><div>耗时</div><div>完成</div></div>
+          <div class="job-row head"><div>#</div><div>站点</div><div>状态</div><div>商品</div><div>耗时</div><div>完成</div></div>
           <div v-for="j in jobs.slice(0,40)" :key="j.id" class="job-row">
             <div>{{ j.id }}</div>
             <div>{{ j.site }}</div>
-            <div><span class="pill" :class="j.status==='success'?'ok':j.status==='running'?'warn':j.status==='failed'?'bad':'pending'">{{ j.status }}</span></div>
+            <div><span class="pill" :class="j.status==='success'?'ok':j.status==='running'?'warn':j.status==='failed'?'bad':'pending'">{{ formatJobStatus(j.status) }}</span></div>
             <div>{{ j.products_count||0 }}</div>
-            <div>{{ j.duration_sec ? Math.round(j.duration_sec)+'s' : '—' }}</div>
+            <div>{{ j.duration_sec ? Math.round(j.duration_sec)+' 秒' : '—' }}</div>
             <div>{{ (j.finished_at||j.started_at||'').slice(11,16)||'—' }}</div>
+          </div>
+          <div v-if="!jobs.length" class="empty-state">
+            <b>暂无采集任务</b>
+            可以从覆盖率页面触发一个站点抓取。
           </div>
         </div>
       </div>
 
       <div v-if="tab==='influencers'" class="page">
         <div class="lead">🌟 多平台红人采集</div>
-        <div class="sub">替代 Apify 红人 actor · 免费 · IG / TikTok / YouTube / Twitter · 输入 username 直接抓</div>
+        <div class="sub">替代第三方红人采集服务 · 支持 Instagram、TikTok、YouTube、X · 输入账号名直接抓取</div>
 
-        <div class="inf-form">
-          <select v-model="infPlatform" class="inf-sel">
-            <option value="instagram">📷 Instagram</option>
-            <option value="tiktok">🎵 TikTok</option>
-            <option value="youtube">▶️ YouTube</option>
-            <option value="twitter">🐦 Twitter / X</option>
-          </select>
-          <input v-model="infUsername" class="inf-inp" placeholder="username（不带 @）" @keyup.enter="infFetch"/>
-          <button class="btn-prim" @click="infFetch" :disabled="infRunning">
-            {{ infRunning ? '采集中…' : '🚀 抓取' }}
-          </button>
+        <div class="inf-workbench">
+          <div class="inf-panel">
+            <h3>账号采集</h3>
+            <div class="inf-form">
+              <select v-model="infPlatform" class="inf-sel">
+                <option value="instagram">📷 Instagram</option>
+                <option value="tiktok">🎵 TikTok</option>
+                <option value="youtube">▶️ YouTube</option>
+                <option value="twitter">🐦 Twitter / X</option>
+              </select>
+              <input v-model="infUsername" class="inf-inp" placeholder="账号名（不带 @）" @keyup.enter="infFetch"/>
+              <button class="btn-prim" @click="infFetch" :disabled="infRunning">
+                {{ infRunning ? '采集中…' : '🚀 抓取' }}
+              </button>
+            </div>
+            <div class="inf-empty-note">当前目标：{{ infPlatform }} / @{{ infUsername || '—' }}</div>
+          </div>
+          <div class="inf-panel">
+            <h3>常用账号</h3>
+            <div class="inf-quick-grid">
+              <button v-for="item in infQuickTargets" :key="item.platform + item.username" class="inf-chip" @click="setInfluencerTarget(item)">
+                <b>{{ item.label }}</b>
+                <span>{{ item.meta }} · @{{ item.username }}</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div v-if="infResult && infResult.error" class="inf-err">❌ {{ infResult.error }}</div>
+
+        <div v-if="!infResult && !infRunning" class="inf-placeholder">
+          <div class="inf-placeholder-card">
+            <h4>资料</h4>
+            <div class="inf-line mid"></div>
+            <div class="inf-line"></div>
+            <div class="inf-line short"></div>
+          </div>
+          <div class="inf-placeholder-card">
+            <h4>联系方式</h4>
+            <div class="inf-line"></div>
+            <div class="inf-line mid"></div>
+            <div class="inf-line short"></div>
+          </div>
+          <div class="inf-placeholder-card">
+            <h4>近期内容</h4>
+            <div class="inf-line"></div>
+            <div class="inf-line"></div>
+            <div class="inf-line mid"></div>
+          </div>
+        </div>
 
         <div v-if="infResult && infResult.profile" class="inf-card">
           <div class="inf-hero">
@@ -899,7 +1336,7 @@ const App = {
                 <span v-if="infResult.profile.is_verified" class="b ok">✓ 认证</span>
                 <span v-if="infResult.profile.is_business" class="b warn">商业</span>
               </div>
-              <div class="inf-handle">@{{ infResult.profile.username }} · <a :href="infResult.profile.raw_url" target="_blank">{{ infResult.profile.platform }} 主页 ↗</a></div>
+              <div class="inf-handle">@{{ infResult.profile.username }} · <a :href="infResult.profile.raw_url" target="_blank" rel="noopener">平台主页 ↗</a></div>
               <div class="inf-bio">{{ infResult.profile.bio || '—' }}</div>
             </div>
           </div>
@@ -915,14 +1352,14 @@ const App = {
             <h4>📬 联系方式</h4>
             <div>📧 邮箱：<b>{{ infResult.profile.contact.email || '—' }}</b></div>
             <div>📱 WhatsApp：<b>{{ infResult.profile.contact.whatsapp || '—' }}</b></div>
-            <div>🌐 主页链接：<b><a v-if="infResult.profile.external_url" :href="infResult.profile.external_url" target="_blank">{{ infResult.profile.external_url }}</a><span v-else>—</span></b></div>
+            <div>🌐 主页链接：<b><a v-if="infResult.profile.external_url" :href="infResult.profile.external_url" target="_blank" rel="noopener">{{ infResult.profile.external_url }}</a><span v-else>—</span></b></div>
             <div>🔗 linktree：<b>{{ infResult.profile.contact.linktree || '—' }}</b></div>
           </div>
 
           <div v-if="infResult.posts && infResult.posts.length" class="inf-posts">
             <h4>📝 近期 {{ infResult.posts.length }} 条帖子</h4>
             <div class="post-grid">
-              <a v-for="p in infResult.posts" :key="p.post_id" :href="p.post_url" target="_blank" class="post">
+              <a v-for="p in infResult.posts" :key="p.post_id" :href="p.post_url" target="_blank" rel="noopener" class="post">
                 <img v-if="p.thumbnail_url" :src="p.thumbnail_url" referrerpolicy="no-referrer"/>
                 <div class="post-info">
                   <div class="cap">{{ (p.caption || '').slice(0, 100) }}</div>
@@ -935,7 +1372,7 @@ const App = {
               </a>
             </div>
           </div>
-          <div v-else style="color:#52527a;text-align:center;padding:20px">无近期帖子（platform 可能受限 / 账号 protected）</div>
+          <div v-else style="color:#52527a;text-align:center;padding:20px">无近期帖子（平台可能受限，或账号受保护）</div>
         </div>
       </div>
 
@@ -943,141 +1380,236 @@ const App = {
 	        <div class="lead">设置</div>
 	        <div class="sub">工作区 · 用户管理 · 邀请码 · 代理池 · 文档</div>
 
-        <div class="set-grid">
-          <div class="set-block">
+        <div class="subnav-layout">
+          <nav class="subnav" aria-label="设置二级菜单">
+            <button
+              v-for="item in settingsMenu"
+              :key="item.key"
+              class="subnav-item"
+              :class="{active: activeSettingsSection===item.key}"
+              @click="settingsSection=item.key"
+            >
+              <span>{{ item.label }}</span>
+              <small>{{ item.desc }}</small>
+            </button>
+          </nav>
+
+          <div class="subnav-content">
+          <div v-if="activeSettingsSection==='workspace'" class="set-block">
             <h3>🏢 工作区</h3>
             <div class="form-grid one">
               <select class="set-sel" v-model="currentWorkspaceId" @change="switchWorkspace">
-                <option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ w.name }} · {{ w.slug }}</option>
+                <option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ formatWorkspaceName(w) }}</option>
               </select>
             </div>
             <div class="key-row">
               <div class="info">
-                <b>{{ (workspaces.find(w=>String(w.id)===String(currentWorkspaceId))||{}).name || '—' }}</b>
+                <b>{{ formatWorkspaceName(workspaces.find(w=>String(w.id)===String(currentWorkspaceId))) }}</b>
                 <span class="meta">当前看板、报告和导出按这个工作区隔离</span>
               </div>
             </div>
-            <template v-if="user.global_role==='super_admin'">
+            <template v-if="canManageWorkspaces">
               <div class="form-grid">
                 <input class="set-inp" v-model="workspaceForm.name" placeholder="新工作区名称"/>
-                <input class="set-inp" v-model="workspaceForm.slug" placeholder="slug"/>
-                <button class="mini-btn" @click="createWorkspace">创建工作区</button>
+                <input class="set-inp" v-model="workspaceForm.slug" placeholder="工作区标识"/>
+	                <button class="mini-btn wide" @click="createWorkspace">创建工作区</button>
               </div>
             </template>
           </div>
 
-          <div v-if="user.global_role==='super_admin'" class="set-block">
+          <div v-if="activeSettingsSection==='workspace_sites' && canManageWorkspaces" class="set-block">
             <h3>🌐 工作区站点</h3>
             <div class="form-grid">
-              <input class="set-inp" v-model="addWorkspaceSiteForm.site" placeholder="全局 site code，例如 songmics_us"/>
-              <button class="mini-btn" @click="addWorkspaceSite">加入站点</button>
+              <input class="set-inp" v-model="addWorkspaceSiteForm.site" placeholder="全局站点编码，例如 songmics_us"/>
+              <button class="mini-btn wide" @click="addWorkspaceSite">加入站点</button>
             </div>
-            <div v-for="s in workspaceSites" :key="s.id" class="key-row">
-              <div class="info">
-                <b>{{ s.site }}</b>
-                <span class="key-prefix">{{ s.brand || '—' }} · {{ s.country || '—' }}</span>
-                <span class="meta">状态={{ s.enabled ? '启用' : '停用' }} · 隐藏={{ s.hidden ? '是' : '否' }}</span>
+            <div class="settings-scroll-list">
+              <div v-for="s in workspaceSites" :key="s.id" class="key-row">
+                <div class="info">
+                  <b>{{ s.site }}</b>
+                  <span class="key-prefix">{{ s.brand || '—' }} · {{ s.country || '—' }}</span>
+                  <span class="meta">状态={{ s.enabled ? '启用' : '停用' }} · 隐藏={{ s.hidden ? '是' : '否' }}</span>
+                </div>
+                <button class="mini-btn" :class="s.enabled?'bad':''" @click="toggleWorkspaceSite(s)">{{ s.enabled ? '停用' : '启用' }}</button>
               </div>
-              <button class="mini-btn" :class="s.enabled?'bad':''" @click="toggleWorkspaceSite(s)">{{ s.enabled ? '停用' : '启用' }}</button>
+              <div v-if="!workspaceSites.length" class="empty-state">
+                <b>暂无工作区站点</b>
+                先把全局站点编码加入当前工作区
+              </div>
             </div>
           </div>
 
-	          <div v-if="user.role==='admin'" class="set-block">
+	          <div v-if="activeSettingsSection==='users' && canAdmin" class="set-block">
             <h3>👥 用户管理</h3>
             <div class="form-grid">
               <input class="set-inp" v-model="adminUserForm.username" placeholder="用户名"/>
               <input class="set-inp" v-model="adminUserForm.email" placeholder="邮箱"/>
               <input class="set-inp" v-model="adminUserForm.display_name" placeholder="显示名"/>
               <select class="set-sel" v-model="adminUserForm.role">
-                <option value="user">user</option>
-                <option value="viewer">viewer</option>
-                <option value="admin">admin</option>
+                <option value="user">普通用户</option>
+                <option value="viewer">只读用户</option>
+                <option value="admin">管理员</option>
               </select>
               <input class="set-inp" type="password" v-model="adminUserForm.password" placeholder="密码，留空自动生成"/>
-              <button class="mini-btn" @click="createAdminUser">创建用户</button>
+              <button class="mini-btn wide" @click="createAdminUser">创建用户</button>
             </div>
             <div v-if="createdUserPassword" class="secret-box">{{ createdUserPassword }}</div>
-            <div v-for="u in users" :key="u.id" class="key-row">
-              <div class="info">
-                <b>{{ u.display_name || u.username }}</b>
-                <span class="key-prefix">{{ u.email }} · @{{ u.username }}</span>
-                <span class="meta">角色={{ u.role }} · 状态={{ u.status }}</span>
+            <div class="settings-scroll-list">
+              <div v-for="u in users" :key="u.id" class="key-row">
+                <div class="info">
+                  <b>{{ u.display_name || u.username }}</b>
+                  <span class="key-prefix">{{ u.email }} · @{{ u.username }}</span>
+                  <span class="meta">角色={{ formatRole(u.role) }} · 状态={{ formatAccountStatus(u.status) }}</span>
+                </div>
+                <div style="display:flex;gap:6px">
+                  <select class="set-sel" style="width:92px" v-model="u.role" @change="updateUserRole(u)">
+                    <option value="admin">管理员</option>
+                    <option value="user">普通用户</option>
+                    <option value="viewer">只读用户</option>
+                  </select>
+                  <button class="mini-btn" @click="resetUserPassword(u)">重置密码</button>
+                  <button class="mini-btn bad" @click="toggleUser(u)">{{ u.status==='active' ? '禁用' : '启用' }}</button>
+                </div>
               </div>
-              <div style="display:flex;gap:6px">
-                <select class="set-sel" style="width:92px" v-model="u.role" @change="updateUserRole(u)">
-                  <option value="admin">admin</option>
-                  <option value="user">user</option>
-                  <option value="viewer">viewer</option>
-                </select>
-                <button class="mini-btn" @click="resetUserPassword(u)">重置密码</button>
-                <button class="mini-btn bad" @click="toggleUser(u)">{{ u.status==='active' ? '禁用' : '启用' }}</button>
+              <div v-if="!users.length" class="empty-state">
+                <b>暂无用户</b>
+                创建用户后会显示在这里
               </div>
             </div>
-            <div v-if="!users.length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">暂无用户</div>
           </div>
 
-          <div v-if="user.role==='admin'" class="set-block">
-            <h3>🎟 邀请码</h3>
+          <div v-if="activeSettingsSection==='invites' && canAdmin" class="set-block">
+            <h3>🎟 邀请注册</h3>
+            <div class="hint-box">
+              <b>用途：</b>生成一个注册通行证，发给外部用户。
+              <template v-if="inviteForm.target_type==='new_workspace'">
+                用户注册后会自动创建自己的新租户，并成为该租户负责人。
+              </template>
+              <template v-else>
+                用户注册后会加入
+                <b>{{ formatWorkspaceName(workspaces.find(w=>String(w.id)===String(inviteForm.workspace_id || currentWorkspaceId))) }}</b>。
+              </template>
+              明文只显示一次，历史列表只保留前缀。
+            </div>
             <div class="form-grid">
-              <input class="set-inp" type="number" min="1" v-model="inviteForm.max_uses" placeholder="可用次数"/>
-              <input class="set-inp" type="number" min="1" v-model="inviteForm.expires_in_days" placeholder="有效天数"/>
-              <select class="set-sel" v-model="inviteForm.default_role">
-                <option value="user">user</option>
-                <option value="viewer">viewer</option>
-              </select>
-              <button class="mini-btn" @click="createInvite">生成邀请码</button>
-            </div>
-            <div v-if="newInviteCode" class="secret-box">{{ newInviteCode }}</div>
-            <div v-for="i in invites" :key="i.id" class="key-row">
-              <div class="info">
-                <b>{{ i.code_prefix }}</b>
-                <span class="meta">已用 {{ i.used_count }}/{{ i.max_uses }} · 默认角色={{ i.default_role }}</span>
-                <span class="meta">过期时间 {{ i.expires_at || '—' }}</span>
+              <div class="form-field wide">
+                <label>邀请类型</label>
+                <select class="set-sel" v-model="inviteForm.target_type">
+                  <option value="new_workspace">创建注册用户自己的新租户</option>
+                  <option value="workspace">加入已有租户 / 工作区</option>
+                </select>
+                <small>外部新客户用“自己的新租户”；邀请同事进现有租户时才选“已有租户”。</small>
               </div>
-              <button v-if="i.active" class="mini-btn bad" @click="disableInvite(i.id)">禁用</button>
-              <span v-else class="pill bad">disabled</span>
+              <div class="form-field wide" v-if="canManageWorkspaces && inviteForm.target_type==='workspace'">
+                <label>加入哪个租户 / 工作区</label>
+                <select class="set-sel" v-model="inviteForm.workspace_id">
+                  <option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ formatWorkspaceName(w) }}</option>
+                </select>
+                <small>只有内部协作或给同一客户加成员时使用这个模式。</small>
+              </div>
+              <div class="form-field">
+                <label>可注册人数</label>
+                <input class="set-inp" type="number" min="1" v-model="inviteForm.max_uses" placeholder="例如 1"/>
+                <small>填 1 表示只能被一个人注册使用。</small>
+              </div>
+              <div class="form-field">
+                <label>有效期</label>
+                <input class="set-inp" type="number" min="1" v-model="inviteForm.expires_in_days" placeholder="例如 7"/>
+                <small>超过天数后自动失效。</small>
+              </div>
+              <div class="form-field">
+                <label>注册后角色</label>
+                <select class="set-sel" v-model="inviteForm.default_role">
+                  <option value="user">普通用户 · 可使用功能</option>
+                  <option value="viewer">只读用户 · 只读查看</option>
+                </select>
+                <small>邀请码不能创建管理员，管理员需内部创建。</small>
+              </div>
+              <button class="mini-btn wide" @click="createInvite">生成注册邀请码</button>
+            </div>
+            <div v-if="newInviteCode" class="secret-box invite-code-box">
+              <div>
+                <div class="meta">完整邀请码，只显示这一次</div>
+                <code>{{ newInviteCode }}</code>
+              </div>
+              <button class="mini-btn" @click="copyInviteCode">复制</button>
+            </div>
+            <div class="settings-scroll-list">
+              <div v-for="i in invites" :key="i.id" class="key-row">
+                <div class="info">
+                  <b>{{ i.code_prefix }}</b>
+                  <span class="key-prefix">
+                    {{ (i.target_type || 'workspace') === 'new_workspace' ? '注册后创建自己的租户' : (formatWorkspaceName(workspaces.find(w=>String(w.id)===String(i.workspace_id))) || ('工作区 #' + (i.workspace_id || '—'))) }}
+                    · 注册角色 {{ formatRole(i.default_role) }}
+                  </span>
+                  <span class="meta">使用进度 {{ i.used_count }}/{{ i.max_uses }} · 过期 {{ i.expires_at ? i.expires_at.slice(0, 10) : '—' }} · 最近使用 {{ i.last_used_at ? i.last_used_at.slice(0, 10) : '未使用' }}</span>
+                </div>
+                <div>
+                  <span class="invite-status" :class="i.active ? 'pill ok' : 'pill bad'">{{ i.active ? '可用' : '已禁用' }}</span>
+                  <button v-if="i.active" class="mini-btn bad" @click="disableInvite(i.id)">禁用</button>
+                </div>
+              </div>
+              <div v-if="!invites.length" class="empty-state">
+                <b>暂无邀请码</b>
+                生成后把完整邀请码发给需要注册的用户。
+              </div>
             </div>
           </div>
 
-          <div class="set-block">
+          <div v-if="activeSettingsSection==='proxy'" class="set-block">
             <h3>🌐 代理池 ({{ proxyOk }}/{{ proxyTotal }})</h3>
             <div v-for="p in (proxyStatus.details||[]).slice(0,5)" :key="p.url" class="key-row">
               <div class="info">
                 <span class="key-prefix">{{ (p.url||'').slice(7, 45) }}…</span>
-                <span class="meta">ok={{ p.success_count }} fail={{ p.fail_count }}</span>
+                <span class="meta">成功={{ p.success_count }} 失败={{ p.fail_count }}</span>
               </div>
               <span class="pill" :class="p.fail_count>3?'bad':'ok'">{{ p.fail_count>3?'⚠':'✓' }}</span>
             </div>
             <div v-if="!(proxyStatus.details||[]).length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">代理状态未加载</div>
           </div>
 
-          <div class="set-block">
+          <div v-if="activeSettingsSection==='docs'" class="set-block">
             <h3>📚 文档 · 工具</h3>
             <div style="font-size:0.84rem;line-height:1.9">
-              <div>📊 <a href="/d/morning_report_2026-05-25.html" target="_blank">24h 战报</a></div>
-              <div>🎯 <a href="/d/customer_dashboard_v7_unified.html" target="_blank">v7 客户视角 Dashboard</a></div>
-              <div>📋 <a href="/d/aosen_80pct_daily_plan.html" target="_blank">遨森 80% 方案</a></div>
-              <div>🌐 <a href="/d/platform_expansion_roadmap.html" target="_blank">平台扩展路线图</a></div>
-              <div>🔬 <a href="/d/scrapling_design_research.html" target="_blank">Scrapling 研究</a></div>
-              <div>📚 <a href="/llms.txt" target="_blank">llms.txt (AI 入口)</a></div>
-              <div>🧪 <a href="/api/v1/" target="_blank">REST API v1 索引</a></div>
+              <div>📊 <a href="/d/morning_report_2026-05-25.html" target="_blank" rel="noopener">24 小时战报</a></div>
+              <div>🎯 <a href="/d/customer_dashboard_v7_unified.html" target="_blank" rel="noopener">客户视角看板</a></div>
+              <div>📋 <a href="/d/aosen_80pct_daily_plan.html" target="_blank" rel="noopener">遨森 80% 方案</a></div>
+              <div>🌐 <a href="/d/platform_expansion_roadmap.html" target="_blank" rel="noopener">平台扩展路线图</a></div>
+              <div>🔬 <a href="/d/scrapling_design_research.html" target="_blank" rel="noopener">Scrapling 研究</a></div>
+              <div>📚 <a href="/llms.txt" target="_blank" rel="noopener">AI 入口说明</a></div>
+              <div>🧪 <a href="/docs" target="_blank" rel="noopener">接口文档</a></div>
             </div>
+          </div>
           </div>
 	        </div>
 	      </div>
 
 	      <div v-if="tab==='account'" class="page">
 	        <div class="lead">账号</div>
-	        <div class="sub">个人资料 · 密码安全 · API Key · 用量 · 当前工作区</div>
+	        <div class="sub">个人资料 · 密码安全 · 接口密钥 · 用量 · 当前工作区</div>
 
-	        <div class="set-grid">
-	          <div class="set-block">
+	        <div class="subnav-layout">
+	          <nav class="subnav" aria-label="账号二级菜单">
+	            <button
+	              v-for="item in accountMenu"
+	              :key="item.key"
+	              class="subnav-item"
+	              :class="{active: activeAccountSection===item.key}"
+	              @click="accountSection=item.key"
+	            >
+	              <span>{{ item.label }}</span>
+	              <small>{{ item.desc }}</small>
+	            </button>
+	          </nav>
+
+	          <div class="subnav-content">
+	          <div v-if="activeAccountSection==='profile'" class="set-block">
 	            <h3>👤 个人资料</h3>
 	            <div class="key-row">
 	              <div class="info">
 	                <b>{{ user.display_name || user.username }}</b>
 	                <span class="key-prefix">{{ user.email || user.username }}</span>
-		                <span class="meta">角色={{ user.role }} · 状态={{ user.status || 'active' }} · 全局角色={{ user.global_role || '—' }}</span>
+		                <span class="meta">角色={{ formatRole(user.role) }} · 状态={{ formatAccountStatus(user.status) }} · 全局角色={{ formatGlobalRole(user.global_role) }}</span>
 	              </div>
 	            </div>
 	            <div class="form-grid one">
@@ -1086,7 +1618,7 @@ const App = {
 	            </div>
 	          </div>
 
-	          <div class="set-block">
+	          <div v-if="activeAccountSection==='security'" class="set-block">
 	            <h3>🔒 密码与会话</h3>
 	            <div class="form-grid">
 	              <input class="set-inp" type="password" v-model="passwordForm.old_password" placeholder="旧密码"/>
@@ -1103,41 +1635,40 @@ const App = {
 	            </div>
 	          </div>
 
-	          <div class="set-block">
+	          <div v-if="activeAccountSection==='workspace'" class="set-block">
 		            <h3>🏢 当前工作区</h3>
 	            <div class="key-row">
 	              <div class="info">
-	                <b>{{ (workspaces.find(w=>String(w.id)===String(currentWorkspaceId))||{}).name || '—' }}</b>
-	                <span class="key-prefix">{{ (workspaces.find(w=>String(w.id)===String(currentWorkspaceId))||{}).slug || '—' }}</span>
-		                <span class="meta">站点、报告、导出、API Key 和用量按工作区隔离</span>
+	                <b>{{ formatWorkspaceName(workspaces.find(w=>String(w.id)===String(currentWorkspaceId))) }}</b>
+		                <span class="meta">站点、报告、导出、接口密钥和用量按工作区隔离</span>
 	              </div>
 	            </div>
 	            <div class="form-grid one" v-if="workspaces.length > 1">
 	              <select class="set-sel" v-model="currentWorkspaceId" @change="switchWorkspace">
-	                <option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ w.name }} · {{ w.slug }}</option>
+	                <option v-for="w in workspaces" :key="w.id" :value="String(w.id)">{{ formatWorkspaceName(w) }}</option>
 	              </select>
 	            </div>
 	          </div>
 
-	          <div class="set-block">
-	            <h3>🔑 API Keys</h3>
+	          <div v-if="activeAccountSection==='api_keys'" class="set-block">
+	            <h3>🔑 接口密钥</h3>
 	            <div class="form-grid">
-	              <input class="set-inp" v-model="newKeyName" placeholder="Key 名称"/>
-	              <button class="mini-btn" @click="createMyKey">创建 Key</button>
+	              <input class="set-inp" v-model="newKeyName" placeholder="密钥名称"/>
+	              <button class="mini-btn" @click="createMyKey">创建密钥</button>
 	            </div>
 	            <div v-if="createdKey" class="secret-box">{{ createdKey }}</div>
 	            <div v-for="k in apiKeys" :key="k.id" class="key-row">
 	              <div class="info">
 	                <b>{{ k.name }}</b>
 	                <span class="key-prefix">{{ k.key_prefix }}</span>
-	                <span class="meta">{{ (k.request_count||0).toLocaleString() }} 次调用 · {{ (k.scopes||[]).join(', ') }}</span>
+	                <span class="meta">{{ (k.request_count||0).toLocaleString() }} 次调用 · {{ (k.scopes||[]).map(formatScope).join('、') }}</span>
 	              </div>
 	              <button class="mini-btn bad" v-if="k.active" @click="revokeKey(k.id)">停用</button>
 	            </div>
-	            <div v-if="!apiKeys.length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">暂无 key</div>
+	            <div v-if="!apiKeys.length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">暂无接口密钥</div>
 	          </div>
 
-	          <div class="set-block">
+	          <div v-if="activeAccountSection==='usage'" class="set-block">
 	            <h3>💰 30 天用量</h3>
 	            <div v-for="k in (billing.keys||[])" :key="k.id" class="key-row">
 	              <div class="info">
@@ -1147,6 +1678,7 @@ const App = {
 	              </div>
 	            </div>
 	            <div v-if="!(billing.keys||[]).length" style="color:#52527a;font-size:0.78rem;padding:14px 0;text-align:center">暂无用量记录</div>
+	          </div>
 	          </div>
 	        </div>
 	      </div>

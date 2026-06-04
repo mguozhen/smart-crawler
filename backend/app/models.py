@@ -281,6 +281,7 @@ class InviteCode(Base):
     code_hash = Column(String, unique=True, index=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id"))
     workspace_id = Column(Integer, ForeignKey("workspaces.id"), index=True)
+    target_type = Column(String, default="workspace")  # workspace / new_workspace
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, index=True)
     max_uses = Column(Integer, default=1)

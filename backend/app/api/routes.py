@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import secrets
+import unicodedata
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
@@ -157,6 +159,33 @@ def _workspace_response(ws: Workspace) -> dict:
         "type": ws.type or "customer",
         "status": ws.status or "active",
     }
+
+
+def _slugify_workspace(value: str) -> str:
+    text = unicodedata.normalize("NFKD", value or "")
+    text = text.encode("ascii", "ignore").decode("ascii").lower()
+    text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    return text or "workspace"
+
+
+def _unique_workspace_slug(db: Session, seed: str) -> str:
+    base = _slugify_workspace(seed)
+    slug = base
+    i = 2
+    while db.query(Workspace).filter(Workspace.slug == slug).first():
+        slug = f"{base}-{i}"
+        i += 1
+    return slug
+
+
+def _unique_workspace_name(db: Session, seed: str) -> str:
+    base = (seed or "Customer Workspace").strip() or "Customer Workspace"
+    name = base
+    i = 2
+    while db.query(Workspace).filter(Workspace.name == name).first():
+        name = f"{base} {i}"
+        i += 1
+    return name
 
 
 def _user_workspaces(db: Session, u: User) -> list[Workspace]:
@@ -394,12 +423,26 @@ def auth_register(payload: dict, request: Request, db: Session = Depends(get_db)
               .first())
     if exists:
         raise HTTPException(409, "用户名或邮箱已存在")
+    target_type = invite.target_type or "workspace"
+    workspace_id = invite.workspace_id
+    if target_type == "new_workspace":
+        workspace_name = _unique_workspace_name(
+            db, f"{(payload.get('display_name') or username).strip()} Workspace")
+        workspace = Workspace(
+            name=workspace_name,
+            slug=_unique_workspace_slug(db, username),
+            type="customer",
+            status="active",
+        )
+        db.add(workspace)
+        db.flush()
+        workspace_id = workspace.id
     user = User(
         username=username,
         email=email,
         password_hash=hash_password(password),
         role=invite.default_role or "user",
-        default_workspace_id=invite.workspace_id,
+        default_workspace_id=workspace_id,
         status="active",
         display_name=(payload.get("display_name") or username).strip(),
         email_verified=False,
@@ -409,9 +452,12 @@ def auth_register(payload: dict, request: Request, db: Session = Depends(get_db)
     invite.last_used_at = datetime.utcnow()
     db.add(user)
     db.flush()
-    if invite.workspace_id:
-        db.add(WorkspaceMember(workspace_id=invite.workspace_id,
-                               user_id=user.id, role="member"))
+    if workspace_id:
+        db.add(WorkspaceMember(
+            workspace_id=workspace_id,
+            user_id=user.id,
+            role="owner" if target_type == "new_workspace" else "member",
+        ))
     return _issue_login_token(user, db, request)
 
 
@@ -1479,6 +1525,7 @@ def _invite_response(invite: InviteCode) -> dict:
         "max_uses": invite.max_uses,
         "used_count": invite.used_count or 0,
         "default_role": invite.default_role or "user",
+        "target_type": invite.target_type or "workspace",
         "created_by_user_id": invite.created_by_user_id,
         "workspace_id": invite.workspace_id,
         "created_at": invite.created_at.isoformat() if invite.created_at else None,
@@ -1508,10 +1555,15 @@ def admin_create_invite(payload: dict | None = None,
     admin = _require_admin(user, db)
     payload = payload or {}
     ws = _current_workspace(user, db, x_workspace_id)
-    workspace_id = (int(payload.get("workspace_id") or ws.id)
-                    if _is_super_admin(admin) else ws.id)
-    if not db.get(Workspace, workspace_id):
-        raise HTTPException(400, "workspace_id 不存在")
+    target_type = payload.get("target_type") or "workspace"
+    if target_type not in {"workspace", "new_workspace"}:
+        raise HTTPException(400, "target_type 必须是 workspace/new_workspace")
+    workspace_id = None
+    if target_type == "workspace":
+        workspace_id = (int(payload.get("workspace_id") or ws.id)
+                        if _is_super_admin(admin) else ws.id)
+        if not db.get(Workspace, workspace_id):
+            raise HTTPException(400, "workspace_id 不存在")
     max_uses = int(payload.get("max_uses") or 1)
     if max_uses <= 0:
         raise HTTPException(400, "max_uses 必须大于 0")
@@ -1527,6 +1579,7 @@ def admin_create_invite(payload: dict | None = None,
         code_hash=hash_secret(raw),
         created_by_user_id=admin.id,
         workspace_id=workspace_id,
+        target_type=target_type,
         max_uses=max_uses,
         used_count=0,
         active=True,

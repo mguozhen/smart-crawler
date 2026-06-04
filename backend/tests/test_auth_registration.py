@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from app.apikey import hash_key
 from app.auth import hash_password, hash_secret
 from app.db import Base
-from app.models import ApiKey, InviteCode, User
+from app.models import ApiKey, InviteCode, User, Workspace, WorkspaceMember
 
 
 pytestmark = pytest.mark.unit
@@ -95,6 +95,46 @@ def test_invite_registration_and_email_or_username_login():
             "invite_code": "internal-only-code",
         }, request=None, db=db)
     assert exc.value.status_code == 400
+
+
+def test_new_workspace_invite_creates_user_owned_tenant():
+    from app.api.routes import auth_register
+
+    db = _session()
+    raw_code = "new-tenant-code"
+    db.add(InviteCode(
+        code_prefix=raw_code[:10],
+        code_hash=hash_secret(raw_code),
+        target_type="new_workspace",
+        workspace_id=None,
+        max_uses=1,
+        used_count=0,
+        active=True,
+        default_role="user",
+    ))
+    db.commit()
+
+    registered = auth_register({
+        "username": "customer",
+        "email": "customer@example.com",
+        "display_name": "Customer",
+        "password": "Password1",
+        "confirm_password": "Password1",
+        "invite_code": raw_code,
+    }, request=None, db=db)
+
+    user = db.query(User).filter(User.username == "customer").first()
+    workspace = db.get(Workspace, user.default_workspace_id)
+    member = (db.query(WorkspaceMember)
+              .filter(WorkspaceMember.workspace_id == workspace.id,
+                      WorkspaceMember.user_id == user.id)
+              .first())
+
+    assert registered["username"] == "customer"
+    assert workspace.name == "Customer Workspace"
+    assert workspace.slug == "customer"
+    assert workspace.type == "customer"
+    assert member.role == "owner"
 
 
 def test_logout_revokes_session_token():

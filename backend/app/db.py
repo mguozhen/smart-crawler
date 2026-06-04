@@ -219,7 +219,11 @@ def _backfill_workspace_links() -> None:
             return
         for k in s.query(ApiKey).filter(ApiKey.workspace_id.is_(None)).all():
             k.workspace_id = workspace.id
-        for invite in s.query(InviteCode).filter(InviteCode.workspace_id.is_(None)).all():
+        for invite in (s.query(InviteCode)
+                       .filter(InviteCode.workspace_id.is_(None),
+                               (InviteCode.target_type.is_(None)) |
+                               (InviteCode.target_type != "new_workspace"))
+                       .all()):
             invite.workspace_id = workspace.id
         for usage in s.query(Usage).filter(Usage.workspace_id.is_(None)).all():
             key = s.get(ApiKey, usage.api_key_id) if usage.api_key_id else None
