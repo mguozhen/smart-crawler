@@ -1,0 +1,23 @@
+{
+  "data": {
+    "root": {
+      "fields": {
+        "product": {
+          "items": [
+            {
+              "itemId": "1234567890",
+              "skuId": "9876543210",
+              "name": "Foldable Storage Box 3-Tier",
+              "price": "39.90",
+              "originalPrice": "59.90",
+              "currency": "MYR",
+              "image": "https://img.lazcdn.com/a.jpg",
+              "images": ["https://img.lazcdn.com/a.jpg", "https://img.lazcdn.com/b.jpg"],
+              "stock": 200
+            }
+          ]
+        }
+      }
+    }
+  }
+}

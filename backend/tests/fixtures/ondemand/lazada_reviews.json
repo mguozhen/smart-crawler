@@ -1,0 +1,24 @@
+{
+  "model": {
+    "items": [
+      {
+        "reviewId": "L-rev-1",
+        "rating": 5,
+        "reviewContent": "Good quality, fast delivery.",
+        "reviewTitle": "",
+        "reviewTime": "10 Apr 2026",
+        "buyerName": "Ali",
+        "upVotes": 3
+      },
+      {
+        "reviewId": "L-rev-2",
+        "rating": 3,
+        "reviewContent": "Box is smaller than expected.",
+        "reviewTitle": "",
+        "reviewTime": "01 Mar 2026",
+        "buyerName": "Siti",
+        "upVotes": 0
+      }
+    ]
+  }
+}
