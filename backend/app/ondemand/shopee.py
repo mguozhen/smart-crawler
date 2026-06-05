@@ -1,20 +1,27 @@
 """虾皮(Shopee)按需采集器。
 
-⚠️ 状态(2026-06-05):**未经真实站点验证**。下面的接口路径与 parse_* 解析逻辑是
-    按「假设的 Shopee API 结构」写的,只过了用假 fixture 的单测,从未打过真实 Shopee。
-    姊妹平台 Lazada 已踩过坑:实测后发现原先假设的 JSON 结构与真实站点完全对不上,
-    listing 必须改真浏览器渲染、解析路径全部重写。**Shopee 大概率需要同样一轮逆向**:
-      · get_pc / get_ratings 近年常加签名头(af-ac-enc-dat 等),裸调可能直接被拒;
-      · 真实响应字段名/层级需以实测为准(参考 Lazada 重写的做法:
-        先 StealthyFetcher 抓真实页/接口 -> dump 结构 -> 按真实路径写 parse + 真实 fixture)。
-    在完成真实验证前,勿把本采集器当作可用。
+❌ 状态(2026-06-05 实测):**现有工具绕不过 Shopee 反爬,暂不可用**。
+    实测(住宅代理 + 真浏览器 + 滚动,SG/ID 站):
+      · 商品页 / 搜索页 → 被重定向到 `/verify/traffic/error?...type=4`(反爬流量墙)
+      · 内部 API get_pc / get_ratings / item/get → 403
+        `{"is_login":false,"action_type":2,"error":90309999}`
+    关键认知:**卡在「反爬流量墙」而非登录墙**——它在访问任何商品/API 之前先做流量
+    指纹检测,判定 bot 就弹验证页。即便有登录账号,bot 流量照样先被这道墙拦。
+    Lazada/美客多能靠「住宅代理 + 真浏览器」过墙,Shopee 不行(强一个数量级)。
+    可行的绕过路径(均非免费午餐,需额外资源,待选型):
+      (A) 真实登录 cookie 注入(需真账号;cookie 会过期;账号有风控/封号风险);
+      (B) 付费第三方 Shopee API(Apify / Kameleo 等,维护账号池+反爬,最省事最稳,有费用);
+      (C) Shopee 官方 Open API(需 partner_id+key,合规但门槛高);
+      (D) 更强反检测浏览器(Kameleo/Multilogin 级指纹伪装,可能过墙,需额外工具调试)。
+    下面的接口路径与 parse_* 是早期「假设结构」,**从未经真实数据验证**,选定绕过方案后
+    需照 Lazada/美客多 的做法重新逆向真实结构再重写。
 
-listing:  GET https://{host}/api/v4/pdp/get_pc?shop_id={s}&item_id={i}       (待验证)
-reviews:  GET https://{host}/api/v2/item/get_ratings?shopid={s}&itemid={i}    (待验证)
+listing:  GET https://{host}/api/v4/pdp/get_pc?shop_id={s}&item_id={i}       (403,未验证)
+reviews:  GET https://{host}/api/v2/item/get_ratings?shopid={s}&itemid={i}    (403,未验证)
 URL->id:  单品 URL 形如  .../<slug>-i.<shopid>.<itemid>  或  /product/<shopid>/<itemid>
-反爬:     最强,强制住宅代理(proxy_tier=residential)+ 拟人头/限速;失败由 runner 切代理重试。
-价格:     (假设)Shopee 价格字段放大 100000 倍,解析时除回 —— 需真实验证。
-图片:     (假设)字段是 hash,拼 https://cf.{host}/file/<hash> —— 需真实验证。
+反爬:     最强(流量墙 + 登录态 + API 签名),住宅代理+真浏览器均被弹。
+价格:     (假设)Shopee 价格字段放大 100000 倍,解析时除回 —— 未验证。
+图片:     (假设)字段是 hash,拼 https://cf.{host}/file/<hash> —— 未验证。
 """
 from __future__ import annotations
 
