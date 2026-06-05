@@ -1,43 +1,59 @@
 """美客多(MercadoLibre)按需采集器。
 
-⚠️ 状态(2026-06-05 实测):**当前不可用,待接 OAuth**。
-    api.mercadolibre.com/items/{id} 现已强制 OAuth 鉴权 —— 无 token 直连一律返回
-    403(PA_UNAUTHORIZED_RESULT_FROM_POLICIES,PolicyAgent)。
-    实测矩阵(本地 / 住宅代理 / curl_cffi / 真浏览器 全试过):
-      · items API 直连(含住宅代理)        -> 403 OAuth
-      · 商品页 HTML(curl_cffi / 真浏览器)  -> 只拿到无价格的 SEO 占位页;价格/评论
-                                              需登录态 + 真实交互后异步加载,抓不到
-    结论:listing/评论都拿不到。下一步二选一:
-      (A) 接入官方 OAuth(developers.mercadolibre 注册应用 -> access_token,带 token
-          调 items + reviews API,最稳最全);
-      (B) 坚持免 token 则需更深的浏览器自动化(登录态 + 行为模拟),成本高、不稳。
-    落地前,本采集器对真实 URL 会因 403 触发 runner 切代理重试并最终放弃,notes 有
-    明确提示。下面的 parse_listing/parse_reviews 是按 items API 响应结构写的,接上
-    OAuth 后即可复用。
-
-listing:  GET https://api.mercadolibre.com/items/{id}        (需 OAuth)
-reviews:  GET https://api.mercadolibre.com/reviews/item/{id}  (需 OAuth)
-URL->id:  商品页 URL 含 MLM-123 / MLB-123 / MLA-123 编码,去掉短横即 itemId。
-反爬:     PolicyAgent 强制鉴权(非简单封禁),无 token 不可达。
+实测验证(2026-06-05,住宅代理 + 真浏览器 + 滚动等待):**可用**。
+  关键配方:items API 已强制 OAuth(403),改走商品页真浏览器渲染。但价格/评论是
+  懒加载,**必须滚动 + 等待**才会出现(只 fetch 不滚动只拿到无价格的壳页)。
+    · listing 数据源 = 页面里的 JSON-LD(<script type="application/ld+json"> 的
+      Product 块,schema.org 标准格式,最干净):
+        title  = name
+        price  = offers.price          currency = offers.priceCurrency
+        avail  = offers.availability    brand    = brand(字符串或 {name})
+        rating = aggregateRating.ratingValue   review_count = aggregateRating.reviewCount
+        image  = image(字符串或数组)    sku = sku / productID
+    · 评论原文 = DOM:article.ui-review-capability-comments__comment
+        星级 = 数 __comment__rating__star 的 svg 个数(或读 "Calificación N de 5")
+        正文 = p.ui-review-capability-comments__comment__content
+反爬:     强,强制住宅代理(proxy_tier=residential)+ 真浏览器 + 滚动;裸 IP / 无滚动
+          会被弹到 /gz/account-verification 或只拿到壳页。
+          ⚠️ 稳定性:住宅 IP 信誉时好时坏,同一商品有时第 1 次就成、有时连续几次被弹
+          验证页;runner 已切代理重试 _MAX_RETRY 次。实测可稳定跑通(价格 208739 ARS +
+          评分 4.6 + 评论原文 → 入库),但生产高频抓取建议偏好已验证放行的代理区域。
+URL->id:  商品页 URL 含 MLM-/MLB-/MLA- 编码(catalog 用 /p/MLA…;单卖家 wid=MLA…)。
 """
 from __future__ import annotations
 
+import json
 import re
 
-from curl_cffi import requests as creq
-
-from ..antiban import check_blocked
+from ..antiban import BlockedError
 from .base import BaseOnDemand
 
-_API = "https://api.mercadolibre.com"
 _ID_RE = re.compile(r"(ML[A-Z])-?(\d+)")
+_LD_RE = re.compile(
+    r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
+# 评论:正文 p.__comment__content;星级取正文前最近的 "Calificación N de 5"
+_REVIEW_BODY_RE = re.compile(
+    r'ui-review-capability-comments__comment__content[^>]*>([^<]+)</')
+_REVIEW_CALIF_RE = re.compile(r'Calificaci[oó]n\s+(\d)\s+de\s+5')
 PLATFORM = "mercadolibre"
 SITE = f"ondemand_{PLATFORM}"
 
 
+def _ld_product(html: str) -> dict | None:
+    """从页面 HTML 抽出 JSON-LD 里 @type=Product 的块。"""
+    for block in _LD_RE.findall(html):
+        try:
+            d = json.loads(block.strip())
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("@type") == "Product":
+            return d
+    return None
+
+
 class MercadoLibreOnDemand(BaseOnDemand):
     platform = PLATFORM
-    proxy_tier = "none"
+    proxy_tier = "residential"
 
     @staticmethod
     def parse_item_id(url: str) -> str:
@@ -47,74 +63,127 @@ class MercadoLibreOnDemand(BaseOnDemand):
         return (m.group(1) + m.group(2)).upper()
 
     @staticmethod
-    def parse_listing(data: dict, url: str) -> dict:
+    def parse_listing(html: str, url: str) -> dict:
+        """从渲染后的页面 HTML 解析 listing(数据源:JSON-LD Product 块)。"""
+        d = _ld_product(html)
+        if not d:
+            raise BlockedError("ml/pdp 未找到 JSON-LD Product(疑似壳页/未渲染)")
+        offers = d.get("offers") or {}
+        if isinstance(offers, list):
+            offers = offers[0] if offers else {}
+        brand = d.get("brand")
+        if isinstance(brand, dict):
+            brand = brand.get("name")
+        img = d.get("image")
+        if isinstance(img, str):
+            imgs = [img]
+        elif isinstance(img, list):
+            imgs = [u for u in img if isinstance(u, str)]
+        else:
+            imgs = []
+        agg = d.get("aggregateRating") or {}
+        avail = str(offers.get("availability") or "")
         return {
-            "sku": data.get("id"),
-            "title": data.get("title"),
-            "sale_price": data.get("price"),
-            "original_price": data.get("original_price") or data.get("price"),
-            "currency": data.get("currency_id"),
-            "image_urls": [p.get("url") for p in (data.get("pictures") or [])
-                           if p.get("url")],
-            "inventory": str(data.get("available_quantity"))
-            if data.get("available_quantity") is not None else None,
-            "status": ("on_sale" if (data.get("available_quantity") or 0) > 0
-                       else "out_of_stock"),
+            "sku": d.get("sku") or d.get("productID"),
+            "title": d.get("name"),
+            "sale_price": offers.get("price"),
+            "original_price": offers.get("price"),
+            "currency": offers.get("priceCurrency"),
+            "image_urls": imgs,
+            "ratings": agg.get("ratingValue"),
+            "review_count": agg.get("reviewCount") or agg.get("ratingCount"),
+            "status": "on_sale" if "InStock" in avail else "out_of_stock",
             "product_url": url,
             "site": SITE,
-            "brand": PLATFORM,
+            "brand": brand or PLATFORM,
         }
 
     @staticmethod
-    def parse_reviews(data: dict, item_id, url: str) -> list[dict]:
+    def parse_reviews(html: str, item_id, url: str) -> list[dict]:
+        """从渲染后的页面 HTML 解析评论原文(数据源:评论 DOM)。
+
+        每条评论 = 一段正文 p.__content;其星级取**正文之前最近的**
+        "Calificación N de 5" 隐藏文本(article 块切分会错位,故按正文锚点回溯)。
+        """
+        sku = item_id[0] if isinstance(item_id, tuple) else item_id
         out = []
-        for r in (data.get("reviews") or []):
+        # 先收集所有星级标注的位置,再为每条正文回溯最近的星级
+        califs = [(m.start(), int(m.group(1)))
+                  for m in _REVIEW_CALIF_RE.finditer(html)]
+        for idx, mb in enumerate(_REVIEW_BODY_RE.finditer(html), start=1):
+            content = mb.group(1).strip()
+            if not content:
+                continue
+            pos = mb.start()
+            # 该正文之前最近的一个 Calificación 即其星级
+            rating = None
+            for cpos, cval in califs:
+                if cpos < pos:
+                    rating = cval
+                else:
+                    break
             out.append({
-                "review_id": r.get("id"),
+                # 美客多评论 DOM 无稳定 id,用 sku + 序号合成唯一键
+                "review_id": f"{sku}_{idx}",
                 "platform": SITE,
                 "site": SITE,
-                "reviewer_name": r.get("reviewer_id"),
-                "rating": r.get("rate"),
-                "title": r.get("title"),
-                "content": r.get("content"),
-                "review_date": r.get("date_created"),
-                "sku": item_id,
+                "reviewer_name": None,
+                "rating": rating,
+                "title": None,
+                "content": content,
+                "review_date": None,
+                "sku": sku,
                 "product_url": url,
             })
         return out
 
-    # ---- HTTP(smoke 路径,单测不覆盖)----
-    def _session(self, proxy: str | None) -> "creq.Session":
-        s = creq.Session(impersonate="chrome")
-        if proxy:
-            s.proxies = {"http": proxy, "https": proxy}
-        return s
+    # ---- HTTP(真浏览器渲染,smoke 路径)----
+    def _render(self, url: str, proxy=None) -> str:
+        """住宅代理 + 真浏览器 + 滚动等待渲染。价格/评论懒加载,必须滚动。"""
+        from scrapling.fetchers import StealthyFetcher
+
+        from ..crawlers._stealth_config import stealth_kwargs
+
+        def _scroll(page):
+            try:
+                for y in (3000, 6000, 9000, 12000):
+                    page.mouse.wheel(0, y)
+                    page.wait_for_timeout(1800)
+            except Exception:
+                pass
+            return page
+
+        kw = stealth_kwargs(proxy=proxy, country="AR", solve_cloudflare=True,
+                            network_idle=True, timeout_ms=90000,
+                            extra={"wait": 4000, "page_action": _scroll})
+        page = StealthyFetcher.fetch(url, **kw)
+        html = page.html_content or page.body or ""
+        if "account-verification" in html[:3000]:
+            raise BlockedError("ml/pdp 被弹到账号验证页(代理 IP 信誉不足)")
+        return html
 
     def fetch_listing(self, item_id: str, url: str, proxy=None) -> dict:
-        s = self._session(proxy)
-        resp = s.get(f"{_API}/items/{item_id}", timeout=30)
-        check_blocked(resp.status_code, f"ml/items/{item_id}")
-        resp.raise_for_status()
-        return self.parse_listing(resp.json(), url)
+        html = self._render(url, proxy=proxy)
+        listing = self.parse_listing(html, url)
+        # 顺带缓存本次 HTML,供同一 url 的 fetch_reviews 复用,避免二次渲染
+        self._last_html = (url, html)
+        return listing
 
     def fetch_reviews(self, item_id: str, url: str, limit: int = 100,
                       proxy=None) -> list[dict]:
-        s = self._session(proxy)
-        resp = s.get(f"{_API}/reviews/item/{item_id}", timeout=30)
-        check_blocked(resp.status_code, f"ml/reviews/{item_id}")
-        resp.raise_for_status()
-        return self.parse_reviews(resp.json(), item_id, url)[:limit]
+        cached = getattr(self, "_last_html", None)
+        if cached and cached[0] == url:
+            html = cached[1]
+        else:
+            html = self._render(url, proxy=proxy)
+        return self.parse_reviews(html, item_id, url)[:limit]
 
     def enumerate_listing(self, url: str, max_items: int = 100,
                           proxy=None) -> list[str]:
-        """列表/搜索页枚举 itemId。美客多搜索 API:
-        GET /sites/{SITE_ID}/search?q=... 或店铺 API。首版用页面内 ML 编码兜底。"""
-        s = self._session(proxy)
-        resp = s.get(url, timeout=30)
-        check_blocked(resp.status_code, "ml/listing")
-        resp.raise_for_status()
+        """列表/搜索页枚举 itemId(渲染后从页面内 ML 编码兜底)。"""
+        html = self._render(url, proxy=proxy)
         ids = []
-        for m in _ID_RE.finditer(resp.text):
+        for m in _ID_RE.finditer(html):
             iid = (m.group(1) + m.group(2)).upper()
             if iid not in ids:
                 ids.append(iid)

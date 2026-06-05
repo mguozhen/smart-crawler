@@ -13,7 +13,7 @@ from ..review_runner import upsert_reviews_into
 from .base import OnDemandResult
 from .registry import classify_url, detect_platform, get_crawler
 
-_MAX_RETRY = 3
+_MAX_RETRY = 6  # 反爬强、住宅 IP 信誉时好时坏,多轮换出口 IP(美客多常需 2-4 次)
 
 
 def fetch(url: str, *, max_items: int = 100, review_limit: int = 100,
