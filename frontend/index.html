@@ -706,6 +706,31 @@ const App = {
       } catch(e) { infResult.value = { error: e.message }; }
       finally { infRunning.value = false; }
     }
+    const odUrl = ref('');
+    const odMaxItems = ref(20);
+    const odLoading = ref(false);
+    const odError = ref('');
+    const odResult = ref(null);
+    async function runOndemand() {
+      if (!odUrl.value.trim()) return;
+      odError.value = ''; odResult.value = null; odLoading.value = true;
+      try {
+        const r = await fetch('/api/ondemand/fetch', {
+          method: 'POST',
+          headers: { ...authH(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: odUrl.value.trim(), max_items: odMaxItems.value }),
+        });
+        if (!r.ok) {
+          const e = await r.json().catch(()=>({}));
+          throw new Error(e.detail || ('HTTP ' + r.status));
+        }
+        odResult.value = await r.json();
+      } catch (e) {
+        odError.value = '抓取失败：' + e.message;
+      } finally {
+        odLoading.value = false;
+      }
+    }
     const starters = [
       { icon:'📊', title:'总览快照', desc:'当前工作区覆盖率和商品总数', key:'overview' },
       { icon:'🆕', title:'今日变化', desc:'昨日新增和变化', key:'new' },
@@ -1091,7 +1116,8 @@ const App = {
       totalSku, coveragePct, healthySites, criticalSites, warningSites,
       runningJobs, successJobs, proxyOk, proxyTotal, sortedCov,
       canAdmin, canManageWorkspaces, infPlatform, infUsername, infResult, infRunning, infFetch,
-      infQuickTargets, setInfluencerTarget
+      infQuickTargets, setInfluencerTarget,
+      odUrl, odMaxItems, odLoading, odError, odResult, runOndemand
     };
   },
   template: `
@@ -1472,6 +1498,42 @@ const App = {
             </div>
           </div>
           <div v-else style="color:#52527a;text-align:center;padding:20px">无近期帖子（平台可能受限，或账号受保护）</div>
+        </div>
+
+        <div class="inf-panel" style="margin-top:16px">
+          <h3>指定 URL 抓取(美客多 / Lazada / 虾皮)</h3>
+          <div class="inf-form" style="flex-wrap:wrap">
+            <input v-model="odUrl" class="inf-inp" placeholder="粘贴商品页或店铺/类目页 URL" style="min-width:320px" @keyup.enter="runOndemand"/>
+            <input v-model.number="odMaxItems" class="inf-inp" type="number" title="列表枚举上限" style="width:90px;flex:0 0 auto"/>
+            <button class="btn-prim" @click="runOndemand" :disabled="odLoading">{{ odLoading ? '抓取中…' : '抓取' }}</button>
+          </div>
+          <div v-if="odError" class="inf-err" style="margin-top:10px">{{ odError }}</div>
+          <div v-if="odResult" style="margin-top:14px">
+            <div class="inf-empty-note">listing {{ odResult.listings_count }} / 评论 {{ odResult.reviews_count }}</div>
+            <ul v-if="odResult.notes && odResult.notes.length" style="margin:8px 0 0;padding-left:20px;color:var(--ui-muted);font-size:0.82rem">
+              <li v-for="(n, i) in odResult.notes" :key="i">{{ n }}</li>
+            </ul>
+            <table v-if="odResult.listings && odResult.listings.length" style="width:100%;margin-top:12px;border-collapse:collapse;font-size:0.82rem">
+              <thead><tr style="text-align:left;color:var(--ui-muted)"><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">SKU</th><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">标题</th><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">售价</th><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">原价</th></tr></thead>
+              <tbody>
+                <tr v-for="(p, i) in odResult.listings" :key="p.sku || i">
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ p.sku }}</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ p.title }}</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ p.sale_price }}</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ p.original_price }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <table v-if="odResult.reviews && odResult.reviews.length" style="width:100%;margin-top:12px;border-collapse:collapse;font-size:0.82rem">
+              <thead><tr style="text-align:left;color:var(--ui-muted)"><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border);width:80px">评分</th><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">评论</th></tr></thead>
+              <tbody>
+                <tr v-for="(r, i) in odResult.reviews" :key="r.review_id || i">
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ r.rating }}</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ r.content }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
