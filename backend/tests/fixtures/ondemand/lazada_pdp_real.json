@@ -1,0 +1,41 @@
+{
+  "data": {
+    "root": {
+      "fields": {
+        "primaryKey": {
+          "itemId": "149806956",
+          "skuId": "175725114"
+        },
+        "product": {
+          "title": "F&F: Office Chair Ergonomic Adjustable with Coasters/ Rotatable Office Chair/ Kerusi Pejabat/ Study Chair/ Kerusi Belajar/ Kerusi Office/ Ergonomic Chair/ Home Office",
+          "brand": {
+            "name": "Furniture Farm"
+          },
+          "desc": "&lt;html&gt;&lt;head&gt;&lt;/head&gt;&lt;body&gt;<article><p><span></span><img src=\"https://my-live-"
+        },
+        "tracking": {
+          "pdt_price": "RM114.00"
+        },
+        "skuGalleries": {
+          "0": [
+            {
+              "type": "video",
+              "poster": "https://filebroker-cdn.lazada.com.my/kf/S35979ee4d7c64d9fbb0cdd9688bb9648K.png",
+              "image": null
+            },
+            {
+              "type": "img",
+              "poster": "//laz-img-sg.alicdn.com/p/b1cc3b1193ca2a3990d2598386cf3f92.jpg",
+              "image": null
+            },
+            {
+              "type": "img",
+              "poster": "//my-test-11.slatic.net/p/734ec43d35d8bd0b33530bc8eb7567e1.jpg",
+              "image": null
+            }
+          ]
+        }
+      }
+    }
+  }
+}

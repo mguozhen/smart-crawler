@@ -1,0 +1,28 @@
+{
+  "model": {
+    "paging": {"totalItems": 1010, "totalPages": 202, "currentPage": 1},
+    "ratings": {"average": 4.3, "rateCount": 1010, "reviewCount": 1010},
+    "items": [
+      {
+        "reviewRateId": 435680004106956,
+        "rating": 5,
+        "reviewTitle": null,
+        "reviewContent": "Design:good as expected, value for money. Durability:quite tough & sturdy.",
+        "reviewTime": "02 Jul 2025",
+        "buyerName": "Jason Yew",
+        "upVotes": 1,
+        "skuId": "175725114"
+      },
+      {
+        "reviewRateId": 435680004106957,
+        "rating": 4,
+        "reviewTitle": null,
+        "reviewContent": "Good chair, comfortable for long hours.",
+        "reviewTime": "15 Jun 2025",
+        "buyerName": "Aisyah",
+        "upVotes": 0,
+        "skuId": "175725114"
+      }
+    ]
+  }
+}
