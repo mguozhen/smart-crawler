@@ -641,7 +641,7 @@ const App = {
       return d;
     }
 
-    const allowedTabs = new Set(['overview', 'report', 'ask', 'catalog', 'coverage', 'jobs', 'influencers', 'settings', 'account']);
+    const allowedTabs = new Set(['overview', 'report', 'ask', 'catalog', 'coverage', 'jobs', 'ondemand', 'influencers', 'settings', 'account']);
     function initialTab() {
       const hashTab = (location.hash || '').replace(/^#\/?/, '');
       if (allowedTabs.has(hashTab)) return hashTab;
@@ -1182,6 +1182,7 @@ const App = {
           <button class="tab" :class="{active: tab==='catalog'}" @click="setTab('catalog')">📦 商品库</button>
           <button class="tab" :class="{active: tab==='coverage'}" @click="setTab('coverage')">🌐 覆盖率</button>
           <button class="tab" :class="{active: tab==='jobs'}" @click="setTab('jobs')">⚙️ 任务</button>
+          <button class="tab" :class="{active: tab==='ondemand'}" @click="setTab('ondemand')">🔗 按需抓取</button>
           <button class="tab" :class="{active: tab==='influencers'}" @click="setTab('influencers')">🌟 红人</button>
           <button class="tab" :class="{active: tab==='settings'}" @click="setTab('settings')">🔧 设置</button>
         </div>
@@ -1499,6 +1500,13 @@ const App = {
           </div>
           <div v-else style="color:#52527a;text-align:center;padding:20px">无近期帖子（平台可能受限，或账号受保护）</div>
         </div>
+
+        </div>
+      </div>
+
+      <div v-if="tab==='ondemand'" class="page">
+        <div class="lead">按需抓取</div>
+        <div class="sub">指定 URL → listing + VOC（美客多 / Lazada / 虾皮）</div>
 
         <div class="inf-panel" style="margin-top:16px">
           <h3>指定 URL 抓取(美客多 / Lazada / 虾皮)</h3>
