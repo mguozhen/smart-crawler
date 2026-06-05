@@ -1,0 +1,17 @@
+{
+  "data": {
+    "item": {
+      "itemid": 222,
+      "shopid": 111,
+      "name": "Wireless Mouse Ergonomic",
+      "price": 1599000,
+      "price_before_discount": 2999000,
+      "currency": "VND",
+      "stock": 80,
+      "image": "abc123",
+      "images": ["abc123", "def456"],
+      "item_rating": {"rating_star": 4.7, "rating_count": [500, 2, 3, 10, 85, 400]},
+      "historical_sold": 1200
+    }
+  }
+}

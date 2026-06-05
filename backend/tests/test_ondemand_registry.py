@@ -47,7 +47,6 @@ def test_classify_url_product_vs_listing():
     assert classify_url("https://www.lazada.com.my/shop/abc/") == "listing"
 
 
-@pytest.mark.skip(reason="平台类待 Task 3-5 实现")
 def test_get_crawler_returns_platform_class():
     from app.ondemand.registry import get_crawler
 

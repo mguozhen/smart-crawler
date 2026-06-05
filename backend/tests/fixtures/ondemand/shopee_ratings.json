@@ -1,0 +1,22 @@
+{
+  "data": {
+    "ratings": [
+      {
+        "cmtid": 555,
+        "rating_star": 5,
+        "comment": "Works great, very smooth.",
+        "ctime": 1744300800,
+        "author_username": "buyer_a",
+        "like_count": 4
+      },
+      {
+        "cmtid": 556,
+        "rating_star": 2,
+        "comment": "Disconnects sometimes.",
+        "ctime": 1740000000,
+        "author_username": "buyer_b",
+        "like_count": 0
+      }
+    ]
+  }
+}
