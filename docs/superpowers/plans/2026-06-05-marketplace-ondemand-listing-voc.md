@@ -1924,3 +1924,11 @@ git commit -m "docs(ondemand): document fetch-url CLI and fetch_listing_voc MCP 
 - **Playwright 兜底未实装**:本计划 MVP 全走 curl_cffi 直连。spec 写明「Playwright 仅作兜底」,真到 Shopee/Lazada 直连被风控彻底挡住时,需新增一个 Playwright 抓取分支(可作为后续任务)。Task 6 的切代理重试是第一道兜底;Playwright 是第二道,暂留接口位(`fetch_listing` 可在子类内部判失败后转 Playwright),不在本 MVP 实现。
 - **enumerate_listing 首版用页面正则兜底**:三平台店铺/类目页的官方搜索 API(美客多 `/sites/{id}/search`、Lazada 类目 API、Shopee `/shop/search_items`)各有签名/分页细节,首版先用「抓页面 HTML + 正则抠 ID」保证可用,后续可按平台升级为官方 API 分页(更稳更全)。此边界已在各 `enumerate_listing` docstring 标注。
 - **Shopee 接口签名风险**:`get_pc`/`get_ratings` 近年可能加 `af-ac-enc-dat` 等签名头,直连失败时落到代理重试;若仍失败,据 `notes` 与 `snapshot` 排查,可能需补签名或转 Playwright。
+
+## 最终评审发现的列表页路径待办(单品路径已完整可用,以下仅影响列表枚举路径)
+
+终评(2026-06-05,全量 106 测试通过,单品路径三平台端到端正确)记录两条列表页路径的后续改进:
+
+- **枚举行的 `product_url` 当前都记成列表页 URL**:`runner._fetch_one` 对枚举出的每个 itemId 都复用最初的列表/店铺 URL,导致 N 个商品及其评论的 `product_url` 都是同一个列表页地址,无法回链到单品页。修复需各平台从 itemId 重建单品 URL(ML 用 permalink、Lazada/Shopee 按 id 拼 PDP)。单品路径不受影响。
+- **Lazada 列表路径的 `fetch_listing` 会抓错页**:ML/Shopee 的 `fetch_listing` 走 itemId 主键的 API,复用 URL 无害;但 Lazada 的 `fetch_listing` 是 `s.get(url)` 抓页面再解析 `__moduleData__`,复用列表页 URL 时抓的是列表页而非单品页。即三平台接口虽统一,列表路径上 Lazada 弱于 ML/Shopee。修复与上一条同源(需单品 URL 重建)。
+- **次要**:`BaseOnDemand` 未把 `fetch_listing`/`fetch_reviews`/`enumerate_listing` 列为抽象方法(仅 3 个 parse 是),运行期契约靠约定而非 ABC 强制;`res.note` 对 Shopee 的 tuple itemId 会渲染成 `('111','222')`(仅显示)。
