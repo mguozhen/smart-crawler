@@ -1,0 +1,16 @@
+{
+  "id": "MLM123456789",
+  "title": "Silla de Oficina Ergonómica Negra",
+  "price": 1299.0,
+  "original_price": 1899.0,
+  "currency_id": "MXN",
+  "permalink": "https://articulo.mercadolibre.com.mx/MLM-123456789-silla",
+  "thumbnail": "https://http2.mlstatic.com/D_NQ_123-O.jpg",
+  "pictures": [
+    {"url": "https://http2.mlstatic.com/D_NQ_123-O.jpg"},
+    {"url": "https://http2.mlstatic.com/D_NQ_456-O.jpg"}
+  ],
+  "available_quantity": 50,
+  "sold_quantity": 120,
+  "condition": "new"
+}
