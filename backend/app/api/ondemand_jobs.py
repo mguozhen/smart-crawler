@@ -54,3 +54,61 @@ def _job_dict(job: OnDemandJob) -> dict:
         "notes": job.notes or [],
         "created_at": job.created_at.isoformat() if job.created_at else None,
     }
+
+
+def list_jobs_logic(session: Session, *, ws_id: int | None,
+                    platform: str | None, page: int, page_size: int) -> dict:
+    q = session.query(OnDemandJob).filter(OnDemandJob.workspace_id == ws_id)
+    if platform:
+        q = q.filter(OnDemandJob.platform == platform)
+    total = q.count()
+    rows = (q.order_by(OnDemandJob.created_at.desc(), OnDemandJob.id.desc())
+            .offset((page - 1) * page_size).limit(page_size).all())
+    return {"total": total, "page": page, "page_size": page_size,
+            "jobs": [_job_dict(r) for r in rows]}
+
+
+def job_detail_logic(session: Session, *, ws_id: int | None,
+                     job_id: int) -> dict | None:
+    """返回 job + listings + reviews;job 不存在或不属于 ws_id 时返回 None。"""
+    job = session.get(OnDemandJob, job_id)
+    if job is None or job.workspace_id != ws_id:
+        return None
+    skus = list(job.item_skus or [])
+    listings, reviews = [], []
+    if skus:
+        prods = (session.query(Product)
+                 .filter(Product.site.like("ondemand_%"),
+                         Product.sku.in_(skus)).all())
+        listings = [{"sku": p.sku, "title": p.title, "sale_price": p.sale_price,
+                     "original_price": p.original_price, "currency": p.currency,
+                     "image_urls": p.image_urls or [], "product_url": p.product_url}
+                    for p in prods]
+        revs = (session.query(Review)
+                .filter(Review.platform.like("ondemand_%"),
+                        Review.sku.in_(skus)).all())
+        reviews = [{"review_id": r.review_id, "rating": r.rating,
+                    "content": r.content, "review_date":
+                    r.review_date.isoformat() if r.review_date else None}
+                   for r in revs]
+    return {"job": _job_dict(job), "listings": listings, "reviews": reviews}
+
+
+def delete_job_logic(session: Session, *, ws_id: int | None,
+                     job_id: int) -> bool:
+    """删单条;不存在或不属于 ws_id 返回 False。只删记录,不删 Product/Review。"""
+    job = session.get(OnDemandJob, job_id)
+    if job is None or job.workspace_id != ws_id:
+        return False
+    session.delete(job)
+    return True
+
+
+def clear_jobs_logic(session: Session, *, ws_id: int | None) -> int:
+    """清空本 workspace 的记录,返回删除条数。只删记录,不删 Product/Review。"""
+    rows = session.query(OnDemandJob).filter(
+        OnDemandJob.workspace_id == ws_id).all()
+    n = len(rows)
+    for r in rows:
+        session.delete(r)
+    return n

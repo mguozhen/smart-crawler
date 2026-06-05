@@ -91,3 +91,110 @@ def test_record_job_partial_and_failed():
     assert j2.status == "failed"
     assert j2.listing_count == 0
     s.close()
+
+
+def _seed_jobs(s):
+    from app.api.ondemand_jobs import record_job
+    # ws1 两条,ws2 一条
+    record_job(s, ws_id=1, username="u1",
+               url="https://articulo.mercadolibre.com.ar/MLA-1", result=_result(
+                   [{"sku": "MLA1", "title": "椅子", "site": "ondemand_mercadolibre",
+                     "sale_price": 100, "original_price": 120}], [], []))
+    record_job(s, ws_id=1, username="u1",
+               url="https://www.lazada.com.my/products/x-i2.html",
+               result=_result([{"sku": "2", "title": "桌", "site": "ondemand_lazada"}], [], []))
+    record_job(s, ws_id=2, username="u2",
+               url="https://articulo.mercadolibre.com.ar/MLA-9", result=_result([], [], ["失败"]))
+    s.commit()
+
+
+def test_list_jobs_logic_filters_by_workspace():
+    from app.api.ondemand_jobs import list_jobs_logic
+
+    s = _session()
+    _seed_jobs(s)
+    out = list_jobs_logic(s, ws_id=1, platform=None, page=1, page_size=20)
+    assert out["total"] == 2
+    # 倒序:最新(lazada)在前
+    assert out["jobs"][0]["platform"] == "lazada"
+    assert all(j["status"] for j in out["jobs"])
+    # platform 过滤
+    out2 = list_jobs_logic(s, ws_id=1, platform="lazada", page=1, page_size=20)
+    assert out2["total"] == 1
+    s.close()
+
+
+def test_job_detail_logic_returns_listings_and_reviews():
+    from app.api.ondemand_jobs import job_detail_logic
+    from app.models import Product, Review
+
+    s = _session()
+    _seed_jobs(s)
+    # 造该 job 的 Product/Review 数据(详情按 sku 现查)
+    s.add(Product(site="ondemand_mercadolibre", sku="MLA1", title="椅子",
+                  sale_price=100.0, product_url="u"))
+    s.add(Review(platform="ondemand_mercadolibre", review_id="r1", sku="MLA1",
+                 content="好", rating=5))
+    s.commit()
+    job = list_first_ml_job(s)
+    detail = job_detail_logic(s, ws_id=1, job_id=job.id)
+    assert detail["job"]["id"] == job.id
+    assert len(detail["listings"]) == 1
+    assert detail["listings"][0]["sku"] == "MLA1"
+    assert len(detail["reviews"]) == 1
+    assert detail["reviews"][0]["content"] == "好"
+    s.close()
+
+
+def list_first_ml_job(s):
+    from app.models import OnDemandJob
+    return (s.query(OnDemandJob)
+            .filter(OnDemandJob.platform == "mercadolibre",
+                    OnDemandJob.workspace_id == 1).first())
+
+
+def test_job_detail_logic_cross_workspace_returns_none():
+    from app.api.ondemand_jobs import job_detail_logic
+
+    s = _session()
+    _seed_jobs(s)
+    ws2_job = _session_ws2_job(s)
+    # ws1 访问 ws2 的 job → None(端点据此返回 403)
+    assert job_detail_logic(s, ws_id=1, job_id=ws2_job.id) is None
+    s.close()
+
+
+def _session_ws2_job(s):
+    from app.models import OnDemandJob
+    return s.query(OnDemandJob).filter(OnDemandJob.workspace_id == 2).first()
+
+
+def test_delete_job_logic():
+    from app.api.ondemand_jobs import delete_job_logic
+    from app.models import OnDemandJob
+
+    s = _session()
+    _seed_jobs(s)
+    job = list_first_ml_job(s)
+    # 越权删 → False
+    assert delete_job_logic(s, ws_id=2, job_id=job.id) is False
+    # 正常删 → True
+    assert delete_job_logic(s, ws_id=1, job_id=job.id) is True
+    s.commit()
+    assert s.query(OnDemandJob).filter_by(id=job.id).first() is None
+    s.close()
+
+
+def test_clear_jobs_logic():
+    from app.api.ondemand_jobs import clear_jobs_logic
+    from app.models import OnDemandJob
+
+    s = _session()
+    _seed_jobs(s)
+    n = clear_jobs_logic(s, ws_id=1)
+    s.commit()
+    assert n == 2
+    assert s.query(OnDemandJob).filter_by(workspace_id=1).count() == 0
+    # ws2 不受影响
+    assert s.query(OnDemandJob).filter_by(workspace_id=2).count() == 1
+    s.close()
