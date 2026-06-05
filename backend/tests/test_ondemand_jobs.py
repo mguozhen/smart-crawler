@@ -198,3 +198,44 @@ def test_clear_jobs_logic():
     # ws2 不受影响
     assert s.query(OnDemandJob).filter_by(workspace_id=2).count() == 1
     s.close()
+
+
+def test_fetch_endpoint_records_job(monkeypatch):
+    from fastapi.testclient import TestClient
+    import app.api.routes as routes
+    from app.main import app
+    from app.ondemand.base import OnDemandResult
+    from app.db import SessionLocal, init_db
+    from app.models import OnDemandJob
+
+    init_db()
+
+    def fake_fetch(url, *, max_items, review_limit):
+        r = OnDemandResult()
+        r.add_listing({"sku": "LZ1", "title": "t", "site": "ondemand_lazada",
+                       "product_url": url, "sale_price": 9.9})
+        r.add_reviews([{"review_id": "rv", "sku": "LZ1", "rating": 4, "content": "ok"}])
+        return r
+
+    import app.ondemand as od
+    monkeypatch.setattr(od, "fetch", fake_fetch)
+    # 绕过登录 + 工作区(返回固定 ws_id=1)
+    app.dependency_overrides[routes.require_user] = lambda: "tester"
+    monkeypatch.setattr(routes, "_current_workspace",
+                        lambda user, db, x=None: type("W", (), {"id": 1})())
+    monkeypatch.setattr(routes, "_current_user",
+                        lambda user, db: type("U", (), {"username": "tester"})())
+
+    client = TestClient(app)
+    before = SessionLocal().query(OnDemandJob).count()
+    resp = client.post("/api/ondemand/fetch",
+                       json={"url": "https://www.lazada.com.my/products/x-i1.html"})
+    assert resp.status_code == 200
+    after_sess = SessionLocal()
+    jobs = after_sess.query(OnDemandJob).order_by(OnDemandJob.id.desc()).all()
+    assert len(jobs) == before + 1
+    assert jobs[0].platform == "lazada"
+    assert jobs[0].listing_count == 1
+    assert jobs[0].item_skus == ["LZ1"]
+    after_sess.close()
+    app.dependency_overrides.clear()

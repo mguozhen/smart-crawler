@@ -692,12 +692,15 @@ def list_products(
 
 
 @router.post("/ondemand/fetch")
-def ondemand_fetch(payload: dict, user: str = Depends(require_user)):
-    """按需抓取:指定 URL → listing + VOC。
+def ondemand_fetch(payload: dict, user: str = Depends(require_user),
+                   x_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+                   db: Session = Depends(get_db)):
+    """按需抓取:指定 URL → listing + VOC,并落一条历史记录。
 
     payload: {"url": "...", "max_items"?: int, "review_limit"?: int}
     """
     from .. import ondemand
+    from .ondemand_jobs import record_job
 
     url = (payload or {}).get("url", "").strip()
     if not url:
@@ -705,6 +708,17 @@ def ondemand_fetch(payload: dict, user: str = Depends(require_user)):
     max_items = int(payload.get("max_items", 100))
     review_limit = int(payload.get("review_limit", 100))
     res = ondemand.fetch(url, max_items=max_items, review_limit=review_limit)
+
+    # 落历史记录(workspace/user 隔离)
+    try:
+        ws = _current_workspace(user, db, x_workspace_id)
+        u = _current_user(user, db)
+        record_job(db, ws_id=ws.id, username=(u.username if u else user),
+                   url=url, result=res)
+        db.commit()
+    except Exception:
+        db.rollback()   # 记录失败不影响抓取结果返回
+
     return {
         "url": url,
         "listings": res.listings,
