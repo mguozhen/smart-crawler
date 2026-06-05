@@ -656,6 +656,7 @@ const App = {
       if (next === 'catalog') loadProducts();
       if (next === 'coverage') loadCoverage();
       if (next === 'jobs') loadJobs();
+      if (next === 'ondemand') loadOndemandJobs();
     }
     window.addEventListener('hashchange', () => {
       const next = (location.hash || '').replace(/^#\/?/, '');
@@ -725,11 +726,52 @@ const App = {
           throw new Error(e.detail || ('HTTP ' + r.status));
         }
         odResult.value = await r.json();
+        loadOndemandJobs();
       } catch (e) {
         odError.value = '抓取失败：' + e.message;
       } finally {
         odLoading.value = false;
       }
+    }
+    const odJobs = ref([]);
+    const odJobsLoading = ref(false);
+    const expandedJobId = ref(null);
+    const odJobDetail = ref(null);
+
+    async function loadOndemandJobs() {
+      odJobsLoading.value = true;
+      try {
+        const r = await fetch('/api/ondemand/jobs?page_size=50', { headers: authH() });
+        if (r.ok) { const d = await r.json(); odJobs.value = d.jobs || []; }
+      } catch (e) {} finally { odJobsLoading.value = false; }
+    }
+
+    async function toggleJobDetail(id) {
+      if (expandedJobId.value === id) { expandedJobId.value = null; odJobDetail.value = null; return; }
+      expandedJobId.value = id; odJobDetail.value = null;
+      try {
+        const r = await fetch('/api/ondemand/jobs/' + id, { headers: authH() });
+        if (r.ok) odJobDetail.value = await r.json();
+      } catch (e) {}
+    }
+
+    async function deleteOndemandJob(id) {
+      if (!confirm('删除这条抓取记录?(不会删除已入库的商品/评论数据)')) return;
+      try {
+        const r = await fetch('/api/ondemand/jobs/' + id, { method: 'DELETE', headers: authH() });
+        if (r.ok) {
+          odJobs.value = odJobs.value.filter(j => j.id !== id);
+          if (expandedJobId.value === id) { expandedJobId.value = null; odJobDetail.value = null; }
+        }
+      } catch (e) {}
+    }
+
+    async function clearOndemandJobs() {
+      if (!confirm('清空本工作区的全部抓取历史?(不会删除已入库的商品/评论数据)')) return;
+      try {
+        const r = await fetch('/api/ondemand/jobs', { method: 'DELETE', headers: authH() });
+        if (r.ok) { odJobs.value = []; expandedJobId.value = null; odJobDetail.value = null; }
+      } catch (e) {}
     }
     const starters = [
       { icon:'📊', title:'总览快照', desc:'当前工作区覆盖率和商品总数', key:'overview' },
@@ -1117,7 +1159,9 @@ const App = {
       runningJobs, successJobs, proxyOk, proxyTotal, sortedCov,
       canAdmin, canManageWorkspaces, infPlatform, infUsername, infResult, infRunning, infFetch,
       infQuickTargets, setInfluencerTarget,
-      odUrl, odMaxItems, odLoading, odError, odResult, runOndemand
+      odUrl, odMaxItems, odLoading, odError, odResult, runOndemand,
+      odJobs, odJobsLoading, expandedJobId, odJobDetail,
+      loadOndemandJobs, toggleJobDetail, deleteOndemandJob, clearOndemandJobs,
     };
   },
   template: `
@@ -1542,6 +1586,68 @@ const App = {
               </tbody>
             </table>
           </div>
+        </div>
+        <div class="inf-panel" style="margin-top:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3>抓取历史</h3>
+            <button class="btn-prim" style="background:rgba(248,113,113,.18);color:#fca5a5"
+                    @click="clearOndemandJobs" v-if="odJobs.length">清空历史</button>
+          </div>
+          <div v-if="odJobsLoading" class="inf-empty-note">加载中…</div>
+          <div v-else-if="!odJobs.length" class="inf-empty-note">暂无抓取记录</div>
+          <table v-else style="width:100%;margin-top:10px;border-collapse:collapse;font-size:0.82rem">
+            <thead><tr style="text-align:left;color:var(--ui-muted)">
+              <th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">时间</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">平台</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">URL</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">listing</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">评论</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">状态</th>
+              <th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">操作</th>
+            </tr></thead>
+            <tbody>
+              <template v-for="j in odJobs" :key="j.id">
+                <tr style="cursor:pointer" @click="toggleJobDetail(j.id)">
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ (j.created_at||'').replace('T',' ').slice(0,16) }}</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ j.platform }}</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.url }}</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ j.listing_count }}</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ j.review_count }}</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">
+                    <span :style="{color: j.status==='success'?'#86efac':(j.status==='partial'?'#fcd34d':'#fca5a5')}">
+                      {{ j.status==='success'?'成功':(j.status==='partial'?'部分':'失败') }}</span>
+                  </td>
+                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">
+                    <button class="btn-prim" style="padding:2px 8px;font-size:0.72rem;background:rgba(248,113,113,.18);color:#fca5a5"
+                            @click.stop="deleteOndemandJob(j.id)">删除</button>
+                  </td>
+                </tr>
+                <tr v-if="expandedJobId===j.id">
+                  <td colspan="7" style="padding:10px;background:var(--ui-card,#13111f)">
+                    <div v-if="!odJobDetail" class="inf-empty-note">加载详情中…</div>
+                    <div v-else>
+                      <ul v-if="odJobDetail.job.notes && odJobDetail.job.notes.length" style="margin:0 0 8px;padding-left:18px;color:var(--ui-muted);font-size:0.8rem">
+                        <li v-for="(n,i) in odJobDetail.job.notes" :key="i">{{ n }}</li>
+                      </ul>
+                      <table v-if="odJobDetail.listings.length" style="width:100%;font-size:0.8rem;margin-bottom:8px">
+                        <thead><tr style="color:var(--ui-muted)"><th align="left">SKU</th><th align="left">标题</th><th align="left">售价</th><th align="left">原价</th></tr></thead>
+                        <tbody><tr v-for="p in odJobDetail.listings" :key="p.sku">
+                          <td>{{ p.sku }}</td><td>{{ p.title }}</td><td>{{ p.sale_price }}</td><td>{{ p.original_price }}</td>
+                        </tr></tbody>
+                      </table>
+                      <table v-if="odJobDetail.reviews.length" style="width:100%;font-size:0.8rem">
+                        <thead><tr style="color:var(--ui-muted)"><th align="left" style="width:60px">评分</th><th align="left">评论</th></tr></thead>
+                        <tbody><tr v-for="(r,i) in odJobDetail.reviews" :key="i">
+                          <td>{{ r.rating }}</td><td>{{ r.content }}</td>
+                        </tr></tbody>
+                      </table>
+                      <div v-if="!odJobDetail.listings.length && !odJobDetail.reviews.length" class="inf-empty-note">本次未抓到数据</div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
         </div>
       </div>
 
