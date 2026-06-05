@@ -47,6 +47,11 @@ cd backend
 ../.venv/bin/python -m app.cli crawl --site songmics_us
 ../.venv/bin/python -m app.cli crawl --brand Homary
 ../.venv/bin/python -m app.cli export --out ../deliverables/report.xlsx --site costway_us
+
+# 按需抓取:指定 URL → listing + 评论(美客多 / Lazada / 虾皮)
+../.venv/bin/python -m app.cli fetch-url --url "https://articulo.mercadolibre.com.mx/MLM-123456789-..."
+../.venv/bin/python -m app.cli fetch-url --url "https://www.lazada.com.my/shop/xxx/" --max-items 50
+
 ../.venv/bin/uvicorn app.main:app --port 8077
 ```
 
@@ -98,7 +103,7 @@ smart-crawler 把竞品数据采集能力直接做成 **MCP 服务器**，AI Age
 - **清单**：项目根 [`server.json`](./server.json)（官方 MCP Registry 格式）
 - **发现层**：`/llms.txt` · `/.well-known/mcp.json` · `/.well-known/ai-plugin.json` · `/agents.json`
 
-### 12 个 MCP 工具
+### 13 个 MCP 工具
 
 **电商竞品情报**
 
@@ -111,6 +116,7 @@ smart-crawler 把竞品数据采集能力直接做成 **MCP 服务器**，AI Age
 | `get_voc_reviews` | 取消费者口碑（VOC）评论 + NLP 情感 / 分类标注 |
 | `voc_summary` | 口碑分析汇总：情感分布 + 痛点分类占比 |
 | `competitor_landscape` | Google Shopping 某关键词下各商家出现占有率 |
+| `fetch_listing_voc` | 指定 URL 抓取 listing + VOC(评论原文),支持 美客多 / Lazada / 虾皮 |
 
 **亚马逊 VOC**
 
