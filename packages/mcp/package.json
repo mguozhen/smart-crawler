@@ -1,5 +1,5 @@
 {
-  "name": "@smart-crawler/mcp",
+  "name": "smart-crawler-mcp",
   "version": "0.1.0",
   "description": "Install helper for the smart-crawler Agent-first MCP server (Claude, Codex, Cursor).",
   "keywords": [

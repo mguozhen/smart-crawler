@@ -1,12 +1,12 @@
-# @smart-crawler/mcp
+# smart-crawler-mcp
 
 Install helper for the smart-crawler Agent-first MCP server.
 
 ```bash
-npx -y @smart-crawler/mcp install --client codex --env-var SMARTCRAWLER_API_KEY
-npx -y @smart-crawler/mcp install --client claude --url https://smartcrawler.io/mcp
-npx -y @smart-crawler/mcp install --client cursor --local
-npx -y @smart-crawler/mcp dxt --env-var SMARTCRAWLER_API_KEY
+npx -y smart-crawler-mcp install --client codex --env-var SMARTCRAWLER_API_KEY
+npx -y smart-crawler-mcp install --client claude --url https://smartcrawler.io/mcp
+npx -y smart-crawler-mcp install --client cursor --local
+npx -y smart-crawler-mcp dxt --env-var SMARTCRAWLER_API_KEY
 ```
 
 The helper prints copy/paste configuration only. It never stores or prints the
@@ -26,17 +26,17 @@ Local mode points at `http://127.0.0.1:8077/mcp`, names the server
 
 ```bash
 ./scripts/local/start_mcp.sh
-npx -y @smart-crawler/mcp doctor --client codex --local
-npx -y @smart-crawler/mcp install --client codex --local
+npx -y smart-crawler-mcp doctor --client codex --local
+npx -y smart-crawler-mcp install --client codex --local
 ```
 
 ## Online Setup
 
 ```bash
 export SMARTCRAWLER_API_KEY=sck_xxx
-npx -y @smart-crawler/mcp install --client codex
-npx -y @smart-crawler/mcp install --client claude --json
-npx -y @smart-crawler/mcp install --client cursor --json
+npx -y smart-crawler-mcp install --client codex
+npx -y smart-crawler-mcp install --client claude --json
+npx -y smart-crawler-mcp install --client cursor --json
 ```
 
 Primary tools:
