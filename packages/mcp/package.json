@@ -1,13 +1,40 @@
 {
   "name": "@smart-crawler/mcp",
   "version": "0.1.0",
-  "description": "Install helper for the smart-crawler Agent-first MCP server.",
+  "description": "Install helper for the smart-crawler Agent-first MCP server (Claude, Codex, Cursor).",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "smart-crawler",
+    "ecommerce",
+    "competitor-analysis",
+    "voc",
+    "reddit",
+    "web-scraping",
+    "claude",
+    "codex"
+  ],
+  "homepage": "https://smartcrawler.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mguozhen/smart-crawler.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/mguozhen/smart-crawler/issues"
+  },
   "bin": {
     "smart-crawler-mcp": "./bin/smart-crawler-mcp.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=18"
   },
   "scripts": {
     "check": "node --check ./bin/smart-crawler-mcp.js",
     "test": "node --test"
   },
-  "license": "UNLICENSED"
+  "license": "MIT"
 }
