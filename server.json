@@ -11,7 +11,7 @@
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://smartcrawler.io/mcp",
+      "url": "https://smartcrawler.io/mcp/",
       "headers": [
         {
           "name": "Authorization",

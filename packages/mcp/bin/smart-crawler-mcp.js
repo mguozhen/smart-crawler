@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 "use strict";
 
-const DEFAULT_REMOTE_URL = "https://smartcrawler.io/mcp";
-const DEFAULT_LOCAL_URL = "http://127.0.0.1:8077/mcp";
+const DEFAULT_REMOTE_URL = "https://smartcrawler.io/mcp/";
+const DEFAULT_LOCAL_URL = "http://127.0.0.1:8077/mcp/";
 const CLIENTS = new Set(["codex", "claude", "cursor"]);
 
 function parseArgs(argv) {
@@ -32,7 +32,7 @@ function usage() {
 
 Usage:
   npx -y smart-crawler-mcp install --client codex --env-var SMARTCRAWLER_API_KEY
-  npx -y smart-crawler-mcp install --client claude --url https://smartcrawler.io/mcp
+  npx -y smart-crawler-mcp install --client claude --url https://smartcrawler.io/mcp/
   npx -y smart-crawler-mcp install --client cursor --local
   npx -y smart-crawler-mcp dxt --env-var SMARTCRAWLER_API_KEY
 

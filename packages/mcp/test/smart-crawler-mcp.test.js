@@ -43,7 +43,7 @@ describe("smart-crawler MCP helper", () => {
     assert.equal(
       helper.codexCommand(config),
       "codex mcp add smart-crawler-staging \\\n" +
-        "  --url https://smartcrawler.io/mcp \\\n" +
+        "  --url https://smartcrawler.io/mcp/ \\\n" +
         "  --bearer-token-env-var SMARTCRAWLER_STAGING_API_KEY",
     );
   });
@@ -58,7 +58,7 @@ describe("smart-crawler MCP helper", () => {
 
     assert.deepEqual(json.mcpServers["smart-crawler"], {
       type: "http",
-      url: "https://smartcrawler.io/mcp",
+      url: "https://smartcrawler.io/mcp/",
       headers: {
         Authorization: "Bearer ${SMARTCRAWLER_API_KEY}",
       },
@@ -75,7 +75,7 @@ describe("smart-crawler MCP helper", () => {
     assert.equal(
       helper.claudeCommand(config),
       "claude mcp add --scope user --transport http smart-crawler \\\n" +
-        "  https://smartcrawler.io/mcp \\\n" +
+        "  https://smartcrawler.io/mcp/ \\\n" +
         '  --header "Authorization: Bearer ${SMARTCRAWLER_API_KEY}"',
     );
   });
@@ -90,7 +90,7 @@ describe("smart-crawler MCP helper", () => {
     const json = helper.clientJson(config);
 
     assert.deepEqual(json.mcpServers["smart-crawler-local"], {
-      url: "http://127.0.0.1:8077/mcp",
+      url: "http://127.0.0.1:8077/mcp/",
       headers: {
         Authorization: "Bearer ${SMARTCRAWLER_LOCAL_API_KEY}",
       },
@@ -106,7 +106,7 @@ describe("smart-crawler MCP helper", () => {
     const manifest = helper.dxtManifest(config);
 
     assert.equal(manifest.server.type, "http");
-    assert.equal(manifest.server.url, "https://smartcrawler.io/mcp");
+    assert.equal(manifest.server.url, "https://smartcrawler.io/mcp/");
     assert.equal(
       manifest.server.headers.Authorization,
       "Bearer ${SMARTCRAWLER_API_KEY}",

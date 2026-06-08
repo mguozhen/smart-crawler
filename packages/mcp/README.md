@@ -4,7 +4,7 @@ Install helper for the smart-crawler Agent-first MCP server.
 
 ```bash
 npx -y smart-crawler-mcp install --client codex --env-var SMARTCRAWLER_API_KEY
-npx -y smart-crawler-mcp install --client claude --url https://smartcrawler.io/mcp
+npx -y smart-crawler-mcp install --client claude --url https://smartcrawler.io/mcp/
 npx -y smart-crawler-mcp install --client cursor --local
 npx -y smart-crawler-mcp dxt --env-var SMARTCRAWLER_API_KEY
 ```
