@@ -1,12 +1,12 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.mguozhen/smart-crawler",
+  "name": "io.github.shulex-voc/smart-crawler",
   "description": "E-commerce competitor intelligence, VOC sentiment, Amazon ASIN analysis, Reddit growth playbooks.",
   "version": "0.2.0",
   "repository": {
-    "url": "https://github.com/mguozhen/smart-crawler",
+    "url": "https://github.com/shulex-voc/smart-crawler",
     "source": "github",
-    "id": "1241179415"
+    "id": "1262643031"
   },
   "remotes": [
     {
