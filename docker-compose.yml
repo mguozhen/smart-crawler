@@ -38,6 +38,8 @@ services:
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-smart_crawler}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-smart_crawler}}
       - SC_SECRET=${SC_SECRET:-change-me}
       # 管理员账号 —— 弱口令 aosen/admin 已废弃，密码经环境变量注入
+      # ADMIN_PASSWORD 只在首次建号时生效；控制台改过的密码不会被部署覆盖。
+      # 忘记密码需重置时：临时加 ADMIN_PASSWORD_FORCE_RESET=1 启动一次。
       - ADMIN_USERNAME=${ADMIN_USERNAME:-aosen}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-change-me}
       - RESIDENTIAL_PROXY=${RESIDENTIAL_PROXY:-}

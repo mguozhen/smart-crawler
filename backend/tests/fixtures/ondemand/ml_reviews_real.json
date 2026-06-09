@@ -1,0 +1,32 @@
+{
+  "reviews": [
+    {
+      "id": 989655573,
+      "variant": "",
+      "rating": 4,
+      "comment": {
+        "content": {
+          "text": "Achei mediana, não fica um cobrimento bonito embora o tecido mais rústico combine com estilo da minha casa, mas cumpre com o objetivo de proteger a chaise.",
+          "see_more": "Saiba mais",
+          "see_less": "Ler menos"
+        },
+        "date": "Há mais de 1 ano",
+        "country": ""
+      }
+    },
+    {
+      "id": 762755857,
+      "variant": "",
+      "rating": 1,
+      "comment": {
+        "content": {
+          "text": "Eu não gostei das mantas, o tecido é fino e solta muitas penugens, depois de lavadas então não dá pra usar porque gruda todos fiapos na roupa, pior que panos de saco, muito decepcionada.",
+          "see_more": "Saiba mais",
+          "see_less": "Ler menos"
+        },
+        "date": "Há mais de 1 ano",
+        "country": ""
+      }
+    }
+  ]
+}

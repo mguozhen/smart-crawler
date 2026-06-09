@@ -709,6 +709,7 @@ const App = {
     }
     const odUrl = ref('');
     const odMaxItems = ref(20);
+    const odReviewLimit = ref(2000);
     const odLoading = ref(false);
     const odError = ref('');
     const odResult = ref(null);
@@ -719,7 +720,7 @@ const App = {
         const r = await fetch('/api/ondemand/fetch', {
           method: 'POST',
           headers: { ...authH(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: odUrl.value.trim(), max_items: odMaxItems.value }),
+          body: JSON.stringify({ url: odUrl.value.trim(), max_items: odMaxItems.value, review_limit: odReviewLimit.value }),
         });
         if (!r.ok) {
           const e = await r.json().catch(()=>({}));
@@ -1251,7 +1252,7 @@ const App = {
       runningJobs, successJobs, proxyOk, proxyTotal, sortedCov,
       canAdmin, canManageWorkspaces, infPlatform, infUsername, infResult, infRunning, infFetch,
       infQuickTargets, setInfluencerTarget,
-      odUrl, odMaxItems, odLoading, odError, odResult, runOndemand,
+      odUrl, odMaxItems, odReviewLimit, odLoading, odError, odResult, runOndemand,
       odJobs, odJobsLoading, expandedJobId, odJobDetail,
       loadOndemandJobs, toggleJobDetail, deleteOndemandJob, clearOndemandJobs,
       odBatchText, odBatchMsg, odBatchErr, odBatchSubmitting, odBatchCount,
@@ -1652,6 +1653,7 @@ const App = {
           <div class="inf-form" style="flex-wrap:wrap">
             <input v-model="odUrl" class="inf-inp" placeholder="粘贴商品页或店铺/类目页 URL" style="min-width:320px" @keyup.enter="runOndemand"/>
             <input v-model.number="odMaxItems" class="inf-inp" type="number" title="列表枚举上限" style="width:90px;flex:0 0 auto"/>
+            <input v-model.number="odReviewLimit" class="inf-inp" type="number" title="评论抓取上限(美客多分星级桶约可达 1500)" placeholder="评论上限" style="width:110px;flex:0 0 auto"/>
             <button class="btn-prim" @click="runOndemand" :disabled="odLoading">{{ odLoading ? '抓取中…' : '抓取' }}</button>
           </div>
           <div v-if="odError" class="inf-err" style="margin-top:10px">{{ odError }}</div>

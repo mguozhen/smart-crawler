@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,8 @@ pytestmark = pytest.mark.unit
 FX = Path(__file__).parent / "fixtures" / "ondemand"
 _HTML = (FX / "ml_pdp_real.html").read_text(encoding="utf-8")
 _HTML_BR = (FX / "ml_pdp_br_real.html").read_text(encoding="utf-8")
+_REVIEWS_JSON = json.loads(
+    (FX / "ml_reviews_real.json").read_text(encoding="utf-8"))
 
 
 def test_parse_item_id_from_url():
@@ -70,33 +73,37 @@ def test_parse_listing_raises_on_shell_page():
         MercadoLibreOnDemand.parse_listing("<html><body>shell</body></html>", "u")
 
 
-def test_parse_reviews_from_dom():
-    rs = MercadoLibreOnDemand.parse_reviews(_HTML, "MLA62019558",
-                                            "https://x/p/MLA62019558")
+def test_parse_reviews_from_json():
+    # 数据源 = noindex/catalog/reviews/{id}/search 的 JSON,带真实数字 review id
+    rs = MercadoLibreOnDemand.parse_reviews(
+        _REVIEWS_JSON, "MLB3856668644", "https://x/MLB-3856668644")
     assert len(rs) == 2
     r0 = rs[0]
-    assert r0["review_id"] == "MLA62019558_1"
+    # 用真实数字 id 作 review_id(替掉旧的 sku_序号 合成键),去重才稳
+    assert r0["review_id"] == "989655573"
     assert r0["platform"] == "ondemand_mercadolibre"
-    assert r0["rating"] == 5
-    assert "Muy lindas" in r0["content"]
-    assert r0["sku"] == "MLA62019558"
-    # 第二条 2 星
-    assert rs[1]["rating"] == 2
-    assert "se rompió" in rs[1]["content"]
+    assert r0["site"] == "ondemand_mercadolibre"
+    assert r0["rating"] == 4
+    assert "Achei mediana" in r0["content"]
+    assert r0["sku"] == "MLB3856668644"
+    assert r0["product_url"] == "https://x/MLB-3856668644"
+    # 相对日期原样保留(接口不给绝对时间)
+    assert r0["review_date"] == "Há mais de 1 ano"
+    # 不同星级,证明非写死
+    assert rs[1]["review_id"] == "762755857"
+    assert rs[1]["rating"] == 1
+    assert "não gostei" in rs[1]["content"]
 
 
-def test_parse_reviews_brazil_portuguese_stars():
-    # 巴西站星级在 aria-label="Avaliação N de 5"(葡语),旧西语锚点抓不到 -> None
-    rs = MercadoLibreOnDemand.parse_reviews(_HTML_BR, "MLB2631039434",
-                                            "https://x/MLB-1")
-    assert len(rs) == 2
-    assert rs[0]["rating"] == 5
-    assert "meu sofá" in rs[0]["content"]
-    # 不同星级,证明非写死 5 星
-    assert rs[1]["rating"] == 2
-    assert "tecido é muito fino" in rs[1]["content"]
-    # 每条都拿到星级,不再有 None
-    assert all(r["rating"] is not None for r in rs)
+def test_parse_reviews_ignores_empty_or_malformed():
+    # 缺正文 / 缺 id 的条目跳过,不污染入库
+    data = {"reviews": [
+        {"id": 1, "rating": 5, "comment": {"content": {"text": ""}}},   # 空正文
+        {"rating": 5, "comment": {"content": {"text": "x"}}},            # 缺 id
+        {"id": 2, "rating": 3, "comment": {"content": {"text": "ok"}}},  # 有效
+    ]}
+    rs = MercadoLibreOnDemand.parse_reviews(data, "MLB1", "u")
+    assert [r["review_id"] for r in rs] == ["2"]
 
 
 def test_parse_listing_brazil_brl():

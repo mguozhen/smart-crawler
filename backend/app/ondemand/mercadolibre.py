@@ -1,7 +1,7 @@
 """美客多(MercadoLibre)按需采集器。
 
-实测验证(2026-06-05,住宅代理 + 真浏览器 + 滚动等待):**可用**。
-  关键配方:items API 已强制 OAuth(403),改走商品页真浏览器渲染。但价格/评论是
+实测验证(2026-06,住宅代理 + 真浏览器 + 滚动等待):**可用**。
+  关键配方:items API 已强制 OAuth(403),改走商品页真浏览器渲染。但价格是
   懒加载,**必须滚动 + 等待**才会出现(只 fetch 不滚动只拿到无价格的壳页)。
     · listing 数据源 = 页面里的 JSON-LD(<script type="application/ld+json"> 的
       Product 块,schema.org 标准格式,最干净):
@@ -10,16 +10,20 @@
         avail  = offers.availability    brand    = brand(字符串或 {name})
         rating = aggregateRating.ratingValue   review_count = aggregateRating.reviewCount
         image  = image(字符串或数组)    sku = sku / productID
-    · 评论原文 = DOM:article.ui-review-capability-comments__comment
-        星级 = 数 __comment__rating__star 的 svg 个数(或读 "Calificación N de 5")
-        正文 = p.ui-review-capability-comments__comment__content
-反爬:     强,强制住宅代理(proxy_tier=residential)+ 真浏览器 + 滚动;裸 IP / 无滚动
-          会被弹到 /gz/account-verification 或只拿到壳页。
-          ⚠️ 稳定性:住宅 IP 信誉时好时坏,同一商品有时第 1 次就成、有时连续几次被弹
-          验证页;runner 已切代理重试 _MAX_RETRY 次。浏览器 locale 必须随站点 ccTLD
-          走(BR 站 -> pt-BR/巴西时区),locale 与域名不符会显著抬高被弹验证页的概率。
-          实测可稳定跑通(价格 208739 ARS + 评分 4.6 + 评论原文 → 入库),但生产高频
-          抓取建议偏好已验证放行的代理区域。
+    · 评论数据源 = noindex 评论分页 JSON 接口(2026-06 逆向,免 token/cookie,
+      数据中心 IP 直连即可,**不需要浏览器**):
+        GET https://{host}/noindex/catalog/reviews/{ID}/search
+            ?objectId={ID}&siteId={MLB|MLA|MLM…}&isItem=true&offset=N&limit=15&rating=R
+        返回 {"reviews":[{id, rating, comment:{content:{text}, date}}]}。
+      硬限制(平台侧):limit 锁死 15;单视角 offset 上限 ~300(≥315 返回空);
+      无 paging.total。**唯一扩容手段:rating=5..1 分桶**(只有 rating= 生效,
+      sort/order/filter 全是埋点假参数),每桶各 ~300 → 5 桶合计**约 1500 条/商品**
+      封顶,深层评论平台不开放(标称上万的商品也只能拿这个量级)。
+反爬:     listing 抓取强,强制住宅代理(proxy_tier=residential)+ 真浏览器 + 滚动;
+          裸 IP / 无滚动会被弹到 /gz/account-verification 或只拿到壳页。评论 JSON 接口
+          反爬宽松(裸 IP 可直连),但生产高频仍走代理。
+          ⚠️ 稳定性:住宅 IP 信誉时好时坏,runner 已切代理重试 _MAX_RETRY 次。浏览器
+          locale 必须随站点 ccTLD 走(BR 站 -> pt-BR/巴西时区),否则抬高被弹概率。
 URL->id:  商品页 URL 含 MLM-/MLB-/MLA- 编码(catalog 用 /p/MLA…;单卖家 wid=MLA…)。
 """
 from __future__ import annotations
@@ -27,25 +31,21 @@ from __future__ import annotations
 import json
 import re
 
-from ..antiban import BlockedError
+from curl_cffi import requests as creq
+
+from ..antiban import BlockedError, check_blocked
 from .base import BaseOnDemand
 
 _ID_RE = re.compile(r"(ML[A-Z])-?(\d+)")
 _LD_RE = re.compile(
     r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
-# 评论按 article 块切分,块内取正文 + 星级。块锚点 = comment class(非 __xxx 子类)。
-_REVIEW_BLOCK_RE = re.compile(
-    r'ui-review-capability-comments__comment(?![_\w])')
-_REVIEW_BODY_RE = re.compile(
-    r'ui-review-capability-comments__comment__content[^>]*>([^<]+)</')
-# 星级文案多语言:ES "Calificación N de 5" / PT "Avaliação N de 5"。优先取
-# aria-label(评论星级 section,干净),回退纯文本(块内第一个即该评论星级)。
-_REVIEW_STAR_ARIA_RE = re.compile(
-    r'aria-label="(?:Calificaci[oó]n|Avalia[çc][aã]o)\s+(\d)\s+de\s+5"', re.I)
-_REVIEW_STAR_TEXT_RE = re.compile(
-    r'(?:Calificaci[oó]n|Avalia[çc][aã]o)\s+(\d)\s+de\s+5', re.I)
 PLATFORM = "mercadolibre"
 SITE = f"ondemand_{PLATFORM}"
+
+# 评论分页接口:单页固定 15 条,单视角 offset ~300 封顶,靠 rating 分桶扩容。
+_REVIEW_PAGE = 15
+_REVIEW_MAX_OFFSET = 315          # ≥315 返回空,留一档冗余
+_REVIEW_RATINGS = (5, 4, 3, 2, 1)  # 分桶维度(唯一生效的扩容参数)
 
 # 域名 ccTLD -> 国家代码(决定浏览器 locale/timezone 指纹)。美客多多国站,
 # locale 必须与目标域名对齐,否则反爬易弹 /gz/account-verification 壳页。
@@ -122,42 +122,30 @@ class MercadoLibreOnDemand(BaseOnDemand):
         }
 
     @staticmethod
-    def parse_reviews(html: str, item_id, url: str) -> list[dict]:
-        """从渲染后的页面 HTML 解析评论原文(数据源:评论 DOM)。
+    def parse_reviews(data: dict, item_id, url: str) -> list[dict]:
+        """从评论分页接口的 JSON 解析评论(数据源:noindex/…/search)。
 
-        按评论 article 块切分(块锚点 = comment class),块内取正文 +
-        星级。星级优先 aria-label 的 "Calificación/Avaliação N de 5"
-        section,回退块内首个同款纯文本——按块隔离可避开评分直方图里
-        重复的 "N de 5" 噪声(ES 站干净,PT 站直方图噪声多)。
+        每条结构:{id, rating, comment:{content:{text}, date}}。用真实数字
+        id 作 review_id(去重稳),正文取 comment.content.text,日期是相对
+        文案(如 "Há mais de 1 ano")原样保留——接口不给绝对时间。
         """
         sku = item_id[0] if isinstance(item_id, tuple) else item_id
         out = []
-        # 按块锚点切分;每块 = 从本锚点到下一锚点(末块到文末)
-        starts = [m.start() for m in _REVIEW_BLOCK_RE.finditer(html)]
-        starts.append(len(html))
-        idx = 0
-        for i in range(len(starts) - 1):
-            block = html[starts[i]:starts[i + 1]]
-            mb = _REVIEW_BODY_RE.search(block)
-            if not mb:
+        for r in (data or {}).get("reviews") or []:
+            rid = r.get("id")
+            comment = r.get("comment") or {}
+            content = ((comment.get("content") or {}).get("text") or "").strip()
+            if rid is None or not content:   # 缺 id / 空正文 → 跳过
                 continue
-            content = mb.group(1).strip()
-            if not content:
-                continue
-            idx += 1
-            ms = (_REVIEW_STAR_ARIA_RE.search(block)
-                  or _REVIEW_STAR_TEXT_RE.search(block))
-            rating = int(ms.group(1)) if ms else None
             out.append({
-                # 美客多评论 DOM 无稳定 id,用 sku + 序号合成唯一键
-                "review_id": f"{sku}_{idx}",
+                "review_id": str(rid),
                 "platform": SITE,
                 "site": SITE,
                 "reviewer_name": None,
-                "rating": rating,
+                "rating": r.get("rating"),
                 "title": None,
                 "content": content,
-                "review_date": None,
+                "review_date": comment.get("date"),
                 "sku": sku,
                 "product_url": url,
             })
@@ -191,19 +179,67 @@ class MercadoLibreOnDemand(BaseOnDemand):
 
     def fetch_listing(self, item_id: str, url: str, proxy=None) -> dict:
         html = self._render(url, proxy=proxy)
-        listing = self.parse_listing(html, url)
-        # 顺带缓存本次 HTML,供同一 url 的 fetch_reviews 复用,避免二次渲染
-        self._last_html = (url, html)
-        return listing
+        return self.parse_listing(html, url)
+
+    @staticmethod
+    def _review_host(url: str) -> str:
+        """评论接口走商品页同域(www.<站点>),去掉 articulo./produto. 等子域。"""
+        from urllib.parse import urlparse
+        host = (urlparse(url).hostname or "www.mercadolivre.com.br")
+        # 站点根域:取末两段(com.br)或三段(com.ar→ .com.ar);统一前缀 www.
+        host = re.sub(r"^(articulo|produto|www)\.", "", host)
+        return f"www.{host}"
+
+    @staticmethod
+    def _site_id(item_id) -> str:
+        """itemId 前缀即 siteId:MLB3856… → MLB。"""
+        iid = item_id[0] if isinstance(item_id, tuple) else item_id
+        m = re.match(r"(ML[A-Z])", str(iid) or "")
+        return m.group(1) if m else "MLB"
 
     def fetch_reviews(self, item_id: str, url: str, limit: int = 100,
                       proxy=None) -> list[dict]:
-        cached = getattr(self, "_last_html", None)
-        if cached and cached[0] == url:
-            html = cached[1]
-        else:
-            html = self._render(url, proxy=proxy)
-        return self.parse_reviews(html, item_id, url)[:limit]
+        """分星级桶翻页抓评论(数据源:noindex 评论分页 JSON 接口)。
+
+        单页 15 条、单视角 offset ~300 封顶,故对 rating=5..1 逐桶翻 offset,
+        跨桶按真实 id 去重,累计达 limit 或所有桶抓尽即停。curl_cffi 直连
+        (反爬宽松),非 JSON / 被封 → BlockedError 交 runner 切代理重试。
+        """
+        iid = item_id[0] if isinstance(item_id, tuple) else item_id
+        host, site_id = self._review_host(url), self._site_id(item_id)
+        base = (f"https://{host}/noindex/catalog/reviews/{iid}/search"
+                f"?objectId={iid}&siteId={site_id}&isItem=true")
+        s = creq.Session(impersonate="chrome")
+        if proxy:
+            s.proxies = {"http": proxy, "https": proxy}
+        s.headers.update({"Referer": url, "Accept": "application/json"})
+
+        seen: set[str] = set()
+        out: list[dict] = []
+        for rating in _REVIEW_RATINGS:
+            offset = 0
+            while offset < _REVIEW_MAX_OFFSET and len(out) < limit:
+                api = f"{base}&offset={offset}&limit={_REVIEW_PAGE}&rating={rating}"
+                resp = s.get(api, timeout=40)
+                check_blocked(resp.status_code, "ml/reviews")
+                resp.raise_for_status()
+                if "json" not in resp.headers.get("content-type", ""):
+                    raise BlockedError("ml/reviews 返回非 JSON(疑似 IP 限速)")
+                data = resp.json()
+                # 翻页判据用**原始**条数:部分评论只有星级无正文,会被 parse 过滤,
+                # 不能拿过滤后的数量判断是否末页,否则富桶会早停。
+                raw_n = len(data.get("reviews") or [])
+                for r in self.parse_reviews(data, item_id, url):
+                    if r["review_id"] in seen:
+                        continue
+                    seen.add(r["review_id"])
+                    out.append(r)
+                if raw_n < _REVIEW_PAGE:          # 原始不足一页 → 该桶抓尽
+                    break
+                offset += _REVIEW_PAGE
+            if len(out) >= limit:
+                break
+        return out[:limit]
 
     def enumerate_listing(self, url: str, max_items: int = 100,
                           proxy=None) -> list[str]:

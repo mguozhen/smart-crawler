@@ -82,7 +82,7 @@ while should_continue():
 
 | 变量 | 默认 | 含义 |
 |---|---|---|
-| `MEM_GATE_THRESHOLD` | `85` | 已用内存 ≥ 此百分比则暂停领新 job。设 `0` 或 `100` 关闸。 |
+| `MEM_GATE_THRESHOLD` | `80` | 已用内存 ≥ 此百分比则暂停领新 job。设 `0` 或 `100` 关闸。默认偏保守(余 ~3.2GB),邻居容器波动时给浏览器收尾留头部空间。 |
 | `MEM_GATE_CHECK_INTERVAL` | `2` | 闸内轮询间隔(秒) |
 | `MEM_GATE_MAX_WAIT` | `300` | 单轮最多等待(秒);超时回 run_loop 重判,避免永久 hang |
 
@@ -107,7 +107,8 @@ run_loop 每轮:
 - 闸只挡领新,**不影响已在执行的 job**,不会中途杀浏览器。
 - in-process 模式(`main.py` 单机起的 worker 线程)与独立 worker 容器**都生效**,因为都走 `run_loop`。`should_continue` 在两种模式下均已存在,沿用。
 - on-demand 路径(`ondemand/queue.py`)不接入,保持串行现状。
-- 阈值默认 85% 留有头部空间(余 ~2.4GB / 16GB),足够一个浏览器实例收尾,降低 OOM 概率。
+- 阈值默认 80% 留有头部空间(余 ~3.2GB / 16GB),足够一个浏览器实例收尾,降低 OOM 概率。
+- **安全优先**:超时(`max_wait`)后**回循环重判、绝不超时硬领**;只要内存仍高位,worker 就一直等,永不在内存紧张时强起浏览器。
 
 ## 测试计划(TDD)
 
@@ -126,7 +127,7 @@ run_loop 每轮:
 
 ## 部署与兼容
 
-- 默认 `MEM_GATE_THRESHOLD=85` 即生效;在内存充裕(当前余 10GB,used ~33%)时闸永远放行,无行为变化。
+- 默认 `MEM_GATE_THRESHOLD=80` 即生效;在内存充裕(当前余 10GB,used ~33%)时闸永远放行,无行为变化。
 - 调高并发时:在 worker 容器 / compose env 设 `WORKER_THREADS=3` + 保留默认闸即可。
 - 回滚:设 `MEM_GATE_THRESHOLD=0` 关闸,或还原 worker.py。
 - 更新 `.env.example` 注明三个新变量。

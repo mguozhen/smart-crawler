@@ -5,6 +5,9 @@ listing 入 Product 表(经 pipeline.upsert_products);评论入 Review 表
 """
 from __future__ import annotations
 
+import re
+
+from .. import proxy_pool
 from ..antiban import BlockedError
 from ..db import session_scope
 from ..pipeline import upsert_products
@@ -14,6 +17,21 @@ from .base import OnDemandResult
 from .registry import classify_url, detect_platform, get_crawler
 
 _MAX_RETRY = 6  # 反爬强、住宅 IP 信誉时好时坏,多轮换出口 IP(美客多常需 2-4 次)
+
+# 代理/隧道层失败特征 —— Chromium/Playwright 在 CONNECT 隧道握手失败时抛的是
+# 普通 Exception(非 BlockedError)。这类失败是**出口坏**而非站点封禁,
+# 必须换出口重试 + 把坏出口踢进冷却,否则 round-robin 一命中坏代理就连续失败。
+# 线上实测坏出口表现:CONNECT 返回 502/403、或 net::ERR_TUNNEL_CONNECTION_FAILED。
+_PROXY_ERR_RE = re.compile(
+    r"ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|"
+    r"ERR_(?:CONNECTION_(?:RESET|CLOSED|REFUSED|TIMED_OUT)|TIMED_OUT)|"
+    r"NS_ERROR_PROXY_CONNECTION_REFUSED|"
+    r"proxy|tunnel|502 Bad Gateway|407 Proxy",
+    re.I)
+
+
+def _is_proxy_error(exc: Exception) -> bool:
+    return bool(_PROXY_ERR_RE.search(str(exc)))
 
 
 def fetch(url: str, *, max_items: int = 100, review_limit: int = 100,
@@ -58,21 +76,43 @@ def fetch(url: str, *, max_items: int = 100, review_limit: int = 100,
 
 
 def _fetch_one(crawler, iid, url, review_limit, res: OnDemandResult) -> None:
+    """抓单个 itemId 的 listing + 评论。
+
+    listing 与评论解耦:listing 被封/出错只记 note,**仍继续抓评论**
+    (评论按 (platform, review_id) 独立去重、无 Product 外键,可单独入库)。
+    listing 抓到才算这一步成功;listing 全程被封才整体放弃。
+    """
     last_err = None
     for attempt in range(_MAX_RETRY):
         proxy = get_proxy(crawler.proxy_tier)
         try:
             res.add_listing(crawler.fetch_listing(iid, url, proxy=proxy))
-            res.add_reviews(crawler.fetch_reviews(iid, url, limit=review_limit,
-                                                  proxy=proxy))
+            proxy_pool.report_success(proxy)    # 出口可用,恢复其健康分
+            _fetch_reviews_safe(crawler, iid, url, review_limit, res, proxy)
             return
         except BlockedError as exc:
-            last_err = exc                      # 切代理重试
+            last_err = exc                       # 站点封禁 → 换出口重试
+            proxy_pool.report_failure(proxy, hard=True)
             continue
         except Exception as exc:
-            res.note(f"{iid}: {exc}")           # 失败隔离,不重试
+            if _is_proxy_error(exc):             # 隧道/代理坏 → 换出口重试
+                last_err = exc
+                proxy_pool.report_failure(proxy, hard=True)
+                continue
+            res.note(f"{iid}: {exc}")            # 其它错误隔离,不重试
             return
-    res.note(f"{iid}: 多次被封放弃({last_err})")
+    # listing 全程被封 —— 评论接口反爬宽松,仍单独试一轮(本地无代理时尤为关键)
+    res.note(f"{iid}: listing 多次被封放弃({last_err}),仅尝试评论")
+    _fetch_reviews_safe(crawler, iid, url, review_limit, res, proxy=None)
+
+
+def _fetch_reviews_safe(crawler, iid, url, review_limit, res, proxy) -> None:
+    """抓评论并隔离其失败 —— 不让评论问题影响已拿到的 listing。"""
+    try:
+        res.add_reviews(crawler.fetch_reviews(iid, url, limit=review_limit,
+                                              proxy=proxy))
+    except Exception as exc:
+        res.note(f"{iid}: 评论抓取失败({exc})")
 
 
 def persist(res: OnDemandResult, *, session) -> dict:
