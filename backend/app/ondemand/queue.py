@@ -17,11 +17,16 @@ from __future__ import annotations
 import logging
 import queue
 import threading
+import time
 
 from ..db import session_scope
 from ..models import OnDemandJob
 
 logger = logging.getLogger(__name__)
+
+# worker 读不到 job 时的短重试(防御未提交可见性,正常路径用不到)
+_READ_RETRY = 5
+_READ_RETRY_DELAY = 0.3
 
 _q: "queue.Queue[int]" = queue.Queue()
 _worker: threading.Thread | None = None
@@ -44,6 +49,21 @@ def _status_of(listing_count: int, review_count: int, notes: list) -> str:
 def process_one(job_id: int) -> None:
     """执行一条 job:渲染抓取 → 原地更新该行。异常被隔离为 failed。"""
     from . import runner
+
+    # Defense-in-depth:正常路径下入队已在 commit 之后,worker 必能读到。
+    # 但万一仍遇上未提交可见性(如 PG 复制延迟),短重试几次再放弃,
+    # 避免把"暂时读不到"误判为"任务不存在"而静默卡死。
+    job = None
+    for attempt in range(_READ_RETRY):
+        with session_scope() as s:
+            job = s.get(OnDemandJob, job_id)
+            if job is not None:
+                break
+        time.sleep(_READ_RETRY_DELAY)
+    if job is None:
+        logger.error("ondemand job %s 始终读不到,放弃执行(疑似入队早于提交)",
+                     job_id)
+        return
 
     with session_scope() as s:
         job = s.get(OnDemandJob, job_id)

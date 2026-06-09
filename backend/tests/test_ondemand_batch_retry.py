@@ -24,8 +24,6 @@ def test_submit_batch_dedups_and_creates_queued_jobs(monkeypatch):
     from app.api import ondemand_jobs as oj
     from app.models import OnDemandJob
 
-    enq = []
-    monkeypatch.setattr(oj, "enqueue", lambda jid: enq.append(jid))
     s = _session()
     urls = [
         "https://www.lazada.com.my/products/a-i1.html",
@@ -45,8 +43,8 @@ def test_submit_batch_dedups_and_creates_queued_jobs(monkeypatch):
     assert out["batch_id"] == jobs[0].batch_id
     # 原始参数被保存(供重试)
     assert all(j.max_items == 20 and j.review_limit == 50 for j in jobs)
-    # 都入队
-    assert set(enq) == {j.id for j in jobs}
+    # 待入队 id 随返回值带出(由路由 commit 后入队,不在此处入队)
+    assert set(out["_enqueue_ids"]) == {j.id for j in jobs}
     s.close()
 
 
@@ -122,8 +120,6 @@ def _terminal_job(s, status="failed", ws=1, batch="b"):
 
 def test_retry_job_requeues_terminal(monkeypatch):
     from app.api import ondemand_jobs as oj
-    enq = []
-    monkeypatch.setattr(oj, "enqueue", lambda jid: enq.append(jid))
     s = _session()
     j = _terminal_job(s, status="failed")
     out = oj.retry_job(s, ws_id=1, job_id=j.id)
@@ -131,7 +127,7 @@ def test_retry_job_requeues_terminal(monkeypatch):
     assert out["status"] == "queued"
     assert j.status == "queued"
     assert j.error is None
-    assert enq == [j.id]
+    assert out["_enqueue_ids"] == [j.id]
     s.close()
 
 
@@ -159,8 +155,6 @@ def test_retry_job_cross_workspace_returns_none(monkeypatch):
 def test_retry_failed_batch_only_failed(monkeypatch):
     from app.api import ondemand_jobs as oj
     from app.models import OnDemandJob
-    enq = []
-    monkeypatch.setattr(oj, "enqueue", lambda jid: enq.append(jid))
     s = _session()
     f1 = _terminal_job(s, status="failed", batch="B")
     f2 = _terminal_job(s, status="failed", batch="B")
@@ -169,7 +163,7 @@ def test_retry_failed_batch_only_failed(monkeypatch):
     s.commit()
     assert out["requeued"] == 2
     assert s.get(OnDemandJob, ok.id).status == "success"
-    assert set(enq) == {f1.id, f2.id}
+    assert set(out["_enqueue_ids"]) == {f1.id, f2.id}
     s.close()
 
 

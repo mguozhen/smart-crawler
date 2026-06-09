@@ -737,7 +737,7 @@ def ondemand_batch(payload: dict, user: str = Depends(require_user),
 
     payload: {"urls": [...], "max_items"?: int, "review_limit"?: int}
     """
-    from .ondemand_jobs import PendingExistsError, submit_batch
+    from .ondemand_jobs import PendingExistsError, flush_enqueue, submit_batch
 
     urls = (payload or {}).get("urls") or []
     if not isinstance(urls, list):
@@ -757,14 +757,14 @@ def ondemand_batch(payload: dict, user: str = Depends(require_user),
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
-    return out
+    return flush_enqueue(out)   # commit 之后才入队,避免竞态
 
 
 @router.post("/ondemand/jobs/{job_id}/retry")
 def ondemand_job_retry(job_id: int, user: str = Depends(require_user),
                        x_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
                        db: Session = Depends(get_db)):
-    from .ondemand_jobs import NotRetryableError, retry_job
+    from .ondemand_jobs import NotRetryableError, flush_enqueue, retry_job
     from ..models import OnDemandJob
     ws = _current_workspace(user, db, x_workspace_id)
     try:
@@ -776,18 +776,18 @@ def ondemand_job_retry(job_id: int, user: str = Depends(require_user),
         raise HTTPException(status_code=403 if exists else 404,
                             detail="无权操作" if exists else "记录不存在")
     db.commit()
-    return out
+    return flush_enqueue(out)
 
 
 @router.post("/ondemand/batch/{batch_id}/retry-failed")
 def ondemand_batch_retry_failed(batch_id: str, user: str = Depends(require_user),
                                 x_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
                                 db: Session = Depends(get_db)):
-    from .ondemand_jobs import retry_failed_batch
+    from .ondemand_jobs import flush_enqueue, retry_failed_batch
     ws = _current_workspace(user, db, x_workspace_id)
     out = retry_failed_batch(db, ws_id=ws.id, batch_id=batch_id)
     db.commit()
-    return out
+    return flush_enqueue(out)
 
 
 @router.get("/ondemand/jobs")

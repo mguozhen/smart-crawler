@@ -125,9 +125,11 @@ def submit_batch(session: Session, *, ws_id: int | None, username: str | None,
         session.flush()
         new_ids.append(job.id)
 
-    for jid in new_ids:
-        enqueue(jid)
-    return {"batch_id": batch_id, "queued": len(new_ids), "skipped": skipped}
+    # 注意:不在此入队。worker 是独立线程+独立连接,若在调用方 commit 之前入队,
+    # worker 可能在 INSERT 提交前就 session.get → 读不到 → 静默卡 queued(生产事故)。
+    # 把待入队 id 放进返回值,由路由在 commit 之后调 flush_enqueue 入队。
+    return {"batch_id": batch_id, "queued": len(new_ids), "skipped": skipped,
+            "_enqueue_ids": new_ids}
 
 
 def retry_job(session: Session, *, ws_id: int | None, job_id: int) -> dict | None:
@@ -144,13 +146,16 @@ def retry_job(session: Session, *, ws_id: int | None, job_id: int) -> dict | Non
     job.status = "queued"
     job.error = None
     session.flush()
-    enqueue(job.id)
-    return {"id": job.id, "status": "queued"}
+    # 入队延后到 commit 之后(见 submit_batch 说明)
+    return {"id": job.id, "status": "queued", "_enqueue_ids": [job.id]}
 
 
 def retry_failed_batch(session: Session, *, ws_id: int | None,
                        batch_id: str) -> dict:
-    """一键重试整批失败:该 batch 下所有 failed 的 job 置 queued + 入队。"""
+    """一键重试整批失败:该 batch 下所有 failed 的 job 置 queued。
+
+    入队延后到 commit 之后(见 submit_batch 说明)。
+    """
     rows = (session.query(OnDemandJob)
             .filter(OnDemandJob.workspace_id == ws_id,
                     OnDemandJob.batch_id == batch_id,
@@ -161,9 +166,22 @@ def retry_failed_batch(session: Session, *, ws_id: int | None,
         r.error = None
         ids.append(r.id)
     session.flush()
-    for jid in ids:
+    return {"batch_id": batch_id, "requeued": len(ids), "_enqueue_ids": ids}
+
+
+def flush_enqueue(result: dict) -> dict:
+    """把逻辑函数返回的 _enqueue_ids 真正入队。
+
+    必须由路由在 db.commit() 之后调用 —— 保证 worker 取件时行已提交,
+    避免 enqueue-before-commit 竞态导致 job 静默卡 queued。
+    返回去掉内部键的干净结果(供路由直接当响应体)。
+    """
+    if not result:
+        return result
+    for jid in result.pop("_enqueue_ids", []) or []:
         enqueue(jid)
-    return {"batch_id": batch_id, "requeued": len(ids)}
+    return result
+
 
 
 def list_jobs_logic(session: Session, *, ws_id: int | None,
