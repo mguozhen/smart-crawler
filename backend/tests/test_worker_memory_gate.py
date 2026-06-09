@@ -28,7 +28,7 @@ def test_run_loop_skips_claim_when_gate_blocks(monkeypatch):
     ticks = iter([True, True, False])
     worker.run_loop(should_continue=lambda: next(ticks, False))
 
-    assert gate_calls                      # 闸被查过
+    assert len(gate_calls) == 2            # 两轮都被闸住
     assert claimed == []                   # 闸挡住 → 从没领 job
 
 
