@@ -117,8 +117,11 @@ def _seed_sites() -> None:
 def _seed_users() -> None:
     """初始化管理员账号 —— 用户名/密码由环境变量驱动，杜绝弱口令。
 
-    ADMIN_USERNAME（默认 admin）、ADMIN_PASSWORD。设了 ADMIN_PASSWORD 时
-    每次启动都同步到账号，使改密对已建账号生效；未设则首次随机生成并打日志。
+    ADMIN_USERNAME（默认 admin）、ADMIN_PASSWORD。ADMIN_PASSWORD 只在
+    *首次创建* 账号（或账号意外缺失 password_hash）时生效；账号已存在后，
+    每次启动都重置密码会把用户在控制台里改过的密码覆盖掉，所以默认不再同步。
+    需要找回/重置密码时，设 ADMIN_PASSWORD_FORCE_RESET=1 显式触发一次重置。
+    未设 ADMIN_PASSWORD 则首次随机生成并打日志。
     """
     import os
     import secrets
@@ -129,6 +132,8 @@ def _seed_users() -> None:
     username = os.environ.get("ADMIN_USERNAME", "admin")
     email = os.environ.get("ADMIN_EMAIL", f"{username}@local.smartcrawler").strip().lower()
     password = os.environ.get("ADMIN_PASSWORD")
+    force_reset = os.environ.get("ADMIN_PASSWORD_FORCE_RESET", "").strip().lower() in (
+        "1", "true", "yes", "on")
 
     with session_scope() as s:
         workspace = s.query(Workspace).filter(Workspace.slug == "internal").first()
@@ -144,8 +149,12 @@ def _seed_users() -> None:
                 u.global_role = "super_admin"
             if workspace and not u.default_workspace_id:
                 u.default_workspace_id = workspace.id
-            if password:                       # 改密对已存在账号生效
+            # 只在「账号缺密码」或「显式要求重置」时才用环境变量改密，
+            # 否则保留用户在控制台里改过的密码，避免每次部署被还原。
+            if password and (not u.password_hash or force_reset):
                 u.password_hash = hash_password(password)
+                if force_reset:
+                    print(f"[seed] 已按 ADMIN_PASSWORD_FORCE_RESET 重置管理员密码：{username}")
             if workspace and not s.query(WorkspaceMember).filter(
                     WorkspaceMember.workspace_id == workspace.id,
                     WorkspaceMember.user_id == u.id).first():
