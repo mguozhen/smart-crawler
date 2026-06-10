@@ -243,6 +243,8 @@ input,select{font-family:inherit}
 
 .toast{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#a78bfa,#f472b6);color:#fff;padding:11px 18px;border-radius:10px;box-shadow:0 18px 50px rgba(167,139,250,.45);font-size:0.84rem;font-weight:700;z-index:500;animation:toastIn .25s}
 @keyframes toastIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.od-modal{position:fixed;inset:0;z-index:600;background:rgba(8,4,16,.62);backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding:8vh 16px 16px;overflow:auto}
+.od-modal-card{background:var(--ui-card);border:1px solid var(--ui-border);border-radius:12px;padding:20px;width:100%;max-width:620px;box-shadow:0 24px 70px rgba(0,0,0,.4)}
 
 /* Light theme trial: clean SaaS surface with purple product accents. */
 :root{
@@ -668,6 +670,14 @@ const App = {
     const jobs = ref([]);
     const products = ref({ items:[], total:null });
     const productsLoading = ref(false);
+    const productPage = ref(1);
+    const PRODUCT_PAGE_SIZE = 30;
+    const productPages = computed(() =>
+      Math.max(1, Math.ceil((products.value.total || 0) / PRODUCT_PAGE_SIZE)));
+    // 商品详情弹窗
+    const productDetail = ref(null);
+    const productDetailLoading = ref(false);
+    const productPriceHistory = ref([]);
     const proxyStatus = ref({});
     const billing = ref({ keys:[] });
     const apiKeys = ref([]);
@@ -712,67 +722,137 @@ const App = {
     const odReviewLimit = ref(2000);
     const odLoading = ref(false);
     const odError = ref('');
-    const odResult = ref(null);
+    // 批量弹窗 + 详情弹窗
+    const odShowBatch = ref(false);
+    const odShowDetail = ref(false);
+    function odOpenBatch() { odBatchErr.value=''; odBatchMsg.value=''; odShowBatch.value = true; }
+    function odCloseBatch() { odShowBatch.value = false; }
+    function odCloseDetail() { odShowDetail.value = false; expandedJobId.value = null; odJobDetail.value = null; }
+
     async function runOndemand() {
-      if (!odUrl.value.trim()) return;
-      odError.value = ''; odResult.value = null; odLoading.value = true;
+      if (!odUrl.value.trim()) { odError.value = '请填写 URL'; return; }
+      odError.value = ''; odLoading.value = true;
       try {
         const r = await fetch('/api/ondemand/fetch', {
           method: 'POST',
           headers: { ...authH(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: odUrl.value.trim(), max_items: odMaxItems.value, review_limit: odReviewLimit.value }),
         });
-        if (!r.ok) {
-          const e = await r.json().catch(()=>({}));
-          throw new Error(e.detail || ('HTTP ' + r.status));
-        }
-        odResult.value = await r.json();
-        loadOndemandJobs();
+        const d = await r.json().catch(()=>({}));
+        if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
+        if (d.skipped && d.skipped.length) { odError.value = '无法识别平台,未入队'; return; }
+        odUrl.value = '';
+        await loadOndemandJobs();
+        startOdPolling();
       } catch (e) {
-        odError.value = '抓取失败：' + e.message;
+        odError.value = '提交失败：' + e.message;
       } finally {
         odLoading.value = false;
       }
+    }
+    // ---- 历史详情·评论展示:概览统计 + 星级筛选 + 分页(数据源 odJobDetail.reviews)----
+    const odDetailRvFilter = ref(0);    // 0=全部,1-5=只看该星级
+    const odDetailRvPage = ref(1);
+    const OD_RV_PER_PAGE = 20;
+    const odDetailReviews = computed(() => (odJobDetail.value && odJobDetail.value.reviews) || []);
+    const odDetailRvStats = computed(() => {
+      const rs = odDetailReviews.value;
+      const dist = {1:0,2:0,3:0,4:0,5:0};
+      let sum = 0, rated = 0;
+      for (const r of rs) {
+        const n = Number(r.rating);
+        if (n >= 1 && n <= 5) { dist[n]++; sum += n; rated++; }
+      }
+      const max = Math.max(1, ...Object.values(dist));
+      return { total: rs.length, rated, avg: rated ? (sum / rated) : 0, dist, max };
+    });
+    const odDetailRvFiltered = computed(() => {
+      const f = odDetailRvFilter.value;
+      return f ? odDetailReviews.value.filter(r => Number(r.rating) === f) : odDetailReviews.value;
+    });
+    const odDetailRvPages = computed(() =>
+      Math.max(1, Math.ceil(odDetailRvFiltered.value.length / OD_RV_PER_PAGE)));
+    const odDetailRvPageItems = computed(() => {
+      const start = (odDetailRvPage.value - 1) * OD_RV_PER_PAGE;
+      return odDetailRvFiltered.value.slice(start, start + OD_RV_PER_PAGE);
+    });
+    function odSetDetailRvFilter(star) { odDetailRvFilter.value = star; odDetailRvPage.value = 1; }
+    function odRvStars(n) {        // 5 -> ★★★★★;非法 -> '—'
+      const v = Number(n);
+      return (v >= 1 && v <= 5) ? '★★★★★☆☆☆☆☆'.slice(5 - v, 10 - v) : '—';
     }
     const odJobs = ref([]);
     const odJobsLoading = ref(false);
     const expandedJobId = ref(null);
     const odJobDetail = ref(null);
+    const odDetailLoading = ref(false);     // 详情加载中
+    const odClearing = ref(false);          // 清空历史中
+    const odBusyIds = ref({});              // 行级忙碌:{jobId: 'delete'|'retry'}
 
-    async function loadOndemandJobs() {
-      odJobsLoading.value = true;
+    async function loadOndemandJobs(opts) {
+      const silent = opts && opts.silent;     // 轮询用静默:不触发整表 loading
+      if (!silent) odJobsLoading.value = true;
       try {
         const r = await fetch('/api/ondemand/jobs?page_size=50', { headers: authH() });
-        if (r.ok) { const d = await r.json(); odJobs.value = d.jobs || []; }
-      } catch (e) {} finally { odJobsLoading.value = false; }
+        if (r.ok) { const d = await r.json(); odMergeJobs(d.jobs || []); }
+      } catch (e) {} finally { if (!silent) odJobsLoading.value = false; }
     }
 
-    async function toggleJobDetail(id) {
-      if (expandedJobId.value === id) { expandedJobId.value = null; odJobDetail.value = null; return; }
-      expandedJobId.value = id; odJobDetail.value = null;
+    // 无感增量合并:按 id 原地更新已有行(保持对象引用,Vue 只 patch 变化字段),
+    // 新增行 prepend,服务端已不存在的移除。避免整表重渲染、详情展开闪烁。
+    const OD_JOB_FIELDS = ['status','listing_count','review_count','notes',
+                           'item_skus','attempts','error','platform','kind'];
+    function odMergeJobs(incoming) {
+      const cur = odJobs.value;
+      const byId = new Map(cur.map(j => [j.id, j]));
+      const nextIds = new Set(incoming.map(j => j.id));
+      // 移除服务端已删除的
+      for (let i = cur.length - 1; i >= 0; i--) {
+        if (!nextIds.has(cur[i].id)) cur.splice(i, 1);
+      }
+      // 更新 / 新增(incoming 已按时间倒序,新行在前)
+      incoming.forEach((nj, idx) => {
+        const ex = byId.get(nj.id);
+        if (ex) {
+          for (const k of OD_JOB_FIELDS) if (ex[k] !== nj[k]) ex[k] = nj[k];
+        } else {
+          // 找正确插入位:incoming 顺序为准,插到当前数组对应位置
+          cur.splice(Math.min(idx, cur.length), 0, nj);
+        }
+      });
+    }
+
+    async function openJobDetail(id) {
+      expandedJobId.value = id; odJobDetail.value = null; odShowDetail.value = true;
+      odDetailRvFilter.value = 0; odDetailRvPage.value = 1;
+      odDetailLoading.value = true;
       try {
         const r = await fetch('/api/ondemand/jobs/' + id, { headers: authH() });
         if (r.ok) odJobDetail.value = await r.json();
-      } catch (e) {}
+      } catch (e) {} finally { odDetailLoading.value = false; }
     }
 
     async function deleteOndemandJob(id) {
       if (!confirm('删除这条抓取记录?(不会删除已入库的商品/评论数据)')) return;
+      odBusyIds.value = { ...odBusyIds.value, [id]: 'delete' };
       try {
         const r = await fetch('/api/ondemand/jobs/' + id, { method: 'DELETE', headers: authH() });
         if (r.ok) {
           odJobs.value = odJobs.value.filter(j => j.id !== id);
-          if (expandedJobId.value === id) { expandedJobId.value = null; odJobDetail.value = null; }
+          if (expandedJobId.value === id) odCloseDetail();
         }
-      } catch (e) {}
+      } catch (e) {} finally {
+        const m = { ...odBusyIds.value }; delete m[id]; odBusyIds.value = m;
+      }
     }
 
     async function clearOndemandJobs() {
       if (!confirm('清空本工作区的全部抓取历史?(不会删除已入库的商品/评论数据)')) return;
+      odClearing.value = true;
       try {
         const r = await fetch('/api/ondemand/jobs', { method: 'DELETE', headers: authH() });
-        if (r.ok) { odJobs.value = []; expandedJobId.value = null; odJobDetail.value = null; }
-      } catch (e) {}
+        if (r.ok) { odJobs.value = []; odCloseDetail(); }
+      } catch (e) {} finally { odClearing.value = false; }
     }
     // ---- 批量上传 + 失败重试 ----
     const odBatchText = ref('');
@@ -813,21 +893,19 @@ const App = {
       if (urls.length > OD_MAX_BATCH) {
         odBatchErr.value = `单批最多 ${OD_MAX_BATCH} 条,当前 ${urls.length} 条`; return;
       }
-      if (odHasPending.value) {
-        odBatchErr.value = '有未完成任务,请等待完成后再提交'; return;
-      }
       odBatchSubmitting.value = true;
       try {
         const r = await fetch('/api/ondemand/batch', {
           method: 'POST',
           headers: { ...authH(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls, max_items: odMaxItems.value }),
+          body: JSON.stringify({ urls, max_items: odMaxItems.value, review_limit: odReviewLimit.value }),
         });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
         odBatchMsg.value = `已入队 ${d.queued} 条` +
           (d.skipped && d.skipped.length ? `,跳过 ${d.skipped.length} 条(无法识别平台)` : '');
         odBatchText.value = '';
+        odShowBatch.value = false;              // 关批量弹窗
         await loadOndemandJobs();
         startOdPolling();
       } catch (e) {
@@ -838,34 +916,36 @@ const App = {
     }
 
     async function retryJob(id) {
+      odBusyIds.value = { ...odBusyIds.value, [id]: 'retry' };
       try {
         const r = await fetch(`/api/ondemand/jobs/${id}/retry`, { method: 'POST', headers: authH() });
         if (!r.ok) { const e = await r.json().catch(()=>({})); alert(e.detail || ('HTTP ' + r.status)); return; }
         await loadOndemandJobs();
         startOdPolling();
-      } catch (e) {}
+      } catch (e) {} finally {
+        const m = { ...odBusyIds.value }; delete m[id]; odBusyIds.value = m;
+      }
     }
 
-    async function retryFailedBatch(batchId) {
-      try {
-        const r = await fetch(`/api/ondemand/batch/${batchId}/retry-failed`, { method: 'POST', headers: authH() });
-        if (r.ok) { await loadOndemandJobs(); startOdPolling(); }
-      } catch (e) {}
-    }
-
-    // 有未完成任务时每 3 秒轮询一次,全终态后停
+    // 有未完成任务时每 3 秒静默轮询(增量 merge,不整表重渲染),全终态后停
     function startOdPolling() {
       if (odPollTimer) return;
       odPollTimer = setInterval(async () => {
-        await loadOndemandJobs();
+        await loadOndemandJobs({ silent: true });
+        // 详情弹窗打开且该 job 仍在跑 → 刷新详情(评论数会变)
+        if (odShowDetail.value && expandedJobId.value != null) {
+          const j = odJobs.value.find(x => x.id === expandedJobId.value);
+          if (j && (j.status === 'queued' || j.status === 'running')) {
+            try {
+              const r = await fetch('/api/ondemand/jobs/' + expandedJobId.value, { headers: authH() });
+              if (r.ok) odJobDetail.value = await r.json();
+            } catch (e) {}
+          }
+        }
         if (!odHasPending.value) { clearInterval(odPollTimer); odPollTimer = null; }
       }, 3000);
     }
 
-    // 批次内是否有失败项(用于显示"重试全部失败")
-    function batchHasFailed(batchId) {
-      return odJobs.value.some(j => j.batch_id === batchId && j.status === 'failed');
-    }
     const starters = [
       { icon:'📊', title:'总览快照', desc:'当前工作区覆盖率和商品总数', key:'overview' },
       { icon:'🆕', title:'今日变化', desc:'昨日新增和变化', key:'new' },
@@ -972,7 +1052,7 @@ const App = {
       if (!selectedSite.value) return;
       productsLoading.value = true;
       try {
-        const r = await fetch(`/api/products?site=${encodeURIComponent(selectedSite.value)}&page_size=30`, { headers: authH() });
+        const r = await fetch(`/api/products?site=${encodeURIComponent(selectedSite.value)}&page=${productPage.value}&page_size=${PRODUCT_PAGE_SIZE}`, { headers: authH() });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         products.value = await r.json();
       } catch(e) {
@@ -982,6 +1062,28 @@ const App = {
         productsLoading.value = false;
       }
     }
+    // 切站点 → 回到第 1 页再加载
+    function onSiteChange() { productPage.value = 1; loadProducts(); }
+    function gotoProductPage(p) {
+      const n = Math.min(Math.max(1, p), productPages.value);
+      if (n === productPage.value) return;
+      productPage.value = n; loadProducts();
+    }
+    // 商品详情 + 价格历史弹窗
+    async function openProductDetail(id) {
+      if (!id) return;
+      productDetail.value = null; productPriceHistory.value = []; productDetailLoading.value = true;
+      try {
+        const [dr, hr] = await Promise.all([
+          fetch('/api/products/' + id, { headers: authH() }),
+          fetch('/api/products/' + id + '/price-history', { headers: authH() }),
+        ]);
+        if (dr.ok) productDetail.value = await dr.json();
+        if (hr.ok) { const h = await hr.json(); productPriceHistory.value = h.items || h.history || (Array.isArray(h) ? h : []); }
+      } catch(e) { showToast('详情加载失败'); }
+      finally { productDetailLoading.value = false; }
+    }
+    function closeProductDetail() { productDetail.value = null; productPriceHistory.value = []; }
     async function loadProxy() {
       try {
         const r = await fetch('/api/proxy/status', { headers: authH() });
@@ -1196,7 +1298,11 @@ const App = {
     const warningSites = computed(() => coverage.value.summary?.warning_count || 0);
     const runningJobs = computed(() => jobs.value.filter(j=>j.status==='running').length);
     const successJobs = computed(() => jobs.value.filter(j=>j.status==='success').length);
-    const proxyOk = computed(() => proxyStatus.value?.available || 0);
+    const proxyOk = computed(() => {
+      const ps = proxyStatus.value || {};
+      if (typeof ps.available === 'number') return ps.available;   // 兼容顶层字段
+      return Object.values(ps.by_tier || {}).reduce((a, t) => a + (t.available || 0), 0);
+    });
     const proxyTotal = computed(() => proxyStatus.value?.total || 0);
     const sortedCov = computed(() => (coverage.value.sites || []).slice().sort((a,b)=>b.coverage_pct - a.coverage_pct));
     const canAdmin = computed(() => user.value.role === 'admin' || user.value.global_role === 'super_admin');
@@ -1243,6 +1349,8 @@ const App = {
       settingsMenu, accountMenu, activeSettingsSection, activeAccountSection,
       toast, showToast, setTab, starters, askInput, askResult, askRunning, runStarter, runAskInput,
       productsLoading, loadProducts, loadCoverage, loadJobs, triggerSite, exportCSV,
+      productPage, productPages, gotoProductPage, onSiteChange,
+      productDetail, productDetailLoading, productPriceHistory, openProductDetail, closeProductDetail,
       saveAccount, changePassword, createMyKey, revokeKey, createInvite, disableInvite, copyInviteCode, toggleUser,
       resetUserPassword, createAdminUser, updateUserRole, switchWorkspace,
       createWorkspace, addWorkspaceSite, toggleWorkspaceSite,
@@ -1252,12 +1360,16 @@ const App = {
       runningJobs, successJobs, proxyOk, proxyTotal, sortedCov,
       canAdmin, canManageWorkspaces, infPlatform, infUsername, infResult, infRunning, infFetch,
       infQuickTargets, setInfluencerTarget,
-      odUrl, odMaxItems, odReviewLimit, odLoading, odError, odResult, runOndemand,
+      odUrl, odMaxItems, odReviewLimit, odLoading, odError, runOndemand,
+      odShowBatch, odShowDetail, odOpenBatch, odCloseBatch, odCloseDetail,
+      odDetailReviews, odDetailRvFilter, odDetailRvPage, odDetailRvStats,
+      odDetailRvFiltered, odDetailRvPages, odDetailRvPageItems,
+      odSetDetailRvFilter, odRvStars,
       odJobs, odJobsLoading, expandedJobId, odJobDetail,
-      loadOndemandJobs, toggleJobDetail, deleteOndemandJob, clearOndemandJobs,
+      odDetailLoading, odClearing, odBusyIds,
+      loadOndemandJobs, openJobDetail, deleteOndemandJob, clearOndemandJobs,
       odBatchText, odBatchMsg, odBatchErr, odBatchSubmitting, odBatchCount,
       odHasPending, OD_MAX_BATCH, odOnFile, submitBatch, retryJob,
-      retryFailedBatch, batchHasFailed,
     };
   },
   template: `
@@ -1340,9 +1452,9 @@ const App = {
 
         <div class="stats-hero">
           <div class="stat"><div class="lbl">商品总数</div><div class="val">{{ totalSku.toLocaleString() }}</div><div class="delta">{{ coveragePct }}% 覆盖</div></div>
-          <div class="stat"><div class="lbl">健康站点</div><div class="val">{{ healthySites }} / {{ sites.length }}</div><div class="delta">100% 覆盖</div></div>
-          <div class="stat"><div class="lbl">警告</div><div class="val">{{ warningSites }}</div><div class="delta warn">50-90%</div></div>
-          <div class="stat"><div class="lbl">关键缺口</div><div class="val">{{ criticalSites }}</div><div class="delta bad">&lt; 50%</div></div>
+          <div class="stat"><div class="lbl">健康站点</div><div class="val">{{ healthySites }} / {{ sites.length }}</div><div class="delta">≥ 50% 覆盖</div></div>
+          <div class="stat"><div class="lbl">警告</div><div class="val">{{ warningSites }}</div><div class="delta warn">5-50%</div></div>
+          <div class="stat"><div class="lbl">关键缺口</div><div class="val">{{ criticalSites }}</div><div class="delta bad">&lt; 5%</div></div>
           <div class="stat"><div class="lbl">采集进程</div><div class="val">{{ runningJobs }}</div><div class="delta">{{ successJobs }} 成功</div></div>
           <div class="stat"><div class="lbl">代理池</div><div class="val">{{ proxyOk }}/{{ proxyTotal }}</div><div class="delta">健康</div></div>
         </div>
@@ -1461,7 +1573,7 @@ const App = {
 	        <div class="sub">{{ productsLoading ? '加载中' : ((products.total ?? 0).toLocaleString() + ' 条') }} · {{ selectedSite || '未选择站点' }}</div>
 
         <div class="cat-filters">
-          <select v-model="selectedSite" @change="loadProducts">
+          <select v-model="selectedSite" @change="onSiteChange">
             <option v-for="s in sites" :key="s.site" :value="s.site">{{ s.site }}</option>
           </select>
 	          <button class="btn-go" :disabled="productsLoading" @click="loadProducts">{{ productsLoading ? '刷新中…' : '🔄 刷新' }}</button>
@@ -1472,7 +1584,7 @@ const App = {
 	          <table class="cat-table">
             <thead><tr><th></th><th>商品编码</th><th>商品</th><th>价格</th><th>评分</th><th>30 天销量</th><th>状态</th></tr></thead>
             <tbody>
-              <tr v-for="p in (products.items||[]).slice(0,30)" :key="p.id || p.sku">
+              <tr v-for="p in (products.items||[])" :key="p.id || p.sku" style="cursor:pointer" @click="openProductDetail(p.id)">
                 <td><div class="thumb">📦</div></td>
                 <td><code style="font-size:0.72rem;color:#a78bfa">{{ p.sku }}</code></td>
                 <td>{{ (p.title||'').slice(0,60) }}</td>
@@ -1487,7 +1599,65 @@ const App = {
 	            <b>当前站点暂无商品数据</b>
 	            可先在覆盖率页面触发抓取，或切换到已有数据的站点。
 	          </div>
+          <!-- 分页 -->
+          <div v-if="productPages > 1" style="display:flex;justify-content:center;align-items:center;gap:10px;margin-top:14px">
+            <button class="btn-go" :disabled="productPage<=1 || productsLoading" @click="gotoProductPage(productPage-1)">‹ 上一页</button>
+            <span class="inf-empty-note" style="margin:0">第 {{ productPage }} / {{ productPages }} 页 · 共 {{ (products.total||0).toLocaleString() }} 条</span>
+            <button class="btn-go" :disabled="productPage>=productPages || productsLoading" @click="gotoProductPage(productPage+1)">下一页 ›</button>
+          </div>
 	        </div>
+
+        <!-- 商品详情弹窗 -->
+        <div v-if="productDetail || productDetailLoading" class="od-modal" @click.self="closeProductDetail">
+          <div class="od-modal-card" style="max-width:680px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <h3 style="margin:0">商品详情</h3>
+              <button class="btn-prim" style="background:transparent;color:var(--ui-muted);padding:2px 8px" @click="closeProductDetail">✕</button>
+            </div>
+            <div v-if="productDetailLoading" class="inf-empty-note">加载中…</div>
+            <div v-else-if="productDetail">
+              <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+                <img v-if="productDetail.image" :src="productDetail.image" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--ui-border)"/>
+                <div v-else style="width:120px;height:120px;display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--ui-card-soft);border-radius:8px">📦</div>
+                <div style="flex:1;min-width:220px">
+                  <div style="font-weight:600;color:var(--ui-text);line-height:1.5">{{ productDetail.title }}</div>
+                  <div class="inf-empty-note" style="margin-top:4px">SKU: {{ productDetail.sku }} · {{ productDetail.site }}</div>
+                  <div style="margin-top:8px;display:flex;gap:18px;flex-wrap:wrap;font-size:0.86rem">
+                    <span>价格 <b style="color:var(--ui-text)">{{ productDetail.sale_price!=null ? (productDetail.currency||'$')+productDetail.sale_price : '—' }}</b></span>
+                    <span v-if="productDetail.original_price">原价 <s style="color:var(--ui-muted)">{{ productDetail.original_price }}</s></span>
+                    <span>评分 <b style="color:var(--ui-text)">{{ productDetail.ratings || '—' }}</b> ({{ productDetail.review_count||0 }})</span>
+                    <span>30天销量 <b style="color:var(--ui-text)">{{ productDetail.thirty_day_sales||0 }}</b></span>
+                  </div>
+                  <div style="margin-top:8px">
+                    <span class="pill" :class="productDetail.status==='on_sale'?'ok':productDetail.status==='out_of_stock'?'bad':'warn'">{{ formatProductStatus(productDetail.status) }}</span>
+                    <a v-if="productDetail.product_url" :href="productDetail.product_url" target="_blank" class="inf-empty-note" style="margin-left:10px">原页 ↗</a>
+                  </div>
+                </div>
+              </div>
+              <!-- 价格历史 -->
+              <div style="margin-top:16px">
+                <h4 style="margin:0 0 8px">价格历史</h4>
+                <div v-if="!productPriceHistory.length" class="inf-empty-note">暂无价格历史</div>
+                <table v-else style="width:100%;font-size:0.8rem;border-collapse:collapse">
+                  <thead><tr style="text-align:left;color:var(--ui-muted)">
+                    <th style="padding:4px 8px;border-bottom:1px solid var(--ui-border)">日期</th>
+                    <th style="padding:4px 8px;border-bottom:1px solid var(--ui-border)">售价</th>
+                    <th style="padding:4px 8px;border-bottom:1px solid var(--ui-border)">原价</th>
+                    <th style="padding:4px 8px;border-bottom:1px solid var(--ui-border)">评论数</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr v-for="(h,i) in productPriceHistory" :key="i">
+                      <td style="padding:4px 8px;border-bottom:1px solid var(--ui-border)">{{ (h.date||'').slice(0,10) }}</td>
+                      <td style="padding:4px 8px;border-bottom:1px solid var(--ui-border)">{{ h.sale_price!=null ? h.sale_price : '—' }}</td>
+                      <td style="padding:4px 8px;border-bottom:1px solid var(--ui-border)">{{ h.original_price!=null ? h.original_price : '—' }}</td>
+                      <td style="padding:4px 8px;border-bottom:1px solid var(--ui-border)">{{ h.review_count!=null ? h.review_count : '—' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-if="tab==='coverage'" class="page">
@@ -1648,63 +1818,50 @@ const App = {
         <div class="lead">按需抓取</div>
         <div class="sub">指定 URL → listing + VOC（美客多 / Lazada / 虾皮）</div>
 
+        <!-- 顶部:单个抓取表单(常驻)+ 批量按钮 -->
         <div class="inf-panel" style="margin-top:16px">
-          <h3>指定 URL 抓取(美客多 / Lazada / 虾皮)</h3>
-          <div class="inf-form" style="flex-wrap:wrap">
-            <input v-model="odUrl" class="inf-inp" placeholder="粘贴商品页或店铺/类目页 URL" style="min-width:320px" @keyup.enter="runOndemand"/>
-            <input v-model.number="odMaxItems" class="inf-inp" type="number" title="列表枚举上限" style="width:90px;flex:0 0 auto"/>
-            <input v-model.number="odReviewLimit" class="inf-inp" type="number" title="评论抓取上限(美客多分星级桶约可达 1500)" placeholder="评论上限" style="width:110px;flex:0 0 auto"/>
-            <button class="btn-prim" @click="runOndemand" :disabled="odLoading">{{ odLoading ? '抓取中…' : '抓取' }}</button>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+            <h3 style="margin:0">单个抓取</h3>
+            <button class="btn-prim" style="background:var(--ui-card-soft);color:var(--ui-text)" @click="odOpenBatch">批量抓取</button>
+          </div>
+          <div class="inf-form" style="flex-wrap:wrap;margin-top:12px;align-items:center;gap:10px">
+            <input v-model="odUrl" class="inf-inp" placeholder="粘贴商品页或店铺/类目页 URL" style="flex:1;min-width:280px" @keyup.enter="runOndemand"/>
+            <label class="inf-empty-note" style="margin:0">列表上限<input v-model.number="odMaxItems" class="inf-inp" type="number" title="列表枚举上限" style="width:80px;margin-left:6px"/></label>
+            <label class="inf-empty-note" style="margin:0">评论上限<input v-model.number="odReviewLimit" class="inf-inp" type="number" title="评论抓取上限(美客多约可达 1500)" style="width:90px;margin-left:6px"/></label>
+            <button class="btn-prim" @click="runOndemand" :disabled="odLoading">{{ odLoading ? '提交中…' : '开始抓取' }}</button>
           </div>
           <div v-if="odError" class="inf-err" style="margin-top:10px">{{ odError }}</div>
-          <div v-if="odResult" style="margin-top:14px">
-            <div class="inf-empty-note">listing {{ odResult.listings_count }} / 评论 {{ odResult.reviews_count }}</div>
-            <ul v-if="odResult.notes && odResult.notes.length" style="margin:8px 0 0;padding-left:20px;color:var(--ui-muted);font-size:0.82rem">
-              <li v-for="(n, i) in odResult.notes" :key="i">{{ n }}</li>
-            </ul>
-            <table v-if="odResult.listings && odResult.listings.length" style="width:100%;margin-top:12px;border-collapse:collapse;font-size:0.82rem">
-              <thead><tr style="text-align:left;color:var(--ui-muted)"><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">SKU</th><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">标题</th><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">售价</th><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">原价</th></tr></thead>
-              <tbody>
-                <tr v-for="(p, i) in odResult.listings" :key="p.sku || i">
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ p.sku }}</td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ p.title }}</td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ p.sale_price }}</td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ p.original_price }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <table v-if="odResult.reviews && odResult.reviews.length" style="width:100%;margin-top:12px;border-collapse:collapse;font-size:0.82rem">
-              <thead><tr style="text-align:left;color:var(--ui-muted)"><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border);width:80px">评分</th><th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">评论</th></tr></thead>
-              <tbody>
-                <tr v-for="(r, i) in odResult.reviews" :key="r.review_id || i">
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ r.rating }}</td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ r.content }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-if="odHasPending" style="color:#93c5fd;font-size:0.82rem;margin-top:10px">
+            ⚙️ 有 {{ odJobs.filter(j=>j.status==='queued'||j.status==='running').length }} 个任务进行中…
           </div>
         </div>
-        <div class="inf-panel" style="margin-top:16px">
-          <h3>批量抓取(每行一个 URL，最多 {{ OD_MAX_BATCH }} 条)</h3>
-          <textarea v-model="odBatchText" class="inf-inp"
-                    placeholder="每行粘贴一个商品/店铺/类目 URL，或选择 .txt/.csv 文件导入"
-                    style="width:100%;min-height:120px;margin-top:8px;resize:vertical;font-family:inherit"></textarea>
-          <div class="inf-form" style="flex-wrap:wrap;margin-top:8px;align-items:center">
-            <input type="file" accept=".txt,.csv" @change="odOnFile" style="font-size:0.8rem"/>
-            <span class="inf-empty-note" style="margin:0">已识别 {{ odBatchCount }} 条</span>
-            <button class="btn-prim" @click="submitBatch"
-                    :disabled="odBatchSubmitting || odHasPending || !odBatchCount || odBatchCount > OD_MAX_BATCH">
-              {{ odBatchSubmitting ? '提交中…' : '批量抓取' }}</button>
-            <span v-if="odHasPending" class="inf-empty-note" style="margin:0;color:#fcd34d">有未完成任务，请等待完成后再提交</span>
+
+        <!-- 批量抓取弹窗 -->
+        <div v-if="odShowBatch" class="od-modal" @click.self="odCloseBatch">
+          <div class="od-modal-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <h3 style="margin:0">批量抓取(最多 {{ OD_MAX_BATCH }} 条)</h3>
+              <button class="btn-prim" style="background:transparent;color:var(--ui-muted);padding:2px 8px" @click="odCloseBatch">✕</button>
+            </div>
+            <textarea v-model="odBatchText" class="inf-inp"
+                      placeholder="每行粘贴一个商品/店铺/类目 URL，或选择 .txt/.csv 文件导入"
+                      style="width:100%;min-height:160px;resize:vertical;font-family:inherit"></textarea>
+            <div class="inf-form" style="flex-wrap:wrap;margin-top:10px;align-items:center">
+              <input type="file" accept=".txt,.csv" @change="odOnFile" style="font-size:0.8rem"/>
+              <span class="inf-empty-note" style="margin:0">已识别 {{ odBatchCount }} 条</span>
+              <button class="btn-prim" @click="submitBatch"
+                      :disabled="odBatchSubmitting || !odBatchCount || odBatchCount > OD_MAX_BATCH">
+                {{ odBatchSubmitting ? '提交中…' : '批量抓取' }}</button>
+            </div>
+            <div v-if="odBatchErr" class="inf-err" style="margin-top:8px">{{ odBatchErr }}</div>
+            <div v-if="odBatchMsg" class="inf-empty-note" style="margin-top:8px;color:#86efac">{{ odBatchMsg }}</div>
           </div>
-          <div v-if="odBatchErr" class="inf-err" style="margin-top:8px">{{ odBatchErr }}</div>
-          <div v-if="odBatchMsg" class="inf-empty-note" style="margin-top:8px;color:#86efac">{{ odBatchMsg }}</div>
         </div>
         <div class="inf-panel" style="margin-top:16px">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <h3>抓取历史</h3>
             <button class="btn-prim" style="background:rgba(248,113,113,.18);color:#fca5a5"
-                    @click="clearOndemandJobs" v-if="odJobs.length">清空历史</button>
+                    @click="clearOndemandJobs" v-if="odJobs.length" :disabled="odClearing">{{ odClearing ? '清空中…' : '清空历史' }}</button>
           </div>
           <div v-if="odJobsLoading" class="inf-empty-note">加载中…</div>
           <div v-else-if="!odJobs.length" class="inf-empty-note">暂无抓取记录</div>
@@ -1719,57 +1876,97 @@ const App = {
               <th style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">操作</th>
             </tr></thead>
             <tbody>
-              <template v-for="j in odJobs" :key="j.id">
-                <tr style="cursor:pointer" @click="toggleJobDetail(j.id)">
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ (j.created_at||'').replace('T',' ').slice(0,16) }}</td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ j.platform }}</td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.url }}</td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ j.listing_count }}</td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ j.review_count }}</td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">
-                    <span v-if="j.status==='queued'" style="color:var(--ui-muted)">⏳ 排队中</span>
-                    <span v-else-if="j.status==='running'" style="color:#93c5fd">⚙️ 抓取中…</span>
-                    <span v-else :style="{color: j.status==='success'?'#86efac':(j.status==='partial'?'#fcd34d':'#fca5a5')}">
-                      {{ j.status==='success'?'成功':(j.status==='partial'?'部分':'失败') }}</span>
-                    <span v-if="j.attempts > 1" class="inf-empty-note" style="margin-left:4px">·重试{{ j.attempts - 1 }}次</span>
-                  </td>
-                  <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border);white-space:nowrap">
-                    <button v-if="j.status==='failed' || j.status==='partial'" class="btn-prim"
-                            style="padding:2px 8px;font-size:0.72rem;margin-right:4px;background:rgba(147,197,253,.18);color:#93c5fd"
-                            @click.stop="retryJob(j.id)">重试</button>
-                    <button v-if="batchHasFailed(j.batch_id)" class="btn-prim"
-                            style="padding:2px 8px;font-size:0.72rem;margin-right:4px;background:rgba(252,211,77,.16);color:#fcd34d"
-                            @click.stop="retryFailedBatch(j.batch_id)" title="重试该批次全部失败项">重试整批失败</button>
-                    <button class="btn-prim" style="padding:2px 8px;font-size:0.72rem;background:rgba(248,113,113,.18);color:#fca5a5"
-                            @click.stop="deleteOndemandJob(j.id)">删除</button>
-                  </td>
-                </tr>
-                <tr v-if="expandedJobId===j.id">
-                  <td colspan="7" style="padding:10px;background:var(--ui-card,#13111f)">
-                    <div v-if="!odJobDetail" class="inf-empty-note">加载详情中…</div>
-                    <div v-else>
-                      <ul v-if="odJobDetail.job.notes && odJobDetail.job.notes.length" style="margin:0 0 8px;padding-left:18px;color:var(--ui-muted);font-size:0.8rem">
-                        <li v-for="(n,i) in odJobDetail.job.notes" :key="i">{{ n }}</li>
-                      </ul>
-                      <table v-if="odJobDetail.listings.length" style="width:100%;font-size:0.8rem;margin-bottom:8px">
-                        <thead><tr style="color:var(--ui-muted)"><th align="left">SKU</th><th align="left">标题</th><th align="left">售价</th><th align="left">原价</th></tr></thead>
-                        <tbody><tr v-for="p in odJobDetail.listings" :key="p.sku">
-                          <td>{{ p.sku }}</td><td>{{ p.title }}</td><td>{{ p.sale_price }}</td><td>{{ p.original_price }}</td>
-                        </tr></tbody>
-                      </table>
-                      <table v-if="odJobDetail.reviews.length" style="width:100%;font-size:0.8rem">
-                        <thead><tr style="color:var(--ui-muted)"><th align="left" style="width:60px">评分</th><th align="left">评论</th></tr></thead>
-                        <tbody><tr v-for="(r,i) in odJobDetail.reviews" :key="i">
-                          <td>{{ r.rating }}</td><td>{{ r.content }}</td>
-                        </tr></tbody>
-                      </table>
-                      <div v-if="!odJobDetail.listings.length && !odJobDetail.reviews.length" class="inf-empty-note">本次未抓到数据</div>
-                    </div>
-                  </td>
-                </tr>
-              </template>
+              <tr v-for="j in odJobs" :key="j.id" style="cursor:pointer" @click="openJobDetail(j.id)">
+                <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ (j.created_at||'').replace('T',' ').slice(0,16) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ j.platform }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.url }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ j.listing_count }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">{{ j.review_count }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border)">
+                  <span v-if="j.status==='queued'" style="color:var(--ui-muted)">⏳ 排队中</span>
+                  <span v-else-if="j.status==='running'" style="color:#93c5fd">⚙️ 抓取中…</span>
+                  <span v-else :style="{color: j.status==='success'?'#86efac':(j.status==='partial'?'#fcd34d':'#fca5a5')}">
+                    {{ j.status==='success'?'成功':(j.status==='partial'?'部分':'失败') }}</span>
+                  <span v-if="j.attempts > 1" class="inf-empty-note" style="margin-left:4px">·重试{{ j.attempts - 1 }}次</span>
+                </td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--ui-border);white-space:nowrap">
+                  <button v-if="j.status==='failed' || j.status==='partial'" class="btn-prim"
+                          style="padding:2px 8px;font-size:0.72rem;margin-right:4px;background:rgba(147,197,253,.18);color:#93c5fd"
+                          :disabled="odBusyIds[j.id]"
+                          @click.stop="retryJob(j.id)">{{ odBusyIds[j.id]==='retry' ? '重试中…' : '重试' }}</button>
+                  <button class="btn-prim" style="padding:2px 8px;font-size:0.72rem;background:rgba(248,113,113,.18);color:#fca5a5"
+                          :disabled="odBusyIds[j.id]"
+                          @click.stop="deleteOndemandJob(j.id)">{{ odBusyIds[j.id]==='delete' ? '删除中…' : '删除' }}</button>
+                </td>
+              </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- 历史详情弹窗 -->
+        <div v-if="odShowDetail" class="od-modal" @click.self="odCloseDetail">
+          <div class="od-modal-card" style="max-width:760px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <h3 style="margin:0">抓取详情</h3>
+              <button class="btn-prim" style="background:transparent;color:var(--ui-muted);padding:2px 8px" @click="odCloseDetail">✕</button>
+            </div>
+            <div v-if="odDetailLoading" class="inf-empty-note">加载详情中…</div>
+            <div v-else-if="odJobDetail">
+              <ul v-if="odJobDetail.job.notes && odJobDetail.job.notes.length" style="margin:0 0 8px;padding-left:18px;color:var(--ui-muted);font-size:0.8rem">
+                <li v-for="(n,i) in odJobDetail.job.notes" :key="i">{{ n }}</li>
+              </ul>
+              <table v-if="odJobDetail.listings.length" style="width:100%;font-size:0.8rem;margin-bottom:8px">
+                <thead><tr style="color:var(--ui-muted)"><th align="left">SKU</th><th align="left">标题</th><th align="left">售价</th><th align="left">原价</th></tr></thead>
+                <tbody><tr v-for="p in odJobDetail.listings" :key="p.sku">
+                  <td>{{ p.sku }}</td><td>{{ p.title }}</td><td>{{ p.sale_price }}</td><td>{{ p.original_price }}</td>
+                </tr></tbody>
+              </table>
+              <!-- 评论:概览统计 + 星级筛选 + 分页 -->
+              <div v-if="odDetailReviews.length" style="margin-top:6px">
+                <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+                  <div style="text-align:center;min-width:90px">
+                    <div style="font-size:1.8rem;font-weight:700;color:var(--ui-text);line-height:1.1">{{ odDetailRvStats.avg.toFixed(1) }}</div>
+                    <div style="color:#f5b301;letter-spacing:1px">{{ odRvStars(Math.round(odDetailRvStats.avg)) }}</div>
+                    <div class="inf-empty-note" style="margin-top:2px">共 {{ odDetailRvStats.total }} 条</div>
+                  </div>
+                  <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:3px">
+                    <div v-for="star in [5,4,3,2,1]" :key="star"
+                         @click="odSetDetailRvFilter(odDetailRvFilter===star ? 0 : star)"
+                         :style="{display:'flex',alignItems:'center',gap:'8px',cursor:'pointer',padding:'2px 4px',borderRadius:'5px',background: odDetailRvFilter===star ? 'var(--ui-card-soft)' : 'transparent'}">
+                      <span style="width:26px;color:var(--ui-muted);font-size:0.76rem">{{ star }}★</span>
+                      <span style="flex:1;height:8px;background:var(--ui-border);border-radius:5px;overflow:hidden">
+                        <span :style="{display:'block',height:'100%',width:(odDetailRvStats.dist[star]/odDetailRvStats.max*100)+'%',background:'#f5b301'}"></span>
+                      </span>
+                      <span style="width:42px;text-align:right;color:var(--ui-muted);font-size:0.76rem">{{ odDetailRvStats.dist[star] }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px">
+                  <button v-for="opt in [{v:0,t:'全部'},{v:5,t:'5★'},{v:4,t:'4★'},{v:3,t:'3★'},{v:2,t:'2★'},{v:1,t:'1★'}]" :key="opt.v"
+                          @click="odSetDetailRvFilter(opt.v)"
+                          :style="{padding:'3px 11px',borderRadius:'13px',border:'1px solid var(--ui-border)',cursor:'pointer',fontSize:'0.78rem',background: odDetailRvFilter===opt.v ? 'var(--ui-purple)' : 'var(--ui-card)',color: odDetailRvFilter===opt.v ? '#fff' : 'var(--ui-text)'}">
+                    {{ opt.t }}</button>
+                  <span class="inf-empty-note" style="margin:0 0 0 auto">{{ odDetailRvFiltered.length }} 条 · 第 {{ odDetailRvPage }}/{{ odDetailRvPages }} 页</span>
+                </div>
+                <div style="margin-top:8px;max-height:48vh;overflow:auto">
+                  <div v-for="(r, i) in odDetailRvPageItems" :key="r.review_id || i"
+                       style="padding:9px 0;border-bottom:1px solid var(--ui-border)">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+                      <span style="color:#f5b301;letter-spacing:1px;font-size:0.88rem">{{ odRvStars(r.rating) }}</span>
+                      <span class="inf-empty-note" style="margin:0">{{ r.review_date || '' }}</span>
+                    </div>
+                    <div style="margin-top:4px;color:var(--ui-text);font-size:0.84rem;line-height:1.5">{{ r.content }}</div>
+                  </div>
+                </div>
+                <div v-if="odDetailRvPages > 1" style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:12px">
+                  <button class="btn-prim" :disabled="odDetailRvPage<=1" @click="odDetailRvPage--" style="padding:4px 12px">上一页</button>
+                  <span class="inf-empty-note" style="margin:0">{{ odDetailRvPage }} / {{ odDetailRvPages }}</span>
+                  <button class="btn-prim" :disabled="odDetailRvPage>=odDetailRvPages" @click="odDetailRvPage++" style="padding:4px 12px">下一页</button>
+                </div>
+              </div>
+              <div v-if="!odJobDetail.listings.length && !odDetailReviews.length" class="inf-empty-note">本次未抓到数据</div>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -1,4 +1,13 @@
 # smart-crawler 部署镜像 —— FastAPI + 采集器 + 看板
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /web
+RUN corepack enable && corepack prepare pnpm@10.27.0 --activate
+COPY frontend-app/package.json frontend-app/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend-app/ ./
+RUN pnpm build
+
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
@@ -17,6 +26,7 @@ RUN playwright install --with-deps chromium
 
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
+COPY --from=frontend-build /web/dist ./frontend-app/dist
 
 WORKDIR /app/backend
 EXPOSE 8077

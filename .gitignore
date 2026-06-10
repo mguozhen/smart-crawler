@@ -8,6 +8,11 @@ data/*.db
 .env
 data/
 backups/
+frontend-app/node_modules/
+frontend-app/dist/
+frontend-app/.vite/
+frontend-app/auto-imports.d.ts
+frontend-app/components.d.ts
 
 # 含 API key 的私密交付文件 — 仅本地，绝不入库
 deliverables/COLLEAGUE_ACCESS.md

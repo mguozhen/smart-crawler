@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .api.routes import public_router, router as api_router
 from .api.output import router as v1_router
@@ -17,6 +18,14 @@ from .api.influencer_discover import router as influencer_discover_router
 from .config import FRONTEND_DIR, PROJECT_DIR
 from .db import init_db
 from .mcp_server import mcp
+
+FRONTEND_APP_DIST = PROJECT_DIR / "frontend-app" / "dist"
+FRONTEND_APP_INDEX = FRONTEND_APP_DIST / "index.html"
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 # MCP 服务器 ASGI app —— 供 AI Agent 通过 MCP 协议发现/调用能力
 _mcp_app = mcp.http_app(path="/")
@@ -119,6 +128,13 @@ app.include_router(api_router)
 app.include_router(v1_router)
 app.include_router(v2_router)
 app.mount("/mcp", _mcp_app)              # AI Agent MCP 入口
+if (FRONTEND_APP_DIST / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_APP_DIST / "assets"), name="frontend-assets")
+
+
+def _spa_or_legacy(legacy_file):
+    target = FRONTEND_APP_INDEX if FRONTEND_APP_INDEX.exists() else legacy_file
+    return FileResponse(target, headers=NO_CACHE_HEADERS)
 
 
 @app.get("/health")
@@ -133,16 +149,10 @@ def home():
 
 
 @app.get("/app")
-def dashboard():
+@app.get("/app/{path:path}")
+def dashboard(path: str = ""):
     """数据看板控制台。No-cache 确保改 UI 后立即生效。"""
-    return FileResponse(
-        FRONTEND_DIR / "index.html",
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-    )
+    return _spa_or_legacy(FRONTEND_DIR / "index.html")
 
 
 @app.get("/favicon.svg")
@@ -153,10 +163,7 @@ def favicon():
 @app.get("/report")
 def report():
     """站点报表（还原 PDF report 完整内容）。"""
-    return FileResponse(
-        FRONTEND_DIR / "report.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-    )
+    return _spa_or_legacy(FRONTEND_DIR / "report.html")
 
 
 @app.get("/d/{path:path}")

@@ -8,3 +8,6 @@ research/
 __pycache__/
 *.pyc
 .DS_Store
+frontend-app/node_modules/
+frontend-app/dist/
+frontend-app/.vite/

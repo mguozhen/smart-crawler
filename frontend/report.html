@@ -264,7 +264,7 @@ const App = {
     const DEFAULT_CFG = {
       sections: { kpi:true, trend:true, products:true, promos:true },
       kpiCards: { sku:true, new:true, sales:true, revenue:true, traffic:true, conversion:true },
-      productCols: { sku:true, title:true, variants:true, attrs:true, price:false, rating:false, status:false, op:true },
+      productCols: { sku:true, title:true, attrs:true, price:false, rating:false, status:false },
       timeRange: '30d',  // 7d / 30d / 90d / all
     };
     function loadCfg() {
@@ -316,8 +316,9 @@ const App = {
           site: site.value, page: page.value, page_size: pageSize.value,
         });
         if (search.value) params.set('search', search.value);
-        if (subTab.value === 'new') params.set('status', 'new');
-        else if (subTab.value === 'bestseller') params.set('label', 'bestseller');
+        // 子 tab → 后端唯一认的 tab 参数(all|bestseller|new)
+        if (subTab.value === 'new' || subTab.value === 'bestseller')
+          params.set('tab', subTab.value);
         const r = await fetch(`/api/products?${params}`, { headers: authH() });
         const d = await r.json();
         products.value = { items: d.items || [], total: d.total || 0 };
@@ -330,6 +331,13 @@ const App = {
         const d = await r.json();
         promos.value = { items: d.items || d || [], total: (d.total||0) };
       } catch(e) { promos.value = { items:[], total:0 } }
+    }
+
+    // 导出当前站点产品(复用公开导出端点,token 走 query)
+    function exportProducts() {
+      const params = new URLSearchParams({ token: token.value, site: site.value, format: 'xlsx' });
+      if (currentWorkspaceId.value) params.set('workspace_id', currentWorkspaceId.value);
+      window.open(`/api/export/products?${params}`, '_blank');
     }
 
     async function loadAll() {
@@ -387,7 +395,7 @@ const App = {
       token, site, sites, tab, subTab, search, page, pageSize,
       cards, trends, products, promos, loading, dateRange, lastUpdate,
       siteUrl, brand, totalPages,
-      loadAll, loadProducts,
+      loadAll, loadProducts, exportProducts,
       chartLines, makePath,
       cfg, cfgOpen, saveCfg, resetCfg,
     };
@@ -415,7 +423,7 @@ const App = {
         </div>
         <div class="meta">
           <span>总产品数: <b>{{ cards.sku_count || '--' }}</b></span>
-          <span>总类别数: <b>{{ products.total ? '--' : '--' }}</b></span>
+          <span>总类别数: <b>{{ cards.category_count || '--' }}</b></span>
         </div>
       </div>
 
@@ -432,21 +440,15 @@ const App = {
           <div v-if="cfg.kpiCards.new" class="stat"><div class="lbl">新增产品</div><div class="val">{{ cards.new_product_count ? cards.new_product_count.toLocaleString() : '--' }}</div><div class="sub">New Arrivals</div></div>
           <div v-if="cfg.kpiCards.sales" class="stat"><div class="lbl">30天销量</div><div class="val">{{ cards.thirty_day_sales ? cards.thirty_day_sales.toLocaleString() : '--' }}</div><div class="sub">上个周期: --</div></div>
           <div v-if="cfg.kpiCards.revenue" class="stat"><div class="lbl">30天收入</div><div class="val">{{ cards.thirty_day_revenue ? '$' + (cards.thirty_day_revenue/1000).toFixed(1) + 'k' : '--' }}</div><div class="sub">上个周期: --</div></div>
-          <div v-if="cfg.kpiCards.traffic" class="stat"><div class="lbl">30天流量</div><div class="val">{{ cards.traffic || '--' }}</div><div class="sub">PV/UV</div></div>
-          <div v-if="cfg.kpiCards.conversion" class="stat"><div class="lbl">30天转化率</div><div class="val">{{ cards.conversion_rate || '--' }}</div><div class="sub">--</div></div>
+          <div v-if="cfg.kpiCards.traffic" class="stat"><div class="lbl">畅销产品</div><div class="val">{{ cards.bestseller_count != null ? cards.bestseller_count.toLocaleString() : '--' }}</div><div class="sub">Bestsellers</div></div>
+          <div v-if="cfg.kpiCards.conversion" class="stat"><div class="lbl">类别数</div><div class="val">{{ cards.category_count != null ? cards.category_count.toLocaleString() : '--' }}</div><div class="sub">Categories</div></div>
         </div>
 
         <div v-if="cfg.sections.trend" class="section">
           <div class="section-head">
             <h3>📈 销售趋势 <span class="desc">分析整体销售情况和品牌市场份额</span></h3>
             <div class="actions">
-              <select class="icon-btn" style="padding:6px 10px">
-                <option>按天</option>
-                <option>按周</option>
-                <option>按月</option>
-              </select>
               <span style="font-size:12px;color:#6b7280">{{ dateRange.from }} → {{ dateRange.to }}</span>
-              <button class="icon-btn">↓</button>
             </div>
           </div>
 
@@ -456,8 +458,6 @@ const App = {
               <span><span class="legend-dot" style="background:#10b981"></span>新SKU</span>
               <span><span class="legend-dot" style="background:#f59e0b"></span>销售</span>
               <span><span class="legend-dot" style="background:#ef4444"></span>收入</span>
-              <span><span class="legend-dot" style="background:#8b5cf6"></span>流量</span>
-              <span><span class="legend-dot" style="background:#06b6d4"></span>转化率</span>
             </div>
 
             <svg v-if="chartLines" class="chart-svg" viewBox="0 0 900 260" preserveAspectRatio="none">
@@ -497,17 +497,16 @@ const App = {
             <h3>📦 产品分析 <span class="desc">查看产品的基本信息和详细属性</span></h3>
             <div class="actions">
               <button class="icon-btn" @click="loadProducts">↻ 刷新</button>
-              <button class="icon-btn">↓ 导出</button>
+              <button class="icon-btn" @click="exportProducts">↓ 导出</button>
             </div>
           </div>
 
           <div class="sub-tabs">
             <button :class="{active: subTab==='all'}" @click="subTab='all';page=1">所有产品({{ products.total || 0 }})</button>
-            <button :class="{active: subTab==='bestseller'}" @click="subTab='bestseller';page=1">畅销产品(0)</button>
+            <button :class="{active: subTab==='bestseller'}" @click="subTab='bestseller';page=1">畅销产品({{ cards.bestseller_count || 0 }})</button>
             <button :class="{active: subTab==='new'}" @click="subTab='new';page=1">最新产品({{ cards.new_product_count || 0 }})</button>
             <div class="right">
               <input class="search-box" v-model="search" placeholder="🔍 搜索" @keyup.enter="loadProducts"/>
-              <button class="icon-btn">☷ 筛选</button>
             </div>
           </div>
 
@@ -517,19 +516,16 @@ const App = {
                 <th style="width:50px">NO.</th>
                 <th v-if="cfg.productCols.sku">库存单位</th>
                 <th v-if="cfg.productCols.title">产品详情</th>
-                <th v-if="cfg.productCols.variants" style="width:70px">变体</th>
                 <th v-if="cfg.productCols.attrs">属性</th>
                 <th v-if="cfg.productCols.price" style="width:90px">价格</th>
                 <th v-if="cfg.productCols.rating" style="width:80px">评分</th>
                 <th v-if="cfg.productCols.status" style="width:90px">状态</th>
-                <th v-if="cfg.productCols.op" style="width:60px">操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(p, i) in products.items" :key="p.id || p.sku">
                 <td>{{ (page-1)*pageSize + i + 1 }}</td>
                 <td v-if="cfg.productCols.sku">
-                  <button class="add-btn">+</button>
                   <a class="sku-link">{{ p.sku }}</a>
                 </td>
                 <td v-if="cfg.productCols.title">
@@ -538,7 +534,6 @@ const App = {
                     <div class="info">{{ (p.title || '').slice(0, 65) }}<span v-if="p.is_new" class="new-badge">NEW</span></div>
                   </div>
                 </td>
-                <td v-if="cfg.productCols.variants">{{ p.variant_count || 1 }}</td>
                 <td v-if="cfg.productCols.attrs">
                   <div class="attr-cell">
                     <div v-if="p.attributes && p.attributes.color">Color: {{ p.attributes.color }}</div>
@@ -550,7 +545,6 @@ const App = {
                 <td v-if="cfg.productCols.price">{{ p.sale_price ? '$' + p.sale_price : '--' }}</td>
                 <td v-if="cfg.productCols.rating">{{ p.ratings ? p.ratings + ' (' + (p.review_count||0) + ')' : '--' }}</td>
                 <td v-if="cfg.productCols.status">{{ p.status || '--' }}</td>
-                <td v-if="cfg.productCols.op"><button class="op-btn">⊞</button></td>
               </tr>
               <tr v-if="!products.items.length">
                 <td :colspan="1 + Object.values(cfg.productCols).filter(v=>v).length" class="empty">暂无数据 · 切换 site 或先抓取</td>
@@ -579,20 +573,8 @@ const App = {
           <div class="section-head">
             <h3>🎁 销售促销 <span class="desc">查看产品的促销信息</span></h3>
             <div class="actions">
-              <select class="icon-btn" style="padding:6px 10px">
-                <option>2025-07-31</option>
-              </select>
-              <button class="icon-btn">↓</button>
+              <button class="icon-btn" @click="loadPromotions">↻ 刷新</button>
             </div>
-          </div>
-
-          <div class="sub-tabs">
-            <input class="search-box" placeholder="🔍 搜索"/>
-            <select class="icon-btn" style="padding:6px 10px;margin-left:8px">
-              <option>类型</option>
-              <option>价格促销</option>
-              <option>满减</option>
-            </select>
           </div>
 
           <table>
@@ -603,13 +585,12 @@ const App = {
                 <th>更新时间</th>
                 <th>产品详情</th>
                 <th>类型</th>
-                <th style="width:60px">操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(pr, i) in (promos.items||[]).slice(0,20)" :key="pr.id">
                 <td>{{ i + 1 }}</td>
-                <td><button class="add-btn">+</button><a class="sku-link">{{ pr.sku }}</a></td>
+                <td><a class="sku-link">{{ pr.sku }}</a></td>
                 <td>{{ (pr.detected_time || '').slice(0, 16) }}</td>
                 <td>
                   <div class="title-cell">
@@ -618,10 +599,9 @@ const App = {
                   </div>
                 </td>
                 <td>{{ pr.promotion_type || pr.type || '价格促销' }}</td>
-                <td><button class="op-btn">⊞</button></td>
               </tr>
               <tr v-if="!(promos.items||[]).length">
-                <td colspan="6" class="empty">暂无促销数据</td>
+                <td colspan="5" class="empty">暂无促销数据</td>
               </tr>
             </tbody>
           </table>
@@ -656,12 +636,10 @@ const App = {
             <h4>产品 table 列</h4>
             <div class="cfg-row"><input id="cc-sku" type="checkbox" v-model="cfg.productCols.sku"><label for="cc-sku">库存单位 SKU</label></div>
             <div class="cfg-row"><input id="cc-title" type="checkbox" v-model="cfg.productCols.title"><label for="cc-title">产品详情</label></div>
-            <div class="cfg-row"><input id="cc-var" type="checkbox" v-model="cfg.productCols.variants"><label for="cc-var">变体数</label></div>
             <div class="cfg-row"><input id="cc-attr" type="checkbox" v-model="cfg.productCols.attrs"><label for="cc-attr">属性</label></div>
             <div class="cfg-row"><input id="cc-price" type="checkbox" v-model="cfg.productCols.price"><label for="cc-price">价格</label></div>
             <div class="cfg-row"><input id="cc-rating" type="checkbox" v-model="cfg.productCols.rating"><label for="cc-rating">评分</label></div>
             <div class="cfg-row"><input id="cc-status" type="checkbox" v-model="cfg.productCols.status"><label for="cc-status">状态</label></div>
-            <div class="cfg-row"><input id="cc-op" type="checkbox" v-model="cfg.productCols.op"><label for="cc-op">操作按钮</label></div>
           </div>
           <div class="cfg-group">
             <h4>时间范围</h4>

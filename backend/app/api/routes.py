@@ -510,11 +510,21 @@ def me(user: str = Depends(require_user), db: Session = Depends(get_db)):
     if not u:
         return {"username": user, "role": "viewer"}
     workspaces = [_workspace_response(ws) for ws in _user_workspaces(db, u)]
+    current_ws_id = (
+        u.default_workspace_id or (workspaces[0]["id"] if workspaces else None)
+    )
+    # 当前工作区内的成员角色(owner/admin/member/viewer),供前端按租户角色门控
+    workspace_role = None
+    if current_ws_id:
+        from .. import models as _m
+        mem = (db.query(_m.WorkspaceMember)
+               .filter(_m.WorkspaceMember.workspace_id == current_ws_id,
+                       _m.WorkspaceMember.user_id == u.id).first())
+        workspace_role = mem.role if mem else None
     return _public_user(u) | {
         "workspaces": workspaces,
-        "current_workspace_id": (
-            u.default_workspace_id or (workspaces[0]["id"] if workspaces else None)
-        ),
+        "current_workspace_id": current_ws_id,
+        "workspace_role": workspace_role,
     }
 
 
@@ -526,6 +536,15 @@ def update_me(payload: dict, user: str = Depends(require_user),
     if not display_name:
         raise HTTPException(400, "display_name 不能为空")
     u.display_name = display_name[:80]
+    # 邮箱可选更新(唯一约束:不能与他人重复)
+    if "email" in (payload or {}):
+        email = str(payload.get("email") or "").strip().lower()
+        if email and email != (u.email or ""):
+            clash = (db.query(User)
+                     .filter(User.email == email, User.id != u.id).first())
+            if clash:
+                raise HTTPException(400, "该邮箱已被占用")
+            u.email = email
     db.commit()
     return _public_user(u)
 
@@ -627,6 +646,11 @@ def site_overview(site: str, user: str = Depends(require_user),
     sku_count = db.query(Product).filter(Product.site == site).count()
     new_count = db.query(Product).filter(
         Product.site == site, Product.is_new.is_(True)).count()
+    bestseller_count = db.query(Product).filter(
+        Product.site == site, Product.is_bestseller.is_(True)).count()
+    category_count = (db.query(func.count(func.distinct(Product.category_path)))
+                      .filter(Product.site == site,
+                              Product.category_path.isnot(None)).scalar() or 0)
     sales, revenue = db.query(
         func.coalesce(func.sum(Product.thirty_day_sales), 0),
         func.coalesce(func.sum(Product.thirty_day_revenue), 0.0),
@@ -640,6 +664,8 @@ def site_overview(site: str, user: str = Depends(require_user),
     return {
         "cards": {
             "sku_count": sku_count, "new_product_count": new_count,
+            "bestseller_count": bestseller_count,
+            "category_count": int(category_count),
             "thirty_day_sales": int(sales or 0),
             "thirty_day_revenue": round(revenue or 0, 2),
             "traffic": None, "conversion_rate": None,
