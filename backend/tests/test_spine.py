@@ -66,3 +66,51 @@ def test_quality_check_promote_if_valid():
     # block 警告 → quarantine(覆盖 policy)
     st, _ = quality_check({"title": "x"}, "product", 0.9, ["blocked"], "main")
     assert st == "quarantine"
+
+
+def _fake_scrape(data, *, confidence=0.9, warnings=None, canonical=None,
+                 html="<html>x</html>"):
+    return {
+        "scrape_id": "scr_test", "url": "https://x.com/p/1",
+        "data": {**data, "confidence": confidence},
+        "metadata": {"canonical": canonical}, "html": html,
+        "warnings": warnings or [],
+        "usage": {"source": "live"},
+    }
+
+
+def test_ingest_creates_snapshot_and_record():
+    init_db(); s = SessionLocal()
+    ds = get_or_create_dataset(s, "ingest-set", workspace_id=None, entity_type="product")
+    from app.spine import ingest_extraction
+    from app.models import ExtractedRecord
+    out = ingest_extraction(s, _fake_scrape({"title": "Widget"}), ds,
+                            save_policy="promote_if_valid", workspace_id=None)
+    assert out["quality_status"] == "main"
+    assert out["record_id"] and out["snapshot_id"]
+    assert out["provenance"]["content_hash"]
+    rec = s.query(ExtractedRecord).filter_by(dataset_id=ds.id).one()
+    assert rec.data["title"] == "Widget" and rec.confidence == 0.9
+    s.close()
+
+
+def test_ingest_low_confidence_goes_staging():
+    init_db(); s = SessionLocal()
+    ds = get_or_create_dataset(s, "stg-set", workspace_id=None, entity_type="product")
+    from app.spine import ingest_extraction
+    out = ingest_extraction(s, _fake_scrape({"title": "X"}, confidence=0.2), ds,
+                            save_policy="promote_if_valid", workspace_id=None)
+    assert out["quality_status"] == "staging"
+    s.close()
+
+
+def test_ingest_upsert_same_url_no_dup_and_hash_skip():
+    init_db(); s = SessionLocal()
+    ds = get_or_create_dataset(s, "up-set", workspace_id=None, entity_type="product")
+    from app.spine import ingest_extraction
+    from app.models import ExtractedRecord
+    a = ingest_extraction(s, _fake_scrape({"title": "A"}), ds, save_policy="main", workspace_id=None)
+    b = ingest_extraction(s, _fake_scrape({"title": "A"}), ds, save_policy="main", workspace_id=None)
+    assert a["record_id"] == b["record_id"]
+    assert s.query(ExtractedRecord).filter_by(dataset_id=ds.id).count() == 1
+    s.close()

@@ -13,6 +13,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from sqlalchemy.orm import Session
 
+from . import snapshot
 from .models import Dataset, ExtractedRecord, RawSnapshot
 
 _TRACKING_PARAMS = {
@@ -90,3 +91,74 @@ def quality_check(data: dict, entity_type: str, confidence: float,
     if confidence >= _CONFIDENCE_MIN and not missing:
         return "main", missing
     return "staging", missing
+
+
+def ingest_extraction(db: Session, scrape_result: dict, dataset: Dataset, *,
+                      save_policy: str = "promote_if_valid",
+                      workspace_id: int | None = None) -> dict:
+    """把一次 scrape_url 结果落库:raw_snapshot + extracted_record + 质量门。"""
+    data = dict(scrape_result.get("data") or {})
+    confidence = float(data.pop("confidence", 0.0) or 0.0)
+    meta = scrape_result.get("metadata") or {}
+    url = scrape_result.get("url") or ""
+    canon = canonical_url(url, explicit=meta.get("canonical"))
+    warnings = scrape_result.get("warnings") or []
+    entity_type = dataset.entity_type or "generic"
+    now = datetime.utcnow()
+
+    # 1) raw_snapshot(正文写盘 + 元数据入表)
+    html = scrape_result.get("html") or ""
+    body_path = snapshot.save_returning_path(
+        dataset.slug, canon.rsplit("/", 1)[-1] or "page", html)
+    snap = RawSnapshot(
+        url=url, canonical_url=canon, content_hash=content_hash(html),
+        fetched_at=now, status_code=(meta.get("status") or 200),
+        etag=meta.get("etag"), last_modified=meta.get("last_modified"),
+        content_type=meta.get("content_type"), body_path=body_path,
+        fetch_mode=(scrape_result.get("usage") or {}).get("source") or "live",
+        workspace_id=workspace_id)
+    db.add(snap); db.flush()
+
+    # 2) 质量门
+    method = "jsonld" if confidence >= 0.9 else "heuristic"
+    status, missing = quality_check(data, entity_type, confidence, warnings, save_policy)
+    chash = content_hash(data)
+
+    # 3) upsert by (dataset_id, record_key)
+    rec = (db.query(ExtractedRecord)
+           .filter_by(dataset_id=dataset.id, record_key=canon).first())
+    if rec is None:
+        rec = ExtractedRecord(dataset_id=dataset.id, record_key=canon,
+                              source_url=url, canonical_url=canon,
+                              entity_type=entity_type, workspace_id=workspace_id)
+        db.add(rec)
+    elif rec.content_hash == chash:
+        # 内容没变 → 只刷新 fetched_at,不重写 data(SP2 少爬钩子)
+        rec.fetched_at = now; rec.snapshot_id = snap.id
+        db.commit()
+        return _ingest_response(scrape_result, snap, dataset, rec, status, missing,
+                                save_policy, canon, url, unchanged=True)
+    rec.data = data; rec.content_hash = chash; rec.confidence = confidence
+    rec.extraction_method = method; rec.quality_status = status
+    rec.snapshot_id = snap.id; rec.fetched_at = now; rec.extracted_at = now
+    db.commit(); db.refresh(rec)
+    return _ingest_response(scrape_result, snap, dataset, rec, status, missing,
+                            save_policy, canon, url, unchanged=False)
+
+
+def _ingest_response(scrape_result, snap, dataset, rec, status, missing,
+                     save_policy, canon, url, *, unchanged) -> dict:
+    return {
+        "scrape_id": scrape_result.get("scrape_id"),
+        "snapshot_id": snap.id, "dataset_id": dataset.id, "record_id": rec.id,
+        "confidence": rec.confidence, "quality_status": status,
+        "fetch_mode": snap.fetch_mode, "missing_fields": missing,
+        "warnings": scrape_result.get("warnings") or [],
+        "save_policy": save_policy, "unchanged": unchanged,
+        "provenance": {
+            "source_url": url, "canonical_url": canon,
+            "fetched_at": rec.fetched_at.isoformat() if rec.fetched_at else None,
+            "extraction_method": rec.extraction_method,
+            "content_hash": rec.content_hash,
+        },
+    }
