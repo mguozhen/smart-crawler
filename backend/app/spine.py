@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from sqlalchemy.orm import Session
@@ -162,3 +162,54 @@ def _ingest_response(scrape_result, snap, dataset, rec, status, missing,
             "content_hash": rec.content_hash,
         },
     }
+
+
+_GLOBAL_TTL = 86400
+
+
+def _do_scrape(db: Session, url: str, *, force_live: bool, mode: str) -> dict:
+    """包一层 agent_crawler.scrape_url,便于测试 monkeypatch。"""
+    from .agent_crawler import scrape_url as _scrape
+    out = _scrape(db, url, force_live=force_live, mode=mode)
+    out.setdefault("url", url)
+    return out
+
+
+def resolve(db: Session, url: str, dataset: Dataset, *, workspace_id: int | None,
+            force_live: bool = False, max_age_sec: int | None = None,
+            save_policy: str = "promote_if_valid", mode: str = "standard") -> dict:
+    """warehouse-first 带 TTL。返回 data + source + credits + provenance。"""
+    canon = canonical_url(url)
+    if not force_live:
+        rec = (db.query(ExtractedRecord)
+               .filter_by(dataset_id=dataset.id, record_key=canon,
+                          quality_status="main").first())
+        if rec and rec.fetched_at:
+            ttl = max_age_sec or dataset.freshness_ttl_sec or _GLOBAL_TTL
+            age = (datetime.utcnow() - rec.fetched_at).total_seconds()
+            if age <= ttl:
+                return {
+                    "source": "warehouse", "credits_used": 0,
+                    "dataset_id": dataset.id, "record_id": rec.id,
+                    "data": rec.data, "confidence": rec.confidence,
+                    "quality_status": rec.quality_status,
+                    "age_sec": int(age),
+                    "provenance": {
+                        "source_url": rec.source_url,
+                        "canonical_url": rec.canonical_url,
+                        "fetched_at": rec.fetched_at.isoformat(),
+                        "extraction_method": rec.extraction_method,
+                        "content_hash": rec.content_hash,
+                    },
+                }
+    # 未命中/过期/force_live → live 抓 + 落库
+    scrape_result = _do_scrape(db, url, force_live=True, mode=mode)
+    # force_live 默认强抓不污染主库 → staging
+    policy = save_policy if not force_live else "staging"
+    out = ingest_extraction(db, scrape_result, dataset,
+                            save_policy=policy, workspace_id=workspace_id)
+    out["source"] = "live"
+    out["credits_used"] = (scrape_result.get("usage") or {}).get("credits_used", 2)
+    out["data"] = {k: v for k, v in (scrape_result.get("data") or {}).items()
+                   if k != "confidence"}
+    return out

@@ -1,7 +1,10 @@
 """通用数据脊柱（SP1）测试。"""
+from datetime import datetime
+
 from sqlalchemy import inspect
 
 from app.db import engine, init_db
+from app.models import ExtractedRecord
 
 
 def test_spine_tables_exist():
@@ -113,4 +116,56 @@ def test_ingest_upsert_same_url_no_dup_and_hash_skip():
     b = ingest_extraction(s, _fake_scrape({"title": "A"}), ds, save_policy="main", workspace_id=None)
     assert a["record_id"] == b["record_id"]
     assert s.query(ExtractedRecord).filter_by(dataset_id=ds.id).count() == 1
+    s.close()
+
+
+def test_resolve_warehouse_hit_within_ttl(monkeypatch):
+    import uuid
+    init_db(); s = SessionLocal()
+    ds = get_or_create_dataset(s, f"res-set-{uuid.uuid4().hex[:8]}", workspace_id=None, entity_type="product")
+    import app.spine as spine
+    calls = {"n": 0}
+    def fake_scrape(db, url, **kw):
+        calls["n"] += 1
+        return _fake_scrape({"title": "R"}, canonical=None) | {"url": url}
+    monkeypatch.setattr(spine, "_do_scrape", fake_scrape)
+    r1 = spine.resolve(s, "https://x.com/p/9", ds, workspace_id=None)
+    assert r1["source"] in ("live", "warehouse") and calls["n"] == 1
+    r2 = spine.resolve(s, "https://x.com/p/9", ds, workspace_id=None, max_age_sec=3600)
+    assert r2["source"] == "warehouse" and r2["credits_used"] == 0 and calls["n"] == 1
+    s.close()
+
+
+def test_resolve_force_live_bypasses_warehouse(monkeypatch):
+    import uuid
+    init_db(); s = SessionLocal()
+    ds = get_or_create_dataset(s, f"fl-set-{uuid.uuid4().hex[:8]}", workspace_id=None, entity_type="product")
+    import app.spine as spine
+    calls = {"n": 0}
+    def fake_scrape(db, url, **kw):
+        calls["n"] += 1
+        return _fake_scrape({"title": "R"}) | {"url": url}
+    monkeypatch.setattr(spine, "_do_scrape", fake_scrape)
+    spine.resolve(s, "https://x.com/p/8", ds, workspace_id=None)
+    spine.resolve(s, "https://x.com/p/8", ds, workspace_id=None, force_live=True)
+    assert calls["n"] == 2
+    s.close()
+
+
+def test_resolve_stale_refetches(monkeypatch):
+    import uuid
+    init_db(); s = SessionLocal()
+    ds = get_or_create_dataset(s, f"stale-set-{uuid.uuid4().hex[:8]}", workspace_id=None, entity_type="product")
+    import app.spine as spine
+    from datetime import timedelta
+    calls = {"n": 0}
+    def fake_scrape(db, url, **kw):
+        calls["n"] += 1
+        return _fake_scrape({"title": "R"}) | {"url": url}
+    monkeypatch.setattr(spine, "_do_scrape", fake_scrape)
+    spine.resolve(s, "https://x.com/p/7", ds, workspace_id=None)
+    rec = s.query(ExtractedRecord).filter_by(dataset_id=ds.id).first()
+    rec.fetched_at = datetime.utcnow() - timedelta(seconds=99999); s.commit()
+    spine.resolve(s, "https://x.com/p/7", ds, workspace_id=None, max_age_sec=10)
+    assert calls["n"] == 2
     s.close()
