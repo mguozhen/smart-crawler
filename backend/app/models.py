@@ -33,6 +33,13 @@ class Site(Base):
     platform = Column(String)                        # shopify / nuxt / vue_spa
     proxy_tier = Column(String, default="none")
     last_crawled = Column(DateTime)
+    # 标杆追踪面板字段（2026-06-11）
+    track_status = Column(String, default="tracking")  # tracking / paused / error
+    source = Column(String, default="yaml")            # yaml(种子) / user(面板建)
+    creator = Column(String)                            # 创建人 username
+    review_rate = Column(Float)                         # 留评率(Edit 可改，影响销量估算)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime)
 
 
 class Product(Base):
