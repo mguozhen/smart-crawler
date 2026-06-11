@@ -1,0 +1,36 @@
+"""通用数据脊柱（SP1）—— 落库 + warehouse-first + 质量门。
+
+复用 agent_crawler.scrape_url 的抓取与提取,只在其后接落库/读路径。
+不改任何现有电商表/采集器。
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import datetime
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+_TRACKING_PARAMS = {
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "fbclid", "gclid", "msclkid", "mc_cid", "mc_eid", "_ga", "ref", "ref_src",
+}
+
+
+def canonical_url(url: str, explicit: str | None = None) -> str:
+    """规整 URL 作去重键。explicit(页面 <link rel=canonical>) 优先。"""
+    target = explicit or url
+    p = urlparse(target if "://" in target else f"https://{target}")
+    host = (p.netloc or "").lower()
+    path = p.path.rstrip("/") or "/"
+    query = urlencode([(k, v) for k, v in parse_qsl(p.query)
+                       if k.lower() not in _TRACKING_PARAMS])
+    return urlunparse((p.scheme or "https", host, path, "", query, ""))
+
+
+def content_hash(value) -> str:
+    """对 dict/str 算稳定 sha256(dict 按 key 排序,顺序无关)。"""
+    if isinstance(value, (bytes, str)):
+        raw = value.encode("utf-8") if isinstance(value, str) else value
+    else:
+        raw = json.dumps(value, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
