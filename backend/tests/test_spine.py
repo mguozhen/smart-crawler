@@ -36,3 +36,33 @@ def test_canonical_prefers_explicit():
 def test_content_hash_stable_and_order_independent():
     assert content_hash({"a": 1, "b": 2}) == content_hash({"b": 2, "a": 1})
     assert content_hash({"a": 1}) != content_hash({"a": 2})
+
+
+from app.db import SessionLocal
+from app.spine import get_or_create_dataset, quality_check
+
+
+def test_get_or_create_dataset_idempotent():
+    init_db(); s = SessionLocal()
+    d1 = get_or_create_dataset(s, "My Set", workspace_id=None, entity_type="product")
+    d2 = get_or_create_dataset(s, "My Set", workspace_id=None, entity_type="product")
+    assert d1.id == d2.id and d1.slug == "my-set"
+    s.close()
+
+
+def test_quality_check_promote_if_valid():
+    # 高置信 + 必填齐 → main
+    st, missing = quality_check({"title": "x"}, "product", 0.9, [], "promote_if_valid")
+    assert st == "main" and missing == []
+    # 低置信 → staging
+    st, _ = quality_check({"title": "x"}, "product", 0.3, [], "promote_if_valid")
+    assert st == "staging"
+    # 缺必填 → staging + missing
+    st, missing = quality_check({}, "product", 0.9, [], "promote_if_valid")
+    assert st == "staging" and "title" in missing
+    # 显式 main 跳质量门
+    st, _ = quality_check({}, "product", 0.1, [], "main")
+    assert st == "main"
+    # block 警告 → quarantine(覆盖 policy)
+    st, _ = quality_check({"title": "x"}, "product", 0.9, ["blocked"], "main")
+    assert st == "quarantine"

@@ -7,8 +7,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+from sqlalchemy.orm import Session
+
+from .models import Dataset, ExtractedRecord, RawSnapshot
 
 _TRACKING_PARAMS = {
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
@@ -34,3 +39,54 @@ def content_hash(value) -> str:
     else:
         raw = json.dumps(value, sort_keys=True, ensure_ascii=False).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
+
+
+_CONFIDENCE_MIN = 0.6
+_REQUIRED_FIELDS = {
+    "product": {"title"},
+    "review": {"content"},
+    "article": {"title"},
+    "generic": set(),
+}
+_BLOCK_MARKERS = ("blocked", "challenge", "captcha", "403", "429")
+
+
+def _slugify(name: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    return s or "dataset"
+
+
+def get_or_create_dataset(db: Session, name: str, *, workspace_id: int | None,
+                          entity_type: str = "generic",
+                          source_kind: str = "custom_url") -> Dataset:
+    slug = _slugify(name)
+    row = (db.query(Dataset)
+           .filter(Dataset.workspace_id == workspace_id, Dataset.slug == slug)
+           .first())
+    if row:
+        return row
+    row = Dataset(name=name, slug=slug, entity_type=entity_type,
+                  source_kind=source_kind, workspace_id=workspace_id)
+    db.add(row); db.commit(); db.refresh(row)
+    return row
+
+
+def quality_check(data: dict, entity_type: str, confidence: float,
+                  warnings: list, save_policy: str) -> tuple[str, list[str]]:
+    """返回 (quality_status, missing_fields)。"""
+    required = _REQUIRED_FIELDS.get(entity_type, set())
+    missing = [f for f in required if not (data or {}).get(f)]
+    # 被反爬污染 → quarantine,优先级最高
+    wtext = " ".join(str(w) for w in (warnings or [])).lower()
+    if any(m in wtext for m in _BLOCK_MARKERS):
+        return "quarantine", missing
+    if save_policy == "quarantine":
+        return "quarantine", missing
+    if save_policy == "main":
+        return "main", missing
+    if save_policy == "staging":
+        return "staging", missing
+    # promote_if_valid(默认)
+    if confidence >= _CONFIDENCE_MIN and not missing:
+        return "main", missing
+    return "staging", missing
