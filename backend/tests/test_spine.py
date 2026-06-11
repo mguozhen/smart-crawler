@@ -185,3 +185,22 @@ def test_resolve_max_age_zero_always_refetches(monkeypatch):
     spine.resolve(s, "https://x.com/p/z", ds, workspace_id=None, max_age_sec=0)
     assert calls["n"] == 2  # max_age_sec=0 强制重抓
     s.close()
+
+
+def test_query_dataset_main_only_by_default():
+    import uuid
+    init_db(); s = SessionLocal()
+    ds = get_or_create_dataset(s, "q-set-" + uuid.uuid4().hex[:8],
+                               workspace_id=None, entity_type="product")
+    from app.spine import ingest_extraction, query_dataset
+    ingest_extraction(s, _fake_scrape({"title": "Alpha"}), ds, save_policy="main", workspace_id=None)
+    ingest_extraction(s, _fake_scrape({"title": "Beta"}) | {"url": "https://x.com/p/2"},
+                      ds, save_policy="staging", workspace_id=None)
+    main = query_dataset(s, ds, query=None, include_staging=False, limit=10)
+    assert main["total"] == 1 and main["items"][0]["data"]["title"] == "Alpha"
+    allrec = query_dataset(s, ds, query=None, include_staging=True, limit=10)
+    assert allrec["total"] == 2
+    # query 文本命中 data
+    hit = query_dataset(s, ds, query="Alpha", include_staging=True, limit=10)
+    assert hit["total"] == 1
+    s.close()

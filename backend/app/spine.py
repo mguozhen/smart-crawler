@@ -11,6 +11,7 @@ import re
 from datetime import datetime, timedelta
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import Session
 
 from . import snapshot
@@ -218,3 +219,28 @@ def resolve(db: Session, url: str, dataset: Dataset, *, workspace_id: int | None
     out["data"] = {k: v for k, v in (scrape_result.get("data") or {}).items()
                    if k != "confidence"}
     return out
+
+
+def query_dataset(db: Session, dataset: Dataset, *, query: str | None = None,
+                  entity_type: str | None = None, include_staging: bool = False,
+                  limit: int = 20) -> dict:
+    """查通用数据集。默认只返 main;include_staging 才带 staging。"""
+    q = db.query(ExtractedRecord).filter(ExtractedRecord.dataset_id == dataset.id)
+    statuses = ["main"] + (["staging"] if include_staging else [])
+    q = q.filter(ExtractedRecord.quality_status.in_(statuses))
+    if entity_type:
+        q = q.filter(ExtractedRecord.entity_type == entity_type)
+    if query:
+        like = f"%{query}%"
+        q = q.filter(or_(ExtractedRecord.source_url.ilike(like),
+                         ExtractedRecord.canonical_url.ilike(like),
+                         cast(ExtractedRecord.data, String).ilike(like)))
+    total = q.count()
+    rows = q.order_by(ExtractedRecord.fetched_at.desc().nullslast(),
+                      ExtractedRecord.id.desc()).limit(limit).all()
+    return {"total": total, "dataset": dataset.slug, "items": [
+        {"record_id": r.id, "entity_type": r.entity_type, "data": r.data,
+         "confidence": r.confidence, "quality_status": r.quality_status,
+         "source_url": r.source_url,
+         "fetched_at": r.fetched_at.isoformat() if r.fetched_at else None}
+        for r in rows]}
