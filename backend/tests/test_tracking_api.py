@@ -114,3 +114,10 @@ def test_delete_only_user_source():
     s.close()
     if yaml_site:
         assert client.delete(f"/api/tracking/{yaml_site.site}", headers=_admin_headers()).status_code == 400
+
+
+def test_patch_invalid_review_rate_400():
+    init_db(); client = TestClient(app)
+    code = _make_user_site(client)
+    r = client.patch(f"/api/tracking/{code}", headers=_admin_headers(), json={"review_rate": "abc"})
+    assert r.status_code == 400

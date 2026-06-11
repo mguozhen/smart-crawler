@@ -5,12 +5,12 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import re
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -21,9 +21,10 @@ from ..runner import enqueue
 from .routes import (require_user, _current_workspace, _require_admin,
                      _workspace_site_names)
 
-router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
+import logging
+logger = logging.getLogger(__name__)
 
-_NEW_DAYS = 30
+router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
 
 
 def _metrics(db: Session, site: str) -> dict:
@@ -136,8 +137,8 @@ def add_tracking(
 
     try:
         enqueue(code, trigger="tracking_add", requested_by_workspace_id=ws.id)
-    except Exception:
-        pass  # 入队失败不阻断建站,站已落库,可后续手动触发
+    except Exception as exc:
+        logger.warning("tracking add: enqueue 失败 site=%s: %s", code, exc)  # 不阻断建站
 
     return tracking_row(db, site)
 
@@ -166,13 +167,19 @@ def edit_tracking(code: str, payload: dict,
         site.country = (payload.get("country") or "").strip()[:8] or None
     if "review_rate" in payload:
         rr = payload.get("review_rate")
-        site.review_rate = float(rr) if rr not in (None, "") else None
+        if rr in (None, ""):
+            site.review_rate = None
+        else:
+            try:
+                site.review_rate = float(rr)
+            except (TypeError, ValueError):
+                raise HTTPException(400, "review_rate 须为数字")
     site.updated_at = datetime.utcnow()
     db.commit(); db.refresh(site)
     return tracking_row(db, site)
 
 
-def _set_status(db, ws_id, code, status):
+def _set_status(db: Session, ws_id: int, code: str, status: str):
     site = _user_site_or_404(db, ws_id, code)
     site.track_status = status
     site.updated_at = datetime.utcnow()
@@ -207,7 +214,8 @@ def delete_tracking(code: str, user: str = Depends(require_user),
     site = _user_site_or_404(db, ws.id, code)
     if (site.source or "yaml") != "user":
         raise HTTPException(400, "种子站点不可删除")
+    orphaned = db.query(Product).filter(Product.site == code).count()
     db.query(WorkspaceSite).filter(WorkspaceSite.site == code).delete()
     db.delete(site)
     db.commit()
-    return {"deleted": code}
+    return {"deleted": code, "orphaned_products": orphaned}
