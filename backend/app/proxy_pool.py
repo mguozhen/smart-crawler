@@ -41,6 +41,7 @@ COOLDOWN_SEC = int(os.environ.get("PROXY_COOLDOWN_SEC", "600"))
 class ProxyEntry:
     url: str                          # http://user:pass@host:port
     tier: str                         # residential / datacenter
+    exclude: set[str] = field(default_factory=set)  # 不可用于的平台关键词(如 amazon)
     fail_count: int = 0
     success_count: int = 0
     last_used: float = 0.0
@@ -54,6 +55,33 @@ class ProxyEntry:
     @property
     def total_uses(self) -> int:
         return self.fail_count + self.success_count
+
+    def allows(self, site: str | None) -> bool:
+        """该代理是否可用于抓 site。site 命中任一排除关键词(子串)即不可用。"""
+        if not site or not self.exclude:
+            return True
+        s = site.lower()
+        return not any(kw in s for kw in self.exclude)
+
+
+def _parse_proxy_line(line: str, tier: str) -> ProxyEntry:
+    """解析一行代理。行尾可带 `# no:amazon,ebay` 标注排除平台。
+
+    无 `#` 标注 → exclude 为空,行为与旧版完全一致(向后兼容)。
+    """
+    exclude: set[str] = set()
+    url = line.strip()
+    if "#" in line:
+        url_part, _, comment = line.partition("#")
+        url = url_part.strip()
+        low = comment.lower()
+        if "no:" in low:
+            after = low.split("no:", 1)[1]          # `no:amazon,ebay` → `amazon,ebay`
+            for kw in after.replace(",", " ").split():
+                kw = kw.strip()
+                if kw:
+                    exclude.add(kw)
+    return ProxyEntry(url=url, tier=tier, exclude=exclude)
 
 
 class ProxyPool:
@@ -78,7 +106,7 @@ class ProxyPool:
                 if line.startswith("[") and line.endswith("]"):
                     current_tier = line[1:-1].strip().lower()
                     continue
-                proxies.append(ProxyEntry(url=line, tier=current_tier))
+                proxies.append(_parse_proxy_line(line, current_tier))
         # 环境变量也加进来
         for tier in ("residential", "datacenter"):
             env = os.environ.get(f"{tier.upper()}_PROXY")
@@ -118,9 +146,9 @@ class ProxyPool:
                 self._sticky.pop(site, None)
             # 注：默认不再检查 _sticky（之前的粘性把所有请求压到 1 个代理）
 
-            # 找候选：tier 匹配 + 可用
+            # 找候选：tier 匹配 + 可用 + 未被该 site 排除
             candidates = [p for p in self._proxies
-                          if p.tier == tier and p.is_available]
+                          if p.tier == tier and p.is_available and p.allows(site)]
             if not candidates:
                 return None
 
@@ -183,6 +211,7 @@ class ProxyPool:
                     {
                         "url": _redact(p.url),
                         "tier": p.tier,
+                        "exclude": sorted(p.exclude),
                         "fail_count": p.fail_count,
                         "success_count": p.success_count,
                         "blocked_for_sec": max(0, int(p.blocked_until - now)),
