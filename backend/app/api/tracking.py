@@ -140,3 +140,74 @@ def add_tracking(
         pass  # 入队失败不阻断建站,站已落库,可后续手动触发
 
     return tracking_row(db, site)
+
+
+def _user_site_or_404(db: Session, ws_id: int, code: str) -> Site:
+    allowed = set(_workspace_site_names(db, ws_id, include_hidden=True))
+    if code not in allowed:
+        raise HTTPException(404, "站点不存在或不在当前工作区")
+    site = db.query(Site).filter(Site.site == code).first()
+    if not site:
+        raise HTTPException(404, "站点不存在")
+    return site
+
+
+@router.patch("/tracking/{code}")
+def edit_tracking(code: str, payload: dict,
+                  user: str = Depends(require_user),
+                  x_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+                  db: Session = Depends(get_db)):
+    _require_admin(user, db)
+    ws = _current_workspace(user, db, x_workspace_id)
+    site = _user_site_or_404(db, ws.id, code)
+    if "brand" in payload:
+        site.brand = (payload.get("brand") or "").strip()[:50] or None
+    if "country" in payload:
+        site.country = (payload.get("country") or "").strip()[:8] or None
+    if "review_rate" in payload:
+        rr = payload.get("review_rate")
+        site.review_rate = float(rr) if rr not in (None, "") else None
+    site.updated_at = datetime.utcnow()
+    db.commit(); db.refresh(site)
+    return tracking_row(db, site)
+
+
+def _set_status(db, ws_id, code, status):
+    site = _user_site_or_404(db, ws_id, code)
+    site.track_status = status
+    site.updated_at = datetime.utcnow()
+    db.commit(); db.refresh(site)
+    return tracking_row(db, site)
+
+
+@router.post("/tracking/{code}/pause")
+def pause_tracking(code: str, user: str = Depends(require_user),
+                   x_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+                   db: Session = Depends(get_db)):
+    _require_admin(user, db)
+    ws = _current_workspace(user, db, x_workspace_id)
+    return _set_status(db, ws.id, code, "paused")
+
+
+@router.post("/tracking/{code}/resume")
+def resume_tracking(code: str, user: str = Depends(require_user),
+                    x_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+                    db: Session = Depends(get_db)):
+    _require_admin(user, db)
+    ws = _current_workspace(user, db, x_workspace_id)
+    return _set_status(db, ws.id, code, "tracking")
+
+
+@router.delete("/tracking/{code}")
+def delete_tracking(code: str, user: str = Depends(require_user),
+                    x_workspace_id: str | None = Header(default=None, alias="X-Workspace-ID"),
+                    db: Session = Depends(get_db)):
+    _require_admin(user, db)
+    ws = _current_workspace(user, db, x_workspace_id)
+    site = _user_site_or_404(db, ws.id, code)
+    if (site.source or "yaml") != "user":
+        raise HTTPException(400, "种子站点不可删除")
+    db.query(WorkspaceSite).filter(WorkspaceSite.site == code).delete()
+    db.delete(site)
+    db.commit()
+    return {"deleted": code}
