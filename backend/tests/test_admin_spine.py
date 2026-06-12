@@ -43,3 +43,32 @@ def test_jobs_stats_ok_for_admin():
     s.close()
     for k in ("pending", "running", "success", "failed", "stuck"):
         assert k in out
+
+
+def test_jobs_list_detail_retry_enqueue():
+    init_db()
+    from app.api import admin_spine
+    from app.db import SessionLocal
+    from app import spine_queue
+    from app.models import SpineJob, AdminAuditLog
+    s = SessionLocal()
+    jid = spine_queue.enqueue(s, "https://x.com/p/adm", "adm-set", workspace_id=None)
+    s.commit()
+    job = s.get(SpineJob, jid); job.status = "failed"; job.error = "boom"; s.commit()
+    lst = admin_spine.jobs_list(status="failed", dataset=None, tenant=None,
+                                page=1, size=20, user="admin", db=s)
+    assert lst["total"] >= 1 and any(it["id"] == jid for it in lst["items"])
+    det = admin_spine.job_detail(job_id=jid, user="admin", db=s)
+    assert det["id"] == jid and det["error"] == "boom"
+    n_audit = s.query(AdminAuditLog).count()
+    r = admin_spine.job_retry(job_id=jid, user="admin", db=s, ip="1.1.1.1")
+    assert r["status"] == "pending"
+    s.refresh(s.get(SpineJob, jid))
+    assert s.get(SpineJob, jid).status == "pending"
+    assert s.query(AdminAuditLog).count() == n_audit + 1
+    n_audit2 = s.query(AdminAuditLog).count()
+    e = admin_spine.job_enqueue(payload={"url": "https://x.com/p/new", "dataset": "adm-set"},
+                                user="admin", db=s, ip="1.1.1.1")
+    assert e["job_id"] and e["status"] == "pending"
+    assert s.query(AdminAuditLog).count() == n_audit2 + 1
+    s.close()
