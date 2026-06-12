@@ -558,3 +558,31 @@ class ExtractedRecord(Base):
     fetched_at = Column(DateTime, index=True)
     extracted_at = Column(DateTime, default=datetime.utcnow)
     workspace_id = Column(Integer, ForeignKey("workspaces.id"), index=True)
+
+
+class SpineJob(Base):
+    """Spine 异步抓取队列 —— 任意 URL 入队,worker 消费走 spine.resolve 落库。
+
+    状态机:pending(入队/待重试)→ running(worker 领取)→ success / failed
+    与电商 crawl_jobs 完全独立。
+    """
+
+    __tablename__ = "spine_jobs"
+
+    id = Column(Integer, primary_key=True)
+    url = Column(Text)
+    dataset = Column(String, index=True)
+    entity_type = Column(String, default="generic")
+    save_policy = Column(String, default="promote_if_valid")
+    force_live = Column(Boolean, default=False)
+    status = Column(String, default="pending", index=True)
+    retries = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    next_attempt_at = Column(DateTime, index=True, default=datetime.utcnow)
+    worker = Column(String)
+    result_record_id = Column(Integer, nullable=True)
+    error = Column(Text)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
