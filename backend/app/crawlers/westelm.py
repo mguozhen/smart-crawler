@@ -70,7 +70,7 @@ class WestElmCrawler(BaseCrawler):
     def __init__(self, site, limit: int | None = None):
         super().__init__(site)
         self.base = site.url.rstrip("/")
-        self.limit = limit if limit is not None else DEFAULT_LIMIT
+        self.limit = self._resolve_limit(DEFAULT_LIMIT, limit)
         # 实测 1.2s 间隔连发 10 个全 200，留点余量保守 1.5s（含 jitter ~2.4s）
         self.delay = float(os.environ.get("WESTELM_DELAY", "1.5"))
 

@@ -71,7 +71,7 @@ class AliExpressCrawler(BaseCrawler):
     def __init__(self, site, limit=None):
         super().__init__(site)
         self.base = "https://www.aliexpress.com"
-        self.limit = limit if limit is not None else DEFAULT_LIMIT
+        self.limit = self._resolve_limit(DEFAULT_LIMIT, limit)
         self.delay = max(self.delay, DELAY)
 
     def _session(self, warmup: bool = True) -> creq.Session:

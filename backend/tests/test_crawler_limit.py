@@ -51,3 +51,21 @@ def test_vidaxl_reads_max_products(monkeypatch):
     c = VidaxlCrawler(Site(site="x", url="https://x.com", country="US",
                            platform="vidaxl", proxy_tier="dc"))
     assert c.limit == 11
+
+
+def test_explicit_limit_param_beats_hints(monkeypatch):
+    monkeypatch.setattr("app.crawlers.base.get_sites",
+                        lambda: [{"site": "x", "max_products": 5}])
+    from app.crawlers.cratebarrel import CrateBarrelCrawler
+    c = CrateBarrelCrawler(Site(site="x", url="https://x.com", country="US",
+                                platform="cratebarrel", proxy_tier="dc"), limit=3)
+    assert c.limit == 3
+
+
+def test_cratebarrel_reads_hints_when_no_param(monkeypatch):
+    monkeypatch.setattr("app.crawlers.base.get_sites",
+                        lambda: [{"site": "x", "max_products": 5}])
+    from app.crawlers.cratebarrel import CrateBarrelCrawler
+    c = CrateBarrelCrawler(Site(site="x", url="https://x.com", country="US",
+                                platform="cratebarrel", proxy_tier="dc"))
+    assert c.limit == 5

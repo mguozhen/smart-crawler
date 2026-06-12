@@ -90,7 +90,7 @@ class IkeaCrawler(BaseCrawler):
     def __init__(self, site, limit: int | None = None):
         super().__init__(site)
         self.base = site.url.rstrip("/")
-        self.limit = limit if limit is not None else DEFAULT_LIMIT
+        self.limit = self._resolve_limit(DEFAULT_LIMIT, limit)
         self.country = (site.country or "US").upper()
         # IKEA Cloudflare 中级：1.5s 间隔实测稳定，保守 2s
         self.delay = float(os.environ.get("IKEA_DELAY", "2.0"))

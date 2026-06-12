@@ -93,7 +93,7 @@ class HouzzCrawler(BaseCrawler):
     def __init__(self, site, limit: int | None = None):
         super().__init__(site)
         self.base = site.url.rstrip("/")
-        self.limit = limit if limit is not None else DEFAULT_LIMIT
+        self.limit = self._resolve_limit(DEFAULT_LIMIT, limit)
 
     # ------------------------------------------------------------------
     # session
