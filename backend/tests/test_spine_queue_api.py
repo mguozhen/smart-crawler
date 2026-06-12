@@ -59,3 +59,25 @@ def test_v2_async_requires_auth():
     r = client.post("/api/v2/custom/scrape/async",
                     json={"url": "https://x.com", "dataset": "d"})
     assert r.status_code in (401, 403)
+
+
+def test_mcp_enqueue_and_get_job():
+    init_db()
+    from app import mcp_server
+    # 清场:避免残留 pending 干扰 claim
+    from app.models import SpineJob
+    cs = SessionLocal()
+    cs.query(SpineJob).filter(SpineJob.status == "pending").delete()
+    cs.commit(); cs.close()
+    out = mcp_server.enqueue_custom_scrape(
+        url="https://x.com/p/mcp", dataset="mcpq-set", entity_type="product",
+        save_policy="main")
+    jid = out["job_id"]
+    assert out["status"] == "pending"
+    # 消费
+    from app.spine_queue import claim_job, execute_job
+    assert claim_job("test-worker") == jid
+    with patch("app.spine._do_scrape", side_effect=_scrape_stub):
+        execute_job(jid)
+    got = mcp_server.get_custom_job(job_id=jid)
+    assert got["status"] == "success" and got["result_record_id"] is not None

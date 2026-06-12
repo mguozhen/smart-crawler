@@ -712,6 +712,50 @@ def query_dataset(dataset: str, query: str | None = None,
         s.close()
 
 
+@metered_tool(required_scope="crawler:scrape", cacheable=False)
+def enqueue_custom_scrape(url: str, dataset: str, entity_type: str = "generic",
+                          save_policy: str = "promote_if_valid",
+                          force_live: bool = False, max_retries: int = 3) -> dict:
+    """异步入队一条通用抓取任务,返回 job_id。
+
+    任意 URL → 入 spine 队列,常驻 worker 消费走 warehouse-first 落库。
+    适合批量/不需立即拿结果的场景。用 get_custom_job(job_id) 查进度。
+    save_policy: promote_if_valid(默认)/staging/main。force_live=true 强制实时抓。
+    """
+    from . import spine_queue
+    s = SessionLocal()
+    try:
+        ws = _ws_id_from_ctx(s)
+        job_id = spine_queue.enqueue(s, url, dataset, entity_type=entity_type,
+                                     save_policy=save_policy, force_live=force_live,
+                                     max_retries=max_retries, workspace_id=ws)
+        s.commit()
+        return {"job_id": job_id, "status": "pending"}
+    finally:
+        s.close()
+
+
+@metered_tool(required_scope="crawler:read", cacheable=False)
+def get_custom_job(job_id: int) -> dict:
+    """查询 spine 异步抓取任务状态:status/retries/result_record_id/error。"""
+    from .models import SpineJob
+    s = SessionLocal()
+    try:
+        job = s.get(SpineJob, job_id)
+        if job is None:
+            return {"error": "job_not_found", "job_id": job_id}
+        return {
+            "job_id": job.id, "status": job.status, "url": job.url,
+            "dataset": job.dataset, "retries": job.retries,
+            "max_retries": job.max_retries,
+            "result_record_id": job.result_record_id, "error": job.error,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        }
+    finally:
+        s.close()
+
+
 if __name__ == "__main__":
     import os
     mcp.run(transport="http", host="0.0.0.0",
