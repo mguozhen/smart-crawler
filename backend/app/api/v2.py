@@ -39,7 +39,7 @@ from ..access import (
 )
 from ..billing import record_usage
 from ..db import get_db
-from ..models import ApiKey, Product, RateLimitEvent, Site
+from ..models import ApiKey, Product, RateLimitEvent, Site, SpineJob
 from .routes import require_user
 from .. import spine, spine_queue
 
@@ -606,10 +606,10 @@ def custom_job_status(job_id: int,
                       db: Session = Depends(get_db)):
     """查询 spine 抓取任务状态。"""
     _require_scope(db, authorization, x_api_key, "crawler:read")
-    from ..models import SpineJob
     job = db.get(SpineJob, job_id)
     if job is None:
-        raise HTTPException(404, {"error": "job_not_found", "job_id": job_id})
+        raise HTTPException(404, {"error": "job_not_found", "job_id": job_id,
+                                  "message": f"Job {job_id} not found."})
     return {
         "job_id": job.id, "status": job.status, "url": job.url,
         "dataset": job.dataset, "retries": job.retries,
