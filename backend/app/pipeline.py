@@ -68,8 +68,6 @@ def normalize(raw: dict) -> dict:
     p["sale_price"] = to_price(p.get("sale_price"))
     p["original_price"] = to_price(p.get("original_price"))
     p["published_at"] = parse_dt(p.get("published_at"))
-    if p.get("original_price") is None:
-        p["original_price"] = p.get("sale_price")
     return p
 
 

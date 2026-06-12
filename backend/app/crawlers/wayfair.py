@@ -69,7 +69,7 @@ class WayfairCrawler(BaseCrawler):
     def __init__(self, site, limit: int | None = None):
         super().__init__(site)
         self.base = site.url.rstrip("/")
-        self.limit = limit if limit is not None else DEFAULT_LIMIT
+        self.limit = self._resolve_limit(DEFAULT_LIMIT, limit)
         # Wayfair PerimeterX：实测 1.5s 间隔会在 ~40 次后被打入观察名单。
         # 强制最小 3.5s 基础延迟 + jitter，把单次请求节奏拉到 3.5-5.6s。
         # 用 env WAYFAIR_DELAY 可调（NAS 走代理时可放回 1.5）。

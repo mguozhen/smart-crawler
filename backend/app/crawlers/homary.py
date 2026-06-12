@@ -32,7 +32,7 @@ class HomaryCrawler(BaseCrawler):
 
     def __init__(self, site, limit: int | None = None):
         super().__init__(site)
-        self.limit = limit if limit is not None else DEFAULT_LIMIT
+        self.limit = self._resolve_limit(DEFAULT_LIMIT, limit)
         self.cc = site.country.lower()
 
     def _session(self) -> creq.Session:

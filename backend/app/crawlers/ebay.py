@@ -124,7 +124,7 @@ class EbayCrawler(BaseCrawler):
     def __init__(self, site, limit: int | None = None):
         super().__init__(site)
         self.base = "https://www.ebay.com"
-        self.limit = limit if limit is not None else DEFAULT_LIMIT
+        self.limit = self._resolve_limit(DEFAULT_LIMIT, limit)
         # 实测 1.5s 间隔在第 5-10 个 PDP 就触发 Akamai → 强制 ≥5s
         self.delay = max(self.delay, DELAY)
 
