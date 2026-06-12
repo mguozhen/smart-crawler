@@ -41,7 +41,7 @@ from ..billing import record_usage
 from ..db import get_db
 from ..models import ApiKey, Product, RateLimitEvent, Site
 from .routes import require_user
-from .. import spine
+from .. import spine, spine_queue
 
 
 def _rate_limit_dependency(
@@ -571,3 +571,50 @@ def _anti_bot_level(platform: str) -> int:
         "wayfair": 5, "allegro": 5, "ebay": 5, "houzz": 3,
     }
     return levels.get(platform, 2)
+
+
+class AsyncScrapeRequest(BaseModel):
+    url: str
+    dataset: str
+    entity_type: str = "generic"
+    save_policy: str = "promote_if_valid"
+    force_live: bool = False
+    max_retries: int = 3
+
+
+@router.post("/custom/scrape/async")
+def custom_scrape_async(req: AsyncScrapeRequest,
+                        authorization: str = Header(default=""),
+                        x_api_key: str = Header(default="", alias="X-API-Key"),
+                        db: Session = Depends(get_db)):
+    """异步入队一条通用抓取任务,返回 job_id。worker 消费走 warehouse-first 落库。"""
+    _require_scope(db, authorization, x_api_key, "crawler:scrape")
+    ws = _v2_ws_id(db, authorization, x_api_key)
+    job_id = spine_queue.enqueue(db, req.url, req.dataset,
+                                 entity_type=req.entity_type,
+                                 save_policy=req.save_policy,
+                                 force_live=req.force_live,
+                                 max_retries=req.max_retries, workspace_id=ws)
+    db.commit()
+    return {"job_id": job_id, "status": "pending"}
+
+
+@router.get("/custom/job/{job_id}")
+def custom_job_status(job_id: int,
+                      authorization: str = Header(default=""),
+                      x_api_key: str = Header(default="", alias="X-API-Key"),
+                      db: Session = Depends(get_db)):
+    """查询 spine 抓取任务状态。"""
+    _require_scope(db, authorization, x_api_key, "crawler:read")
+    from ..models import SpineJob
+    job = db.get(SpineJob, job_id)
+    if job is None:
+        raise HTTPException(404, {"error": "job_not_found", "job_id": job_id})
+    return {
+        "job_id": job.id, "status": job.status, "url": job.url,
+        "dataset": job.dataset, "retries": job.retries,
+        "max_retries": job.max_retries,
+        "result_record_id": job.result_record_id, "error": job.error,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+    }
