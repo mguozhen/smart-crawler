@@ -16,7 +16,7 @@
 
 2. **促销永不触发** — `pipeline.py:71-72` 的 `normalize()` 把缺失的 `original_price` 回填为 `sale_price`；而 `runner.py:_detect_promotions` 靠 `Product.original_price > Product.sale_price` 过滤，回填后两者永远相等，促销表恒空。
 
-3. **变体计数（SPU）** — Product 模型已有 `spu` 列（带索引），Shopify `_expand` 每变体行已写 `spu` 并入库。问题只剩 `api/routes.py:625` 出于性能把 `spu_count = sku_count` 兜底，报表把变体当独立 SKU 多算。**数据已具备，仅报表展示偷懒。**
+3. **变体计数（SPU）** — Product 模型已有 `spu` 列（带索引），Shopify `_expand` 每变体行已写 `spu` 并入库。问题只剩 `api/routes.py:625`（`list_sites` 端点）出于性能把 `spu_count = sku_count` 兜底，报表把变体当独立 SKU 多算。**数据已具备，仅报表展示偷懒。** 注意非 Shopify crawler 多数一品一行、`spu` 为 NULL，因此去重语义须用 `distinct(coalesce(spu, sku))`：有 spu 的变体合并、无 spu 的行按 sku 各算一款。
 
 ## 设计目标
 
@@ -33,7 +33,7 @@ backend/app/
 ├── crawlers/base.py        ← 新增 _resolve_limit() 统一入口（读 sites.yaml hints）
 ├── crawlers/*.py (×22)     ← self.limit 改走 _resolve_limit(DEFAULT_LIMIT)
 ├── pipeline.py:71-72       ← 删除 original_price 回填两行
-└── api/routes.py:622-627   ← spu_count 改真算 count(distinct spu) group by site
+└── api/routes.py (list_sites) ← spu_count 改真算 count(distinct coalesce(spu,sku)) group by site
 ```
 
 ## 详细设计
@@ -87,19 +87,20 @@ if p.get("original_price") is None:
 
 ### 根因 3：spu_count 真算
 
-`api/routes.py` 站点报表（`site_overview` 一带）把：
+`api/routes.py` 的 `list_sites` 端点（验收报告"爬取数据"表对比的就是此列表页每站商品数）把：
 ```python
 spu_counts = sku_counts
 ```
-改为：
+改为全表 `count(distinct coalesce(spu, sku)) group by site`：
 ```python
-spu_counts = dict(db.query(Product.site, func.count(distinct(Product.spu)))
-                    .filter(Product.spu.isnot(None))
-                    .group_by(Product.site).all())
+spu_counts = dict(
+    db.query(Product.site,
+             func.count(func.distinct(func.coalesce(Product.spu, Product.sku))))
+      .group_by(Product.site).all())
 ```
-`spu` 已有索引；仅在该汇总端点算一次。`spu` 为空的行（非 Shopify 多数 crawler 一品一行、未写 spu）不计入 distinct，此时报表 `spu_count` 会小于 `sku_count`——对这些站二者本应接近，差额即真实的"无 spu 行"，可接受；如需可后续让其余 crawler 补 spu（不在本轮）。
+去重语义：有 `spu` 的变体行合并为一款；`spu` 为 NULL 的行（非 Shopify 多数 crawler 一品一行）用 `sku` 兜底，各算一款——避免把所有无 spu 行折成一个导致 spu_count 严重偏低。
 
-> 注：`sku_count` 仍按 `count(Product.id)` 给出变体行数，两个数并列展示，由前端/报表呈现。
+性能：`list_sites` 已有 30s in-memory 缓存（`_COVERAGE_CACHE`，crawl 成功时失效）。全表 distinct 在大表上 cache-miss 时约 7-8s，由缓存兜底，UI 体感可接受（历史注释记录此权衡）。`spu`/`sku` 均有索引。`sku_count` 仍按 `count(Product.id)` 给出变体行数，两数并列展示。
 
 ## 测试策略
 
@@ -114,7 +115,8 @@ spu_counts = dict(db.query(Product.site, func.count(distinct(Product.spu)))
 - 端到端：入库两商品（A: original 20 > sale 10；B: 仅 sale 10），跑 `_detect_promotions`，断言生成 **1** 条 Promotion（A），B 不误报。
 
 ### 根因 3 — `backend/tests/test_site_overview_count.py`（新建，或并入 tenancy 测试）
-- 造同 site 3 个 SKU、其中 2 个共享同一 `spu`，调 `site_overview`，断言该站 `sku_count == 3` 且 `spu_count == 2`。
+- 造数据：同 site 3 个 SKU、其中 2 个共享同一 `spu`，调 `list_sites`（站点列表端点），断言该站 `sku_count == 3` 且 `spu_count == 2`。
+- 再造一个 site：2 个 SKU 均 `spu=None`，断言 `spu_count == 2`（coalesce 兜底，不折成 1）。
 
 ### 回归
 全量 `pytest`（基线 164–180 绿）确认无回归。
