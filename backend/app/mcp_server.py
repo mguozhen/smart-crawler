@@ -720,7 +720,8 @@ def enqueue_custom_scrape(url: str, dataset: str, entity_type: str = "generic",
 
     任意 URL → 入 spine 队列,常驻 worker 消费走 warehouse-first 落库。
     适合批量/不需立即拿结果的场景。用 get_custom_job(job_id) 查进度。
-    save_policy: promote_if_valid(默认)/staging/main。force_live=true 强制实时抓。
+    save_policy: promote_if_valid(默认)/staging/main/quarantine。force_live=true 强制实时抓。
+    新鲜度 TTL 走 dataset 默认(异步不等结果,不暴露 max_age_sec)。
     """
     from . import spine_queue
     s = SessionLocal()
@@ -737,7 +738,11 @@ def enqueue_custom_scrape(url: str, dataset: str, entity_type: str = "generic",
 
 @metered_tool(required_scope="crawler:read", cacheable=False)
 def get_custom_job(job_id: int) -> dict:
-    """查询 spine 异步抓取任务状态:status/retries/result_record_id/error。"""
+    """查询 spine 异步抓取任务状态:status/retries/result_record_id/error。
+
+    job 不存在时返回 {"error": "job_not_found", "job_id"}(不抛错)。
+    status: pending(待领/待重试)/running/success/failed。
+    """
     from .models import SpineJob
     s = SessionLocal()
     try:
