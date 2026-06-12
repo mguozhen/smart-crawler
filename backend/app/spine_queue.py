@@ -65,12 +65,17 @@ def _backoff(retries: int) -> timedelta:
 HEARTBEAT_INTERVAL = 30.0
 
 
-def _start_heartbeat(job_id: int, interval: float = HEARTBEAT_INTERVAL):
+def _start_heartbeat(job_id: int, interval: float | None = None):
     """起一个后台线程,每 interval 秒把 job.heartbeat_at 续约为 now。
 
     返回 (stop_event, thread)。execute 结束时 stop.set() + join 停掉。
     让 reclaim 能区分"活着的长抓(心跳在续)"和"真崩溃(心跳停)"。
+
+    interval 默认 None 时在运行时读模块级 HEARTBEAT_INTERVAL(而非 def 时
+    绑定),便于测试 monkeypatch 模块级值压短心跳间隔。
     """
+    if interval is None:
+        interval = HEARTBEAT_INTERVAL
     stop = threading.Event()
 
     def beat():

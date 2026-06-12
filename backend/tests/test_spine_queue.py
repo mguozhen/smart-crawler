@@ -373,3 +373,41 @@ def test_start_heartbeat_updates_and_stops():
     s3 = SessionLocal(); later = s3.get(SpineJob, jid).heartbeat_at; s3.close()
     assert later > first  # 心跳确实更新了 heartbeat_at
     assert not t.is_alive()  # 线程已退出
+
+
+def test_execute_with_heartbeat_no_state_corruption(monkeypatch):
+    """execute 期间心跳并发续约,不污染主状态;返回后线程停。"""
+    init_db()
+    _clear_pending()
+    s = SessionLocal()
+    from app.spine_queue import enqueue, claim_job, execute_job
+    import app.spine_queue as sq
+    jid = enqueue(s, "https://x.com/p/hbexec", "hbexec-set", entity_type="product",
+                  save_policy="main", api_key_id=11, workspace_id=None)
+    s.commit(); s.close()
+    claim_job("w1")
+    # 把心跳间隔压到极短,保证 execute 期间至少续约几次
+    monkeypatch.setattr(sq, "HEARTBEAT_INTERVAL", 0.02)
+    # resolve 故意慢一点,给心跳留出并发窗口
+    import time as _t
+    def slow_stub(db, url, **kw):
+        _t.sleep(0.15)
+        return {"scrape_id": "x", "url": url,
+                "data": {"title": "HB", "confidence": 0.95},
+                "metadata": {"canonical": None}, "html": "<html>x</html>",
+                "warnings": [], "usage": {"source": "live", "credits_used": 2}}
+    import threading
+    before_threads = threading.active_count()
+    with patch("app.spine._do_scrape", side_effect=slow_stub):
+        out = execute_job(jid)
+    # (a) 主状态正确,没被心跳覆盖
+    assert out["status"] == "success" and out["record_id"] is not None
+    s2 = SessionLocal()
+    job = s2.get(SpineJob, jid)
+    assert job.status == "success"
+    assert job.result_record_id is not None  # 主写未被心跳覆盖
+    assert job.heartbeat_at is not None      # 心跳确实写过
+    s2.close()
+    # (c) execute 返回后心跳线程已停(给 daemon 一点收尾时间)
+    _t.sleep(0.1)
+    assert threading.active_count() <= before_threads  # 无泄漏
