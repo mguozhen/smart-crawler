@@ -52,3 +52,52 @@ def claim_job(worker_id: str) -> int | None:
             .values(status="running", worker=worker_id,
                     started_at=now))
         return job.id if res.rowcount == 1 else None
+
+
+def _backoff(retries: int) -> timedelta:
+    """指数退避:1→30s, 2→2m, 3→10m, 之后封顶 10m。"""
+    table = {1: 30, 2: 120, 3: 600}
+    return timedelta(seconds=table.get(retries, 600))
+
+
+def execute_job(job_id: int) -> dict:
+    """执行一条已领取(running)的任务:spine.resolve 落库 → 成功/重试/失败。"""
+    from . import spine
+    with session_scope() as s:
+        job = s.get(SpineJob, job_id)
+        if job is None:
+            raise ValueError(f"任务不存在: {job_id}")
+        url = job.url
+        dataset_name = job.dataset
+        entity_type = job.entity_type or "generic"
+        save_policy = job.save_policy or "promote_if_valid"
+        force_live = bool(job.force_live)
+        workspace_id = job.workspace_id
+        try:
+            ds = spine.get_or_create_dataset(
+                s, dataset_name, workspace_id=workspace_id,
+                entity_type=entity_type)
+            out = spine.resolve(s, url, ds, workspace_id=workspace_id,
+                                force_live=force_live, save_policy=save_policy)
+            job.status = "success"
+            job.result_record_id = out.get("record_id")
+            job.finished_at = datetime.utcnow()
+            job.error = None
+            return {"job_id": job_id, "status": "success",
+                    "record_id": out.get("record_id")}
+        except Exception as exc:
+            return _handle_failure(s, job, exc)
+
+
+def _handle_failure(s: Session, job: SpineJob, exc: Exception) -> dict:
+    """失败处理:未超限 → 回 pending + 退避;超限 → failed。"""
+    job.retries = (job.retries or 0) + 1
+    job.error = str(exc)
+    if job.retries < (job.max_retries or 3):
+        job.status = "pending"
+        job.worker = None
+        job.next_attempt_at = datetime.utcnow() + _backoff(job.retries)
+        return {"job_id": job.id, "status": "pending", "retries": job.retries}
+    job.status = "failed"
+    job.finished_at = datetime.utcnow()
+    return {"job_id": job.id, "status": "failed", "retries": job.retries}
