@@ -21,13 +21,14 @@ def enqueue(db: Session, url: str, dataset: str, *,
             entity_type: str = "generic",
             save_policy: str = "promote_if_valid",
             force_live: bool = False, max_retries: int = 3,
+            api_key_id: int | None = None,
             workspace_id: int | None = None) -> int:
     """入队一条 spine 抓取任务,返回 job_id。调用方负责 commit。"""
     job = SpineJob(url=url, dataset=dataset, entity_type=entity_type,
                    save_policy=save_policy, force_live=force_live,
                    status="pending", retries=0, max_retries=max_retries,
-                   next_attempt_at=datetime.utcnow(), workspace_id=workspace_id,
-                   created_at=datetime.utcnow())
+                   next_attempt_at=datetime.utcnow(), api_key_id=api_key_id,
+                   workspace_id=workspace_id, created_at=datetime.utcnow())
     db.add(job)
     db.flush()
     return job.id
@@ -50,7 +51,7 @@ def claim_job(worker_id: str) -> int | None:
             update(SpineJob)
             .where(SpineJob.id == job.id, SpineJob.status == "pending")
             .values(status="running", worker=worker_id,
-                    started_at=now))
+                    started_at=now, heartbeat_at=now))
         return job.id if res.rowcount == 1 else None
 
 

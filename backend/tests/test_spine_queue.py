@@ -274,3 +274,28 @@ def test_spine_jobs_has_billing_and_heartbeat_cols():
     cols = {c["name"] for c in inspect(engine).get_columns("spine_jobs")}
     assert "api_key_id" in cols, "spine_jobs 缺列 api_key_id"
     assert "heartbeat_at" in cols, "spine_jobs 缺列 heartbeat_at"
+
+
+def test_enqueue_persists_api_key_id():
+    init_db(); s = SessionLocal()
+    from app.spine_queue import enqueue
+    jid = enqueue(s, "https://x.com/p/bill", "bill-set", api_key_id=42,
+                  workspace_id=None)
+    s.commit()
+    job = s.get(SpineJob, jid)
+    assert job.api_key_id == 42
+    s.close()
+
+
+def test_claim_sets_heartbeat():
+    init_db()
+    _clear_pending()
+    s = SessionLocal()
+    from app.spine_queue import enqueue, claim_job
+    jid = enqueue(s, "https://x.com/p/hb", "hb-set", workspace_id=None)
+    s.commit(); s.close()
+    assert claim_job("w-hb") == jid
+    s2 = SessionLocal()
+    job = s2.get(SpineJob, jid)
+    assert job.heartbeat_at is not None  # 领取即设首次心跳
+    s2.close()
