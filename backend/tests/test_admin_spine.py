@@ -23,3 +23,23 @@ def test_admin_audit_log_table_and_record():
     assert row.action == "test.action" and row.target_id == "42"
     assert row.detail == {"k": "v"} and row.actor_name == "admin"
     s.close()
+
+
+def test_jobs_stats_requires_super_admin():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    init_db()
+    client = TestClient(app)
+    r = client.get("/api/admin/spine/jobs/stats")
+    assert r.status_code in (401, 403)
+
+
+def test_jobs_stats_ok_for_admin():
+    init_db()
+    from app.api.admin_spine import jobs_stats
+    from app.db import SessionLocal
+    s = SessionLocal()
+    out = jobs_stats(user="admin", db=s)
+    s.close()
+    for k in ("pending", "running", "success", "failed", "stuck"):
+        assert k in out
