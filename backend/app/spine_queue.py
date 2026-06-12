@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timedelta
 
 from sqlalchemy import or_, update
@@ -61,40 +62,72 @@ def _backoff(retries: int) -> timedelta:
     return timedelta(seconds=table.get(retries, 600))
 
 
+HEARTBEAT_INTERVAL = 30.0
+
+
+def _start_heartbeat(job_id: int, interval: float = HEARTBEAT_INTERVAL):
+    """起一个后台线程,每 interval 秒把 job.heartbeat_at 续约为 now。
+
+    返回 (stop_event, thread)。execute 结束时 stop.set() + join 停掉。
+    让 reclaim 能区分"活着的长抓(心跳在续)"和"真崩溃(心跳停)"。
+    """
+    stop = threading.Event()
+
+    def beat():
+        while not stop.wait(interval):
+            try:
+                with session_scope() as s:
+                    j = s.get(SpineJob, job_id)
+                    if j is not None:
+                        j.heartbeat_at = datetime.utcnow()
+            except Exception:
+                pass  # 续约失败不影响主执行
+
+    t = threading.Thread(target=beat, daemon=True)
+    t.start()
+    return stop, t
+
+
 def execute_job(job_id: int) -> dict:
     """执行一条已领取(running)的任务:spine.resolve 落库 → 成功/重试/失败。
 
     注意:spine.resolve 内部自行提交落库(dataset/snapshot/record);job 状态
     另由本函数的 session_scope 提交,二者非原子。极窄崩溃窗口下可能留下卡在
-    running 的悬挂 job —— 由 spine_worker 的 running 超时回收兜底(Task 4)。
+    running 的悬挂 job —— 由 spine_worker 的 running 超时回收兜底,期间靠心跳
+    续约区分活着的长抓 vs 真崩溃。
     """
     from . import spine
-    with session_scope() as s:
-        job = s.get(SpineJob, job_id)
-        if job is None:
-            raise ValueError(f"任务不存在: {job_id}")
-        url = job.url
-        dataset_name = job.dataset
-        entity_type = job.entity_type or "generic"
-        save_policy = job.save_policy or "promote_if_valid"
-        force_live = bool(job.force_live)
-        workspace_id = job.workspace_id
-        api_key_id = job.api_key_id
-        try:
-            ds = spine.get_or_create_dataset(
-                s, dataset_name, workspace_id=workspace_id,
-                entity_type=entity_type)
-            out = spine.resolve(s, url, ds, workspace_id=workspace_id,
-                                force_live=force_live, save_policy=save_policy)
-            _record_execute_usage(api_key_id, workspace_id, out)
-            job.status = "success"
-            job.result_record_id = out.get("record_id")
-            job.finished_at = datetime.utcnow()
-            job.error = None
-            return {"job_id": job_id, "status": "success",
-                    "record_id": out.get("record_id")}
-        except Exception as exc:
-            return _handle_failure(s, job, exc)
+    stop, t = _start_heartbeat(job_id)
+    try:
+        with session_scope() as s:
+            job = s.get(SpineJob, job_id)
+            if job is None:
+                raise ValueError(f"任务不存在: {job_id}")
+            url = job.url
+            dataset_name = job.dataset
+            entity_type = job.entity_type or "generic"
+            save_policy = job.save_policy or "promote_if_valid"
+            force_live = bool(job.force_live)
+            workspace_id = job.workspace_id
+            api_key_id = job.api_key_id
+            try:
+                ds = spine.get_or_create_dataset(
+                    s, dataset_name, workspace_id=workspace_id,
+                    entity_type=entity_type)
+                out = spine.resolve(s, url, ds, workspace_id=workspace_id,
+                                    force_live=force_live, save_policy=save_policy)
+                _record_execute_usage(api_key_id, workspace_id, out)
+                job.status = "success"
+                job.result_record_id = out.get("record_id")
+                job.finished_at = datetime.utcnow()
+                job.error = None
+                return {"job_id": job_id, "status": "success",
+                        "record_id": out.get("record_id")}
+            except Exception as exc:
+                return _handle_failure(s, job, exc)
+    finally:
+        stop.set()
+        t.join(timeout=2)
 
 
 def _record_execute_usage(api_key_id, workspace_id, out) -> None:

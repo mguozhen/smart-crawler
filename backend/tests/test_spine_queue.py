@@ -355,3 +355,21 @@ def test_execute_records_usage_with_null_api_key():
     with patch("app.spine._do_scrape", side_effect=_scrape_stub):
         out = execute_job(jid)
     assert out["status"] == "success"  # api_key_id=None 记账不崩
+
+
+def test_start_heartbeat_updates_and_stops():
+    init_db()
+    _clear_pending()
+    s = SessionLocal()
+    from app.spine_queue import enqueue, claim_job, _start_heartbeat
+    jid = enqueue(s, "https://x.com/p/beat", "beat-set", workspace_id=None)
+    s.commit(); s.close()
+    claim_job("w-beat")  # heartbeat_at = now
+    s2 = SessionLocal(); first = s2.get(SpineJob, jid).heartbeat_at; s2.close()
+    import time
+    stop, t = _start_heartbeat(jid, interval=0.1)
+    time.sleep(0.35)  # 至少续约 2~3 次
+    stop.set(); t.join(timeout=2)
+    s3 = SessionLocal(); later = s3.get(SpineJob, jid).heartbeat_at; s3.close()
+    assert later > first  # 心跳确实更新了 heartbeat_at
+    assert not t.is_alive()  # 线程已退出
