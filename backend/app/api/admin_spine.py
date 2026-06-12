@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from .. import spine_queue
 from ..audit import record_audit
 from ..db import get_db
-from ..models import SpineJob
+from ..models import SpineJob, Dataset, ExtractedRecord, RawSnapshot
 from .routes import require_user, _require_super_admin
 
 router = APIRouter(prefix="/api/admin/spine", tags=["admin · spine"])
@@ -111,3 +111,92 @@ def job_enqueue(payload: dict, user: str = Depends(require_user),
                  detail={"url": url, "dataset": dataset}, ip=ip or None)
     db.commit()
     return {"job_id": job_id, "status": "pending"}
+
+
+@router.get("/datasets")
+def datasets_list(user: str = Depends(require_user),
+                  db: Session = Depends(get_db)) -> dict:
+    _require_super_admin(user, db)
+    rows = db.query(Dataset).order_by(Dataset.id.desc()).all()
+    items = []
+    for d in rows:
+        n = db.query(ExtractedRecord).filter(ExtractedRecord.dataset_id == d.id).count()
+        items.append({"id": d.id, "name": d.name, "slug": d.slug,
+                      "entity_type": d.entity_type, "record_count": n,
+                      "workspace_id": d.workspace_id})
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/datasets/{dataset_id}/records")
+def dataset_records(dataset_id: int, quality_status: str | None = None,
+                    page: int = 1, size: int = 20,
+                    user: str = Depends(require_user),
+                    db: Session = Depends(get_db)) -> dict:
+    _require_super_admin(user, db)
+    q = db.query(ExtractedRecord).filter(ExtractedRecord.dataset_id == dataset_id)
+    if quality_status:
+        q = q.filter(ExtractedRecord.quality_status == quality_status)
+    total = q.count()
+    rows = (q.order_by(ExtractedRecord.id.desc())
+            .offset((page - 1) * size).limit(size).all())
+    return {"total": total, "items": [
+        {"id": r.id, "source_url": r.source_url, "entity_type": r.entity_type,
+         "quality_status": r.quality_status, "confidence": r.confidence,
+         "data": r.data,
+         "fetched_at": r.fetched_at.isoformat() if r.fetched_at else None}
+        for r in rows]}
+
+
+@router.get("/records/{record_id}")
+def record_detail(record_id: int, user: str = Depends(require_user),
+                  db: Session = Depends(get_db)) -> dict:
+    _require_super_admin(user, db)
+    r = db.get(ExtractedRecord, record_id)
+    if r is None:
+        raise HTTPException(404, {"error": "record_not_found", "record_id": record_id})
+    snap = db.get(RawSnapshot, r.snapshot_id) if r.snapshot_id else None
+    return {
+        "id": r.id, "data": r.data, "entity_type": r.entity_type,
+        "quality_status": r.quality_status, "confidence": r.confidence,
+        "provenance": {"source_url": r.source_url, "canonical_url": r.canonical_url,
+                       "content_hash": r.content_hash,
+                       "extraction_method": r.extraction_method,
+                       "fetched_at": r.fetched_at.isoformat() if r.fetched_at else None},
+        "snapshot": ({"id": snap.id, "url": snap.url,
+                      "fetched_at": snap.fetched_at.isoformat() if snap.fetched_at else None}
+                     if snap else None),
+    }
+
+
+@router.post("/records/{record_id}/promote")
+def record_promote(record_id: int, user: str = Depends(require_user),
+                   db: Session = Depends(get_db),
+                   ip: str = Header(default="", alias="X-Forwarded-For")) -> dict:
+    actor = _require_super_admin(user, db)
+    r = db.get(ExtractedRecord, record_id)
+    if r is None:
+        raise HTTPException(404, {"error": "record_not_found", "record_id": record_id})
+    prev = r.quality_status
+    r.quality_status = "main"
+    record_audit(db, actor_user_id=actor.id, actor_name=actor.username,
+                 action="record.promote", target_type="record",
+                 target_id=str(record_id), detail={"from": prev, "to": "main"},
+                 ip=ip or None)
+    db.commit()
+    return {"record_id": record_id, "quality_status": "main"}
+
+
+@router.delete("/records/{record_id}")
+def record_delete(record_id: int, user: str = Depends(require_user),
+                  db: Session = Depends(get_db),
+                  ip: str = Header(default="", alias="X-Forwarded-For")) -> dict:
+    actor = _require_super_admin(user, db)
+    r = db.get(ExtractedRecord, record_id)
+    if r is None:
+        raise HTTPException(404, {"error": "record_not_found", "record_id": record_id})
+    db.delete(r)
+    record_audit(db, actor_user_id=actor.id, actor_name=actor.username,
+                 action="record.delete", target_type="record",
+                 target_id=str(record_id), detail={}, ip=ip or None)
+    db.commit()
+    return {"record_id": record_id, "deleted": True}

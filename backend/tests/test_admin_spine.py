@@ -72,3 +72,37 @@ def test_jobs_list_detail_retry_enqueue():
     assert e["job_id"] and e["status"] == "pending"
     assert s.query(AdminAuditLog).count() == n_audit2 + 1
     s.close()
+
+
+def test_datasets_records_promote_delete():
+    init_db()
+    from app.api import admin_spine
+    from app.db import SessionLocal
+    from app import spine
+    from app.models import ExtractedRecord, AdminAuditLog
+    import uuid
+    s = SessionLocal()
+    ds = spine.get_or_create_dataset(s, "adm-ds", workspace_id=None, entity_type="product")
+    url = f"https://x.com/r1/{uuid.uuid4().hex}"
+    rec = ExtractedRecord(dataset_id=ds.id, source_url=url,
+                          canonical_url=url, entity_type="product",
+                          data={"title": "X"}, record_key=url,
+                          quality_status="staging")
+    s.add(rec); s.commit(); rid = rec.id
+    dsets = admin_spine.datasets_list(user="admin", db=s)
+    assert any(d["id"] == ds.id and d["record_count"] >= 1 for d in dsets["items"])
+    recs = admin_spine.dataset_records(dataset_id=ds.id, quality_status="staging",
+                                       page=1, size=20, user="admin", db=s)
+    assert recs["total"] >= 1
+    det = admin_spine.record_detail(record_id=rid, user="admin", db=s)
+    assert det["data"]["title"] == "X" and "provenance" in det
+    na = s.query(AdminAuditLog).count()
+    admin_spine.record_promote(record_id=rid, user="admin", db=s, ip="1.1.1.1")
+    s.refresh(s.get(ExtractedRecord, rid))
+    assert s.get(ExtractedRecord, rid).quality_status == "main"
+    assert s.query(AdminAuditLog).count() == na + 1
+    na2 = s.query(AdminAuditLog).count()
+    admin_spine.record_delete(record_id=rid, user="admin", db=s, ip="1.1.1.1")
+    assert s.get(ExtractedRecord, rid) is None
+    assert s.query(AdminAuditLog).count() == na2 + 1
+    s.close()
