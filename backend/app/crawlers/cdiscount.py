@@ -6,7 +6,7 @@
   `__blnChallengeStore={…}` JSON。curl_cffi(impersonate="chrome") 也吃挑战。
 - ✅ Baleen 解法（一次握手）：
     1. 解析 stub 里的 `__blnChallengeStore` 拿到 cookie name/value + checkChallengeParams
-    2. 把 cookie 塞 session
+    2. 把 cookie 塞进请求头 Cookie 字段
     3. POST `/.well-known/baleen/challengejs/check?<name>=<value>`
        body 用 `bot_category=...&request_fate=...` 之类的 form data
     4. 重 GET 首页 → 返 ~400KB 真页面（含 37 个 f-* 商品 URL + 39 个 l-* 列表 URL）
@@ -25,7 +25,7 @@
 - ⚠️ Baleen cookie 不在 session 时（如 stealth fallback 重起）需要重新握手。
 
 策略（discover → enrich，类 idealo）：
-  1. **warmup**：GET 首页解 Baleen，session 持 cookie
+  1. **warmup**：GET 首页解 Baleen，通过 headers Cookie 字段持 cookie
   2. **discover**：BFS 列表页 + 分页扫描，从 home + l-* 页累计去重 f-* 商品 URL，
      直到 ≥ limit*1.2 个种子（留 20% 余量给单 PDP 失败）
   3. **enrich**：对每个商品 URL GET → 解 JSON-LD product → 输出 dict
@@ -54,8 +54,6 @@ from __future__ import annotations
 import json
 import os
 import re
-
-from curl_cffi import requests as creq
 
 from ..antiban import BlockedError
 from .base import BaseCrawler, CrawlResult
@@ -88,39 +86,42 @@ class CdiscountCrawler(BaseCrawler):
         super().__init__(site)
         self.base = site.url.rstrip("/")
         self.limit = self._resolve_limit(DEFAULT_LIMIT)
+        # Baleen cookie jar：key=name, value=value；握手后逐请求透传 Cookie 头
+        self._baleen_cookies: dict[str, str] = {}
 
     # ------------------------------------------------------------------
-    # session
+    # headers
     # ------------------------------------------------------------------
-    def _session(self) -> creq.Session:
-        s = creq.Session(impersonate="chrome")
-        s.headers.update({
+    def _headers(self) -> dict:
+        """构造定制请求头（每请求透传给 CrawlerFetcher.get/post）。"""
+        h = {
             "User-Agent": self.ua(),
             "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.6",
             "Accept": ("text/html,application/xhtml+xml,application/xml;"
                        "q=0.9,image/webp,*/*;q=0.8"),
-        })
-        if self.proxy:
-            s.proxies = {"http": self.proxy, "https": self.proxy}
-        return s
+        }
+        if self._baleen_cookies:
+            h["Cookie"] = "; ".join(
+                f"{k}={v}" for k, v in self._baleen_cookies.items())
+        return h
 
     # ------------------------------------------------------------------
     # Baleen 一次握手 —— 解 stub、写 cookie、POST check、重 GET 首页
     # ------------------------------------------------------------------
-    def _warmup_baleen(self, sess: creq.Session, result: CrawlResult,
+    def _warmup_baleen(self, fetcher, result: CrawlResult,
                        max_attempts: int = 2) -> str | None:
         """成功返回首页 HTML（>50KB 的真页面）；失败返回 None。"""
         for attempt in range(1, max_attempts + 1):
             try:
-                r = sess.get(_HOME, timeout=30)
-                self.guard(r.status_code, "home")
+                res = fetcher.get(_HOME, headers=self._headers(), timeout=30)
+                self.guard(res.status or 0, "home")
             except BlockedError:
                 raise
             except Exception as exc:
                 result.notes.append(f"⚠ Baleen 握手 #{attempt} 首页异常: {exc}")
                 continue
 
-            html = r.text or ""
+            html = res.text or ""
             if _BALEEN_MARK not in html and len(html) > 50_000:
                 # 已经是真首页（极少数情况 CF 缓存直接给了）
                 result.notes.append("Baleen 跳过：首页直接 200")
@@ -141,24 +142,19 @@ class CdiscountCrawler(BaseCrawler):
                     f"⚠ Baleen 握手 #{attempt} stub 解析失败: {exc}")
                 continue
 
-            # 写 cookie（Baleen 期望该 cookie 在请求头里）
-            try:
-                sess.cookies.set(
-                    cookie["name"], cookie["value"],
-                    domain=".cdiscount.com", path="/")
-            except Exception as exc:
-                result.notes.append(
-                    f"⚠ Baleen 握手 #{attempt} 写 cookie 失败: {exc}")
-                continue
+            # 记录 Baleen cookie，后续请求通过 headers Cookie 字段透传
+            self._baleen_cookies[cookie["name"]] = cookie["value"]
 
             check_url = (f"https://www.cdiscount.com/.well-known/baleen/"
                          f"challengejs/check?{cookie['name']}={cookie['value']}")
             body = "&".join(f"{k}={v}" for k, v in check_params.items())
             try:
-                sess.post(
-                    check_url, data=body, timeout=30,
-                    headers={"Content-Type":
-                             "application/x-www-form-urlencoded"})
+                fetcher.post(
+                    check_url, data=body,
+                    headers={
+                        **self._headers(),
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    })
             except Exception as exc:
                 result.notes.append(
                     f"⚠ Baleen 握手 #{attempt} check 失败: {exc}")
@@ -166,8 +162,8 @@ class CdiscountCrawler(BaseCrawler):
 
             # 重新拉首页 —— 这次应当返回真页面
             try:
-                r2 = sess.get(_HOME, timeout=30)
-                self.guard(r2.status_code, "home_after_baleen")
+                res2 = fetcher.get(_HOME, headers=self._headers(), timeout=30)
+                self.guard(res2.status or 0, "home_after_baleen")
             except BlockedError:
                 raise
             except Exception as exc:
@@ -175,7 +171,7 @@ class CdiscountCrawler(BaseCrawler):
                     f"⚠ Baleen 握手 #{attempt} 重拉首页失败: {exc}")
                 continue
 
-            html2 = r2.text or ""
+            html2 = res2.text or ""
             if _BALEEN_MARK not in html2 and len(html2) > 50_000:
                 result.notes.append(
                     f"Baleen 握手成功（#{attempt}），首页 {len(html2)//1024}KB")
@@ -192,10 +188,10 @@ class CdiscountCrawler(BaseCrawler):
     # ------------------------------------------------------------------
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        sess = self._session()
+        fetcher = self.make_fetcher(kind="product", source="cdiscount")
 
         # Step 1: warmup
-        home_html = self._warmup_baleen(sess, result)
+        home_html = self._warmup_baleen(fetcher, result)
         if not home_html:
             result.notes.append("⚠ Baleen 终极失败，放弃采集")
             return result
@@ -207,7 +203,7 @@ class CdiscountCrawler(BaseCrawler):
         result.notes.append(
             f"首页种子：{len(seed_products)} 商品 / {len(seed_lists)} 列表")
 
-        product_urls = self._discover(sess, seed_products, seed_lists, result)
+        product_urls = self._discover(fetcher, seed_products, seed_lists, result)
         if not product_urls:
             result.notes.append("⚠ 商品 URL 发现为 0，放弃 PDP 阶段")
             return result
@@ -222,7 +218,7 @@ class CdiscountCrawler(BaseCrawler):
             if len(result.products) >= self.limit:
                 break
             try:
-                html = self._fetch_pdp(sess, url, result)
+                html = self._fetch_pdp(fetcher, url, result)
             except BlockedError:
                 raise
             except Exception as exc:
@@ -237,7 +233,7 @@ class CdiscountCrawler(BaseCrawler):
                 if pdp_fails >= PDP_FAIL_RESET:
                     result.notes.append(
                         f"  · 连续 {pdp_fails} PDP 失败 → 重做 Baleen 握手")
-                    if self._warmup_baleen(sess, result):
+                    if self._warmup_baleen(fetcher, result):
                         pdp_fails = 0
                 self.sleep()
                 continue
@@ -260,7 +256,7 @@ class CdiscountCrawler(BaseCrawler):
     # ------------------------------------------------------------------
     # 商品 URL 发现：BFS 列表页 + 分页
     # ------------------------------------------------------------------
-    def _discover(self, sess: creq.Session, seed_products: list[str],
+    def _discover(self, fetcher, seed_products: list[str],
                   seed_lists: list[str], result: CrawlResult) -> list[str]:
         """从列表页 BFS 累计商品 URL，去重保序。"""
         products: list[str] = []
@@ -293,9 +289,12 @@ class CdiscountCrawler(BaseCrawler):
                     break
                 url = full if page == 1 else f"{full}?page={page}"
                 try:
-                    cr = sess.get(url, timeout=30,
-                                  headers={"Referer": self.base + "/"})
-                    self.guard(cr.status_code, url)
+                    cr = fetcher.get(url, timeout=30,
+                                     headers={
+                                         **self._headers(),
+                                         "Referer": self.base + "/",
+                                     })
+                    self.guard(cr.status or 0, url)
                 except BlockedError:
                     raise
                 except Exception as exc:
@@ -303,13 +302,13 @@ class CdiscountCrawler(BaseCrawler):
                         f"  · 列表异常 {url[-60:]}: {exc}")
                     break
                 scanned_lists += 1
-                if cr.status_code != 200:
+                if (cr.status or 0) != 200:
                     break
                 if _BALEEN_MARK in cr.text:
                     # 列表页被反爬挡了：重做握手再试一次
                     result.notes.append(
                         f"  · 列表中 Baleen，重试握手 ({url[-50:]})")
-                    if not self._warmup_baleen(sess, result):
+                    if not self._warmup_baleen(fetcher, result):
                         break
                     continue
 
@@ -385,18 +384,21 @@ class CdiscountCrawler(BaseCrawler):
     # ------------------------------------------------------------------
     # 单 PDP 拉取
     # ------------------------------------------------------------------
-    def _fetch_pdp(self, sess: creq.Session, url: str,
+    def _fetch_pdp(self, fetcher, url: str,
                    result: CrawlResult) -> str | None:
         full = url if url.startswith("http") else self.base + url
         try:
-            r = sess.get(full, timeout=30,
-                         headers={"Referer": self.base + "/"})
-            self.guard(r.status_code, full)
+            res = fetcher.get(full, timeout=30,
+                              headers={
+                                  **self._headers(),
+                                  "Referer": self.base + "/",
+                              })
+            self.guard(res.status or 0, full)
         except BlockedError:
             raise
-        if r.status_code != 200:
+        if not res.ok:
             return None
-        html = r.text or ""
+        html = res.text or ""
         if _BALEEN_MARK in html or len(html) < 20_000:
             return None
         return html
