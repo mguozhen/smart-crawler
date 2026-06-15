@@ -21,8 +21,6 @@ import os
 import re
 import time
 
-from curl_cffi import requests as creq
-
 from ..antiban import BlockedError
 from .base import BaseCrawler, CrawlResult
 
@@ -58,22 +56,19 @@ class EtsyCrawler(BaseCrawler):
         self.limit = self._resolve_limit(DEFAULT_LIMIT, limit)
         self.delay = max(self.delay, DELAY)
 
-    def _session(self) -> creq.Session:
-        s = creq.Session(impersonate="chrome131")
-        s.headers.update({
+    def _headers(self) -> dict:
+        """构造定制请求头（每请求透传给 CrawlerFetcher.get）。"""
+        return {
             "User-Agent": self.ua(),
             "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": self.base + "/",
             "Sec-Fetch-Mode": "navigate",
-        })
-        if self.proxy:
-            s.proxies = {"http": self.proxy, "https": self.proxy}
-        return s
+        }
 
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        sess = self._session()
+        fetcher = self.make_fetcher(kind="product", source="etsy")
         urls: list[str] = []
         seen: set[str] = set()
 
@@ -85,15 +80,14 @@ class EtsyCrawler(BaseCrawler):
                 u = (f"{self.base}/search?q={kw.replace(' ', '+')}"
                      f"&page={pg}")
                 try:
-                    r = sess.get(u, timeout=30)
+                    res = fetcher.get(u, headers=self._headers(), timeout=30)
                 except Exception:
                     break
-                if r.status_code != 200 or self._blocked(r.text):
+                if (res.status or 0) != 200 or self._blocked(res.text):
                     time.sleep(30)
-                    sess = self._session()
                     break
                 new = 0
-                for lid in _LISTING_RE.findall(r.text):
+                for lid in _LISTING_RE.findall(res.text):
                     pdp = f"{self.base}/listing/{lid}"
                     if pdp in seen:
                         continue
@@ -114,15 +108,13 @@ class EtsyCrawler(BaseCrawler):
         for i, url in enumerate(urls[: self.limit * 2]):
             if ok >= self.limit:
                 break
-            if i and i % 50 == 0:
-                sess = self._session()
             try:
-                r = sess.get(url, timeout=30)
-                html = r.text or ""
+                res = fetcher.get(url, headers=self._headers(), timeout=30)
+                html = res.text or ""
             except Exception:
                 self.sleep()
                 continue
-            if r.status_code in (403, 429) or self._blocked(html):
+            if (res.status or 0) in (403, 429) or self._blocked(html):
                 denied += 1
                 if denied >= 6:
                     raise BlockedError(f"etsy 熔断 ok={ok}")
