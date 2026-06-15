@@ -8,15 +8,30 @@
 """
 from __future__ import annotations
 
+import re
 import traceback
 from datetime import datetime
 
-from sqlalchemy import update
+from sqlalchemy import case, or_, update
 
 from .antiban import BlockedError, in_cooldown, set_cooldown
+from .billing import record_usage
+from .crawl_diagnostics import (
+    classify_exception,
+    record_failure,
+    zero_products_failure,
+)
 from .crawlers.registry import get_crawler
 from .db import session_scope
 from .models import Category, CrawlJob, Product, Promotion, Site
+
+_PROMO_KEYWORDS = re.compile(
+    r"\b("
+    r"sale|deal|discount|promo|promotion|coupon|clearance|save|off|"
+    r"black\s*friday|cyber\s*monday|flash|limited|特价|促销|优惠|折扣|券"
+    r")\b",
+    re.IGNORECASE,
+)
 
 
 def enqueue(site_name: str, trigger: str = "manual",
@@ -35,11 +50,19 @@ def enqueue(site_name: str, trigger: str = "manual",
         return job.id
 
 
-def claim_job(worker_id: str) -> int | None:
+def claim_job(worker_id: str,
+              trigger_allowlist: tuple[str, ...] | None = None) -> int | None:
     """worker 原子领取最旧的 pending 任务，返回 job_id 或 None。"""
     with session_scope() as s:
-        job = (s.query(CrawlJob).filter(CrawlJob.status == "pending")
-               .order_by(CrawlJob.id).first())
+        priority = case(
+            (CrawlJob.trigger == "manual", 0),
+            (CrawlJob.trigger == "tracking_add", 1),
+            else_=2,
+        )
+        query = s.query(CrawlJob).filter(CrawlJob.status == "pending")
+        if trigger_allowlist:
+            query = query.filter(CrawlJob.trigger.in_(trigger_allowlist))
+        job = query.order_by(priority, CrawlJob.id).first()
         if job is None:
             return None
         # 乐观锁：仅当仍为 pending 时领取，防多 worker 抢同一任务
@@ -49,6 +72,29 @@ def claim_job(worker_id: str) -> int | None:
             .values(status="running", worker=worker_id,
                     started_at=datetime.utcnow()))
         return job.id if res.rowcount == 1 else None
+
+
+def _record_crawl_usage(*, workspace_id, products_count, duration_sec,
+                        api_calls, browser_opens) -> None:
+    """网页/后台采集：写一行 Usage（api_key_id=None → 只记录，不扣额度）。
+
+    计费失败绝不中断采集收尾。
+    """
+    try:
+        record_usage(
+            api_key_id=None,
+            workspace_id=workspace_id,
+            endpoint="/crawl/job",
+            record_count=products_count,
+            credits_used=max(1, min(products_count, 10_000)),
+            bytes_returned=0,
+            duration_ms=int((duration_sec or 0) * 1000),
+            api_calls=api_calls,
+            browser_opens=browser_opens,
+            pages_fetched=api_calls + browser_opens,
+        )
+    except Exception:
+        pass
 
 
 def execute_job(job_id: int) -> dict:
@@ -63,6 +109,7 @@ def execute_job(job_id: int) -> dict:
             job.status = "running"
             job.started_at = datetime.utcnow()
         crawler = get_crawler(site)
+        crawler.job_id = job_id
 
     # 站点冷却中 —— 跳过，不再去打（反封禁）
     if in_cooldown(site_name):
@@ -78,21 +125,25 @@ def execute_job(job_id: int) -> dict:
         result = crawler.crawl()
     except BlockedError as exc:                  # 熔断 —— 站点封锁
         set_cooldown(site_name)
+        info = classify_exception(exc)
         with session_scope() as s:
             job = s.get(CrawlJob, job_id)
             job.status = "blocked"
             job.finished_at = datetime.utcnow()
             job.duration_sec = (datetime.utcnow() - started).total_seconds()
             job.error = f"熔断：{exc}（站点已进入冷却期）"
+            record_failure(s, site=site_name, job_id=job_id, info=info)
         return {"job_id": job_id, "site": site_name, "status": "blocked",
                 "error": str(exc)}
     except Exception as exc:                     # 采集失败 —— C-005
+        info = classify_exception(exc)
         with session_scope() as s:
             job = s.get(CrawlJob, job_id)
             job.status = "failed"
             job.finished_at = datetime.utcnow()
             job.duration_sec = (datetime.utcnow() - started).total_seconds()
             job.error = f"{exc}\n{traceback.format_exc()[-800:]}"
+            record_failure(s, site=site_name, job_id=job_id, info=info)
             _fsite = s.query(Site).filter(Site.site == site_name).first()
             if _fsite and _fsite.track_status != "paused":
                 _fsite.track_status = "error"
@@ -124,9 +175,30 @@ def execute_job(job_id: int) -> dict:
         produced = stats["inserted"] + stats["updated"]
         if site.track_status != "paused":
             site.track_status = "error" if produced == 0 else "tracking"
+        if produced == 0:
+            job.status = "failed"
+            if job.failure_code:
+                job.error = job.failure_detail or "本次抓取未产出有效商品"
+            else:
+                job.error = "; ".join(result.notes[-3:]) if result.notes else (
+                    "本次抓取未产出有效商品")
+        if produced == 0 and not job.failure_code:
+            info = zero_products_failure(
+                site_name,
+                "; ".join(result.notes[-3:]) if result.notes else "",
+            )
+            record_failure(s, site=site_name, job_id=job_id, info=info)
+        ws_id = job.requested_by_workspace_id
 
+    _record_crawl_usage(
+        workspace_id=ws_id,
+        products_count=stats["inserted"] + stats["updated"],
+        duration_sec=duration,
+        api_calls=crawler.counter.api_calls,
+        browser_opens=crawler.counter.browser_opens,
+    )
     return {
-        "job_id": job_id, "site": site_name, "status": "success",
+        "job_id": job_id, "site": site_name, "status": job.status,
         "products": stats["inserted"] + stats["updated"], "new": stats["new"],
         "promotions": promo_count, "notes": result.notes,
         "duration_sec": round(duration, 1),
@@ -155,21 +227,53 @@ def _save_categories(s, site_name: str, cats: list[dict]) -> None:
 
 
 def _detect_promotions(s, site_name: str) -> int:
-    """促销识别 —— F1-020：原价 > 售价即判定为价格促销。"""
+    """促销识别 —— 价格降价 + 站点标签里的明确促销活动。"""
     s.query(Promotion).filter(Promotion.site == site_name).delete()
     rows = (s.query(Product)
             .filter(Product.site == site_name)
-            .filter(Product.original_price > Product.sale_price)
+            .filter(or_(
+                Product.original_price > Product.sale_price,
+                Product.label.isnot(None),
+                Product.tags.isnot(None),
+            ))
             .all())
+    count = 0
     for p in rows:
+        has_price_promo = (
+            p.original_price is not None and p.sale_price is not None
+            and p.original_price > p.sale_price
+        )
+        label = _promotion_label(p)
+        if not has_price_promo and not label:
+            continue
         discount = None
-        if p.original_price:
+        if has_price_promo and p.original_price:
             discount = round((p.original_price - p.sale_price) / p.original_price * 100)
         img = p.image_urls[0] if p.image_urls else None
         s.add(Promotion(
-            sku=p.sku, site=site_name, promotion_type="price_promotion",
-            promotion_name=None, original_price=p.original_price,
+            sku=p.sku, site=site_name,
+            promotion_type="price_promotion" if has_price_promo else "site_promotion",
+            promotion_name=label, original_price=p.original_price,
             promotion_price=p.sale_price, discount_percent=discount,
             product_title=p.title, product_image=img,
         ))
-    return len(rows)
+        count += 1
+    return count
+
+
+def _promotion_label(product: Product) -> str | None:
+    values = []
+    if product.label:
+        values.append(str(product.label))
+    tags = product.tags or []
+    if isinstance(tags, str):
+        values.append(tags)
+    elif isinstance(tags, (list, tuple, set)):
+        values.extend(str(v) for v in tags if v)
+    elif isinstance(tags, dict):
+        values.extend(str(v) for v in tags.values() if v)
+    for value in values:
+        text = value.strip()
+        if text and _PROMO_KEYWORDS.search(text):
+            return text[:120]
+    return None
