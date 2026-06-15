@@ -33,7 +33,6 @@ import json
 import os
 import re
 
-from curl_cffi import requests as creq
 from selectolax.parser import HTMLParser
 
 from .base import BaseCrawler, CrawlResult
@@ -58,38 +57,39 @@ class ArticleCrawler(BaseCrawler):
         # US=1 / CA=2，默认 US
         self._cur_cookie = "2" if (site.country or "").upper() == "CA" else "1"
 
-    def _session(self) -> creq.Session:
-        s = creq.Session(impersonate="chrome")
-        s.headers.update({
+    def _headers(self) -> dict:
+        """构造定制请求头（每请求透传给 CrawlerFetcher.get）。"""
+        return {
             "User-Agent": self.ua(),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
-        })
-        s.cookies.set("currency", self._cur_cookie, domain=".article.com")
-        if self.proxy:
-            s.proxies = {"http": self.proxy, "https": self.proxy}
-        return s
+        }
 
     # ------------------------------------------------------------------
     # 主流程
     # ------------------------------------------------------------------
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        sess = self._session()
+        fetcher = self.make_fetcher(kind="product", source="article")
 
         # ---- Step 1：拉 sitemap ----
         try:
-            resp = sess.get(SITEMAP_URL, timeout=30)
-            self.guard(resp.status_code, "sitemap")
+            res = fetcher.get(
+                SITEMAP_URL,
+                headers=self._headers(),
+                cookies={"currency": self._cur_cookie},
+                timeout=30,
+            )
+            self.guard(res.status or 0, "sitemap")
         except Exception as exc:
             result.notes.append(f"⚠ sitemap 不可达: {exc}")
             return result
-        if resp.status_code != 200:
+        if (res.status or 0) != 200:
             result.notes.append(
-                f"⚠ sitemap HTTP {resp.status_code}")
+                f"⚠ sitemap HTTP {res.status}")
             return result
 
-        urls = re.findall(r"<loc>\s*(.*?)\s*</loc>", resp.text)
+        urls = re.findall(r"<loc>\s*(.*?)\s*</loc>", res.text)
         product_urls = [u for u in urls if "/product/" in u]
         total = len(product_urls)
         targets = product_urls[: self.limit]
@@ -103,7 +103,7 @@ class ArticleCrawler(BaseCrawler):
         skipped = 0
         for url in targets:
             try:
-                row, status = self._fetch_and_parse(sess, url)
+                row, status = self._fetch_and_parse(fetcher, url)
                 if status == "discontinued":
                     discontinued += 1
                 elif row:
@@ -124,18 +124,23 @@ class ArticleCrawler(BaseCrawler):
     # ------------------------------------------------------------------
     # 单页解析
     # ------------------------------------------------------------------
-    def _fetch_and_parse(
-            self, sess: creq.Session, url: str) -> tuple[dict | None, str]:
+    def _fetch_and_parse(self, fetcher, url: str) -> tuple[dict | None, str]:
         """返回 (row, status)。status: 'ok' / 'discontinued' / 'noparse'。"""
-        resp = sess.get(url, timeout=30, allow_redirects=True)
-        self.guard(resp.status_code, "pdp")
-        final_url = str(resp.url)
+        res = fetcher.get(
+            url,
+            headers=self._headers(),
+            cookies={"currency": self._cur_cookie},
+            allow_redirects=True,
+            timeout=30,
+        )
+        self.guard(res.status or 0, "pdp")
+        final_url = res.final_url or url
 
         # 终态 /browse → 停售
         if "/product/" not in final_url:
             return None, "discontinued"
 
-        html = resp.text
+        html = res.text
         m = _PRODUCT_URL_RE.search(final_url)
         slug = m.group(2) if m else final_url.rstrip("/").split("/")[-1]
         self.snapshot(slug, html)
