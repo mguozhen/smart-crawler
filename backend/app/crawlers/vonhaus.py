@@ -10,7 +10,6 @@ from __future__ import annotations
 import os
 import re
 
-from curl_cffi import requests as creq
 from selectolax.parser import HTMLParser
 
 from .base import BaseCrawler, CrawlResult
@@ -28,20 +27,25 @@ class VonHausCrawler(BaseCrawler):
         self.base = site.url.rstrip("/")
         self.limit = self._resolve_limit(DEFAULT_LIMIT)
 
-    def _session(self) -> creq.Session:
-        s = creq.Session(impersonate="chrome")
-        s.headers.update({"User-Agent": self.ua()})
-        if self.proxy:
-            s.proxies = {"http": self.proxy, "https": self.proxy}
-        return s
+    def _headers(self) -> dict:
+        return {"User-Agent": self.ua()}
 
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        sess = self._session()
+        fetcher = self.make_fetcher(kind="sitemap", source="vonhaus")
         try:
-            xml = sess.get(self.base + "/sitemap.xml", timeout=30).text
+            res = fetcher.get(
+                self.base + "/sitemap.xml",
+                headers=self._headers(),
+                timeout=30,
+            )
+            xml = res.text
         except Exception as exc:
             result.notes.append(f"⚠ sitemap 不可达: {exc}")
+            return result
+
+        if not (res.ok and xml):
+            result.notes.append(f"⚠ sitemap 返回 {res.status or 0}")
             return result
 
         urls = [u for u in re.findall(r"<loc>\s*(.*?)\s*</loc>", xml)
@@ -49,13 +53,15 @@ class VonHausCrawler(BaseCrawler):
         result.notes.append(f"sitemap 共 {len(urls)} 个 /vh_en/ 页面，"
                             f"扫描判别商品（上限 {SCAN_CAP}）")
 
+        prod_fetcher = self.make_fetcher(kind="product", source="vonhaus")
         scanned = 0
         for url in urls[:SCAN_CAP]:
             if len(result.products) >= self.limit:
                 break
             scanned += 1
             try:
-                html = sess.get(url, timeout=30).text
+                res = prod_fetcher.get(url, headers=self._headers(), timeout=30)
+                html = res.text or ""
                 row = self._parse_product(html, url)
                 if row:
                     self.snapshot(url.rstrip("/").split("/")[-1], html)
@@ -73,7 +79,7 @@ class VonHausCrawler(BaseCrawler):
         price = self._meta(tree, "product:price:amount")
         if price is None:                       # 无商品价格 meta → 分类页
             return None
-        title = self._meta(tree, "og:title")
+        title = self._meta_raw(tree, "og:title")
         h1 = tree.css_first("h1")
         if h1 and h1.text(strip=True):
             title = h1.text(strip=True)
