@@ -8,6 +8,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from ..config import get_settings, get_sites, user_agents
+from ..fetching import CrawlCounter, CrawlerFetcher, FetchContext
 from ..models import Site
 from ..proxy import get_proxy
 from .. import snapshot as _snapshot
@@ -21,6 +22,9 @@ class CrawlResult:
         self.products: list[dict] = []
         self.categories: list[dict] = []
         self.notes: list[str] = []
+        self.api_calls: int = 0
+        self.browser_opens: int = 0
+        self.pages_fetched: int = 0
 
 
 class BaseCrawler(ABC):
@@ -30,11 +34,13 @@ class BaseCrawler(ABC):
 
     def __init__(self, site: Site):
         self.site = site
+        self.job_id: int | None = None
         self.settings = get_settings()
         # 每站限速档 —— 评论平台远慢于商品站（反封禁）
         self.delay = rate_delay(self.platform,
                                 float(self.settings.get("request_delay", 1.5)))
         self.proxy = get_proxy(site.proxy_tier, site=site.site)
+        self.counter = CrawlCounter()
 
     def _resolve_limit(self, default: int, explicit: int | None = None) -> int:
         """limit 优先级：显式参数 > sites.yaml max_products > env 默认。"""
@@ -59,6 +65,23 @@ class BaseCrawler(ABC):
     def snapshot(self, name: str, content) -> None:
         """归档一份原始响应到大盘（见 app/snapshot.py）。"""
         _snapshot.save(self.site.site, name, content)
+
+    def make_fetcher(self, *, kind: str = "product",
+                     source: str = "unknown",
+                     timeout: int = 30,
+                     use_proxy: bool = True,
+                     allow_stealth: bool = False) -> CrawlerFetcher:
+        """构造一个已注入本 crawler 计数器的统一 fetcher。"""
+        return CrawlerFetcher(FetchContext(
+            site=self.site,
+            job_id=self.job_id,
+            kind=kind,
+            source=source,
+            timeout=timeout,
+            use_proxy=use_proxy,
+            allow_stealth=allow_stealth,
+            counter=self.counter,
+        ))
 
     @abstractmethod
     def crawl(self) -> CrawlResult:
