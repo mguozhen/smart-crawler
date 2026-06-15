@@ -44,7 +44,8 @@ _ANTI_BOT_MARKERS = (
     "challenge-platform",
 )
 
-_BROWSER_FETCHERS = ("scrapling", "playwright")
+_STEALTH_FETCHER = "scrapling"
+_BROWSER_FETCHERS = (_STEALTH_FETCHER, "playwright")
 
 
 @dataclass
@@ -71,7 +72,7 @@ class FetchContext:
     retries: int = 1
     retry_statuses: tuple[int, ...] = (429, 500, 502, 503, 504)
     rotate_proxy_on_retry: bool = True
-    counter: "CrawlCounter | None" = None
+    counter: CrawlCounter | None = None
 
 
 @dataclass
@@ -227,7 +228,7 @@ class CrawlerFetcher:
                 text=text,
                 content=text.encode("utf-8", "ignore"),
                 final_url=url,
-                fetcher="scrapling",
+                fetcher=_STEALTH_FETCHER,
                 duration_ms=int((time.time() - started) * 1000),
                 failure=failure,
                 attempt=attempt,
@@ -240,7 +241,7 @@ class CrawlerFetcher:
             result = FetchResult(
                 ok=False,
                 url=url,
-                fetcher="scrapling",
+                fetcher=_STEALTH_FETCHER,
                 duration_ms=int((time.time() - started) * 1000),
                 failure=failure,
                 attempt=attempt,
@@ -252,7 +253,7 @@ class CrawlerFetcher:
     def _count(self, result: FetchResult) -> None:
         """仅对成功结果计数（失败/重试已被调用方过滤）。"""
         counter = self.context.counter
-        if counter is None or not result.ok:
+        if counter is None or not result.ok:  # defensive: caller already filters
             return
         if result.fetcher in _BROWSER_FETCHERS:
             counter.browser_opens += 1

@@ -74,4 +74,19 @@ def test_counter_none_is_noop(monkeypatch):
         return FetchResult(ok=True, url=url, status=200, fetcher="curl_cffi")
 
     monkeypatch.setattr(fetcher, "_get_once", fake_once)
+    result = fetcher.get("https://example.com/p/1")
+    assert result.ok
+
+
+def test_success_stealth_increments_browser_opens(monkeypatch):
+    c = CrawlCounter()
+    fetcher = CrawlerFetcher(_ctx(c), middlewares=[])
+
+    def fake_once(url, *, attempt=1, **kw):
+        return FetchResult(ok=True, url=url, status=200,
+                           fetcher="scrapling", attempt=attempt)
+
+    monkeypatch.setattr(fetcher, "_get_once", fake_once)
     fetcher.get("https://example.com/p/1")
+    assert c.browser_opens == 1
+    assert c.api_calls == 0
