@@ -7,6 +7,7 @@ classification, URL state tracking, and future middleware hooks.
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 from dataclasses import dataclass
 from typing import Protocol
@@ -91,10 +92,9 @@ class FetchResult:
 
     def json(self):
         """把 text 解析为 JSON；失败返回 None（不抛错）。"""
-        import json as _json
         try:
-            return _json.loads(self.text)
-        except Exception:
+            return json.loads(self.text)
+        except (ValueError, TypeError):
             return None
 
 
@@ -118,20 +118,30 @@ class CrawlerFetcher:
         ]
 
     def get(self, url: str, **kwargs) -> FetchResult:
+        return self._retry_loop("GET", url, with_stealth=True, **kwargs)
+
+    def request(self, method: str, url: str, **kwargs) -> FetchResult:
+        """通用请求；非 GET 不走 stealth 浏览器兜底（stealth 仅适用于 HTML 抓取）。"""
+        return self._retry_loop(method, url, with_stealth=False, **kwargs)
+
+    def post(self, url: str, **kwargs) -> FetchResult:
+        return self.request("POST", url, **kwargs)
+
+    def _retry_loop(self, method: str, url: str, *, with_stealth: bool, **kwargs) -> FetchResult:
         attempts = max(1, self.context.retries + 1)
         last: FetchResult | None = None
         for attempt in range(1, attempts + 1):
             request_kwargs = dict(kwargs)
             for mw in self.middlewares:
                 mw.before_request(self, url, request_kwargs)
-            result = self._request_once("GET", url, attempt=attempt, **request_kwargs)
+            result = self._request_once(method, url, attempt=attempt, **request_kwargs)
             for mw in self.middlewares:
                 mw.after_response(self, result)
             last = result
             if result.ok:
                 self._count(result)
                 return result
-            if self.context.allow_stealth and _should_stealth(result):
+            if with_stealth and self.context.allow_stealth and _should_stealth(result):
                 stealth = self._get_stealth(url, attempt=attempt)
                 for mw in self.middlewares:
                     mw.after_response(self, stealth)
@@ -146,31 +156,6 @@ class CrawlerFetcher:
         return last or FetchResult(ok=False, url=url, failure=FailureInfo(
             "unknown", STAGE_FETCH, "fetch produced no result", True,
             "检查 fetcher 配置"))
-
-    def request(self, method: str, url: str, **kwargs) -> FetchResult:
-        attempts = max(1, self.context.retries + 1)
-        last: FetchResult | None = None
-        for attempt in range(1, attempts + 1):
-            request_kwargs = dict(kwargs)
-            for mw in self.middlewares:
-                mw.before_request(self, url, request_kwargs)
-            result = self._request_once(method, url, attempt=attempt, **request_kwargs)
-            for mw in self.middlewares:
-                mw.after_response(self, result)
-            last = result
-            if result.ok:
-                self._count(result)
-                return result
-            if not _should_retry(self.context, result, attempt, attempts):
-                break
-            if self.context.rotate_proxy_on_retry:
-                time.sleep(min(2 * attempt, 5))
-        return last or FetchResult(ok=False, url=url, failure=FailureInfo(
-            "unknown", STAGE_FETCH, "fetch produced no result", True,
-            "检查 fetcher 配置"))
-
-    def post(self, url: str, **kwargs) -> FetchResult:
-        return self.request("POST", url, **kwargs)
 
     def _request_once(self, method: str, url: str, *, attempt: int = 1, **kwargs) -> FetchResult:
         ctx = self.context
