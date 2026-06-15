@@ -22,6 +22,8 @@ class CrawlResult:
         self.products: list[dict] = []
         self.categories: list[dict] = []
         self.notes: list[str] = []
+        # 计数快照（可选）：runner 收尾时直接读 crawler.counter，这里是给
+        # 需要在 CrawlResult 内携带计数的调用方留的快照位，非计算值。
         self.api_calls: int = 0
         self.browser_opens: int = 0
         self.pages_fetched: int = 0
@@ -70,8 +72,13 @@ class BaseCrawler(ABC):
                      source: str = "unknown",
                      timeout: int = 30,
                      use_proxy: bool = True,
-                     allow_stealth: bool = False) -> CrawlerFetcher:
-        """构造一个已注入本 crawler 计数器的统一 fetcher。"""
+                     allow_stealth: bool = False,
+                     **ctx_kwargs) -> CrawlerFetcher:
+        """构造一个已注入本 crawler 计数器的统一 fetcher。
+
+        额外 FetchContext 字段（retries / fail_fast_blocked /
+        rotate_proxy_on_retry 等）可通过 **ctx_kwargs 透传。
+        """
         return CrawlerFetcher(FetchContext(
             site=self.site,
             job_id=self.job_id,
@@ -81,6 +88,7 @@ class BaseCrawler(ABC):
             use_proxy=use_proxy,
             allow_stealth=allow_stealth,
             counter=self.counter,
+            **ctx_kwargs,
         ))
 
     @abstractmethod

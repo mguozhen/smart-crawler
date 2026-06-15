@@ -13,14 +13,17 @@ sites.yaml 中该站点可选字段：
 from __future__ import annotations
 
 import gzip
+import html as html_lib
 import json
 import os
 import re
+from urllib.parse import urljoin, urlparse
 
 from curl_cffi import requests as creq
 from selectolax.parser import HTMLParser
 
 from ..config import get_sites
+from ..fetching import CrawlerFetcher, FetchContext
 from .base import BaseCrawler, CrawlResult
 
 DEFAULT_LIMIT = int(os.environ.get("GENERIC_LIMIT", "200"))
@@ -30,6 +33,18 @@ _CURRENCY = {"US": "USD", "UK": "GBP", "CA": "CAD", "IE": "EUR", "DE": "EUR",
 _PRICE_RE = re.compile(r"[\d.,]+")
 _LD_RE = re.compile(
     r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
+_SITEMAP_RE = re.compile(r"(?im)^\s*sitemap:\s*(\S+)\s*$")
+_NOISE_RE = re.compile(
+    r"(blog|/article|/news|care-center|/category/|/help|/about|/contact|"
+    r"/privacy|/terms|/login|/account|/cart|/checkout|/search|/stores?|"
+    r"/collections?$|/categories?$)",
+    re.I,
+)
+_PRODUCT_HINT_RE = re.compile(
+    r"(/products?/|/product/|/p/|/pd/|/pdp/|/item/|/itm/|/dp/|"
+    r"/sku/|/catalog/product|product[-_]|p-[0-9]|sku[-_/]?[0-9])",
+    re.I,
+)
 
 
 class GenericCrawler(BaseCrawler):
@@ -38,8 +53,9 @@ class GenericCrawler(BaseCrawler):
     def __init__(self, site):
         super().__init__(site)
         hints = next((c for c in get_sites() if c["site"] == site.site), {})
-        self.sitemap = hints.get("sitemap") or (
-            site.url.rstrip("/") + "/sitemap.xml")
+        self.base = site.url.rstrip("/")
+        self.sitemap_hint = hints.get("sitemap")
+        self.sitemap = self.sitemap_hint or (self.base + "/sitemap.xml")
         self.product_match = hints.get("product_match", "")
         self.exclude_match = hints.get("exclude_match", "")
         self.limit = self._resolve_limit(DEFAULT_LIMIT)
@@ -52,12 +68,63 @@ class GenericCrawler(BaseCrawler):
             s.proxies = {"http": self.proxy, "https": self.proxy}
         return s
 
-    def _sitemap_locs(self, sess: creq.Session, url: str, depth: int = 0) -> list[str]:
+    def _fetcher(self, kind: str, source: str) -> CrawlerFetcher:
+        return self.make_fetcher(kind=kind, source=source,
+                                 timeout=30, use_proxy=True)
+
+    def _fetch_text(self, sess: creq.Session | None, url: str,
+                    *, kind: str, source: str) -> tuple[int | None, str, bytes]:
+        if sess is None:
+            res = self._fetcher(kind, source).get(
+                url,
+                headers={"Accept-Language": "en-US,en;q=0.9"},
+            )
+            return res.status, res.text, res.content
+        try:
+            resp = sess.get(url, timeout=30)
+            return resp.status_code, resp.text or "", resp.content or b""
+        except Exception:
+            return None, "", b""
+
+    def _discover_sitemaps(self, sess: creq.Session | None) -> list[str]:
+        """从配置、robots.txt 和常见路径发现 sitemap 入口。"""
+        urls: list[str] = []
+        if self.sitemap_hint:
+            urls.append(self.sitemap_hint)
+
+        robots = urljoin(self.base + "/", "robots.txt")
+        try:
+            status, text, _ = self._fetch_text(
+                sess, robots, kind="sitemap", source="robots")
+            if status == 200:
+                urls.extend(_SITEMAP_RE.findall(text or ""))
+        except Exception:
+            pass
+
+        for path in (
+            "sitemap.xml",
+            "sitemap_index.xml",
+            "sitemap-index.xml",
+            "sitemap/sitemap.xml",
+            "sitemaps/sitemap.xml",
+            "product-sitemap.xml",
+            "products-sitemap.xml",
+            "sitemap-products.xml",
+        ):
+            urls.append(urljoin(self.base + "/", path))
+
+        return self._dedupe(urls)
+
+    def _sitemap_locs(self, sess: creq.Session | None, url: str,
+                      depth: int = 0) -> list[str]:
         """递归展开 sitemap（索引 / .gz / 普通），返回全部 <loc>。"""
         if depth > 3:
             return []
         try:
-            raw = sess.get(url, timeout=30).content
+            status, _, raw = self._fetch_text(
+                sess, url, kind="sitemap", source="sitemap")
+            if status is None or status >= 400:
+                return []
         except Exception:
             return []
         try:
@@ -65,7 +132,8 @@ class GenericCrawler(BaseCrawler):
                     else raw).decode("utf-8", "ignore")
         except (OSError, gzip.BadGzipFile):
             text = raw.decode("utf-8", "ignore")
-        locs = re.findall(r"<loc>\s*(.*?)\s*</loc>", text)
+        locs = [html_lib.unescape(x.strip())
+                for x in re.findall(r"<loc>\s*(.*?)\s*</loc>", text)]
         sub = [l for l in locs if l.endswith(".xml") or l.endswith(".xml.gz")]
         if sub and len(sub) == len(locs):            # 纯 sitemap 索引，递归
             out: list[str] = []
@@ -74,26 +142,64 @@ class GenericCrawler(BaseCrawler):
             return out
         return locs
 
+    def _discover_product_urls(self, sess: creq.Session | None,
+                               result: CrawlResult) -> list[str]:
+        locs: list[str] = []
+        sitemap_urls = self._discover_sitemaps(sess)
+        for sm in sitemap_urls[:16]:
+            before = len(locs)
+            locs.extend(self._sitemap_locs(sess, sm))
+            if len(locs) > before:
+                result.notes.append(f"sitemap 命中: {sm}")
+
+        cands = [u for u in self._dedupe(locs) if self._is_candidate_url(u)]
+        products = [u for u in cands if self._is_product_url(u)]
+        if not products and not self.product_match:
+            products = cands
+
+        if products:
+            return products
+
+        links = self._links_from_page(sess, self.site.url)
+        if links:
+            result.notes.append(f"入口页发现 {len(links)} 个候选商品链接")
+        return links
+
+    def _links_from_page(self, sess: creq.Session | None, url: str) -> list[str]:
+        status, text, _ = self._fetch_text(
+            sess, url, kind="category", source="homepage")
+        if status is None or status >= 400:
+            return []
+        base_host = urlparse(self.base).netloc
+        tree = HTMLParser(text or "")
+        links: list[str] = []
+        for node in tree.css("a[href]"):
+            href = node.attributes.get("href") or ""
+            full = urljoin(url, href.split("#", 1)[0])
+            if urlparse(full).netloc != base_host:
+                continue
+            if self._is_candidate_url(full) and self._is_product_url(full):
+                links.append(full)
+            if len(links) >= self.limit:
+                break
+        return self._dedupe(links)
+
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        sess = self._session()
+        sess = None
 
-        locs = self._sitemap_locs(sess, self.sitemap)
-        products = [l for l in locs
-                    if (not self.product_match or self.product_match in l)
-                    and (not self.exclude_match or self.exclude_match not in l)
-                    and not l.endswith((".xml", ".xml.gz"))]
-        # 去掉明显非商品页
-        products = [u for u in products if not re.search(
-            r"(blog|/article|/news|care-center|/category/|/help|/about|/contact)",
-            u)]
+        if self.site.platform and self.site.platform != self.platform:
+            result.notes.append(
+                f"未注册平台 {self.site.platform}，已自动降级为 generic 通用抓取")
+
+        products = self._discover_product_urls(sess, result)
         total = len(products)
         targets = products[: self.limit]
         result.notes.append(
-            f"sitemap 发现 {total} 个候选商品 URL，本次抓取 {len(targets)} 条")
+            f"通用发现 {total} 个候选商品 URL，本次抓取 {len(targets)} 条")
         if not targets:
-            result.notes.append("⚠ sitemap 未发现商品 URL，需为该站点配置 "
-                                 "sitemap / product_match")
+            result.notes.append("⚠ 通用发现未找到商品 URL，可为该站点配置 "
+                                 "sitemap / product_match，或启用专用/浏览器策略")
             return result
 
         ok = 0
@@ -109,8 +215,29 @@ class GenericCrawler(BaseCrawler):
         result.notes.append(f"成功解析 {ok}/{len(targets)} 个商品页")
         return result
 
-    def _parse(self, sess: creq.Session, url: str) -> dict | None:
-        html = sess.get(url, timeout=30).text
+    def _is_candidate_url(self, url: str) -> bool:
+        if not url or url.endswith((".xml", ".xml.gz")):
+            return False
+        if self.exclude_match and self.exclude_match in url:
+            return False
+        path = urlparse(url).path.lower()
+        if not path or path == "/":
+            return False
+        if _NOISE_RE.search(path):
+            return False
+        return True
+
+    def _is_product_url(self, url: str) -> bool:
+        if self.product_match:
+            return self.product_match in url
+        path = urlparse(url).path.lower()
+        return bool(_PRODUCT_HINT_RE.search(path))
+
+    def _parse(self, sess: creq.Session | None, url: str) -> dict | None:
+        status, html, _ = self._fetch_text(
+            sess, url, kind="product", source="candidate")
+        if status is None or status >= 400:
+            return None
         self.snapshot(self._slug(url), html)       # 原始商品页归档
         tree = HTMLParser(html)
         data = self._from_jsonld(html) or {}
@@ -213,6 +340,16 @@ class GenericCrawler(BaseCrawler):
     @staticmethod
     def _slug(url: str) -> str:
         return url.rstrip("/").split("/")[-1].split("?")[0][:80]
+
+    @staticmethod
+    def _dedupe(items: list[str]) -> list[str]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for item in items:
+            if item and item not in seen:
+                seen.add(item)
+                out.append(item)
+        return out
 
     @staticmethod
     def _num(v):
