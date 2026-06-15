@@ -91,6 +91,27 @@ class BaseCrawler(ABC):
             **ctx_kwargs,
         ))
 
+    def count_browser_fetch(self, fn, *, success=None):
+        """执行一次浏览器抓取(StealthyFetcher/playwright)，成功则 browser_opens += 1。
+
+        fn: 无参回调，执行真实抓取并返回结果。
+        success(result)->bool: 成功判定；默认 result 为真值即成功。
+        异常照常上抛(与直接调用一致)，不计数。
+        """
+        result = fn()
+        ok = success(result) if success is not None else bool(result)
+        if ok:
+            self.counter.browser_opens += 1
+        return result
+
+    def count_api_fetch(self, fn, *, success=None):
+        """执行一次非 curl_cffi 的 HTTP API 抓取(如 reddit 的 requests)，成功则 api_calls += 1。"""
+        result = fn()
+        ok = success(result) if success is not None else bool(result)
+        if ok:
+            self.counter.api_calls += 1
+        return result
+
     @abstractmethod
     def crawl(self) -> CrawlResult:
         """执行采集，返回 CrawlResult。"""
