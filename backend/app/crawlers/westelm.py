@@ -32,6 +32,12 @@ window.__INITIAL_STATE__ 注入；非典型 SFCC URL）。
 字段输出：sku / spu / title / description / image_urls / category_path /
 sale_price / original_price / currency=USD / status / product_url /
 site / brand。ratings/review_count 走 BazaarVoice，本路径留空。
+
+批C 收编（2026-06）：
+  - curl 段改用 make_fetcher().get()，自动计 api_calls
+  - stealth 段用 count_browser_fetch 包裹，成功计 browser_opens
+  - 删 proxy 自管(_session 改为 _headers())；保留 guard / _is_blocked_body / parse
+  - solve_cloudflare=False（Akamai 非 Cloudflare）原样保留
 """
 from __future__ import annotations
 
@@ -40,8 +46,6 @@ import html as _html
 import json
 import os
 import re
-
-from curl_cffi import requests as creq
 
 from ..antiban import BlockedError
 from .base import BaseCrawler, CrawlResult
@@ -74,11 +78,10 @@ class WestElmCrawler(BaseCrawler):
         # 实测 1.2s 间隔连发 10 个全 200，留点余量保守 1.5s（含 jitter ~2.4s）
         self.delay = float(os.environ.get("WESTELM_DELAY", "1.5"))
 
-    # ---------- session ----------
-    def _session(self, warmup: bool = False) -> creq.Session:
-        """构建 curl_cffi 会话 —— Akamai 看 UA + TLS 指纹，缺一不可。"""
-        s = creq.Session(impersonate="chrome")
-        s.headers.update({
+    # ---------- headers (proxy handled by CrawlerFetcher) ----------
+    def _headers(self) -> dict:
+        """构造定制请求头（每请求透传给 make_fetcher().get()）。"""
+        return {
             "User-Agent": self.ua(),
             "Accept": "text/html,application/xhtml+xml,application/xml;"
                       "q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -90,22 +93,24 @@ class WestElmCrawler(BaseCrawler):
             "Sec-Fetch-Site": "same-origin",
             "Sec-Fetch-User": "?1",
             "Upgrade-Insecure-Requests": "1",
-        })
-        if self.proxy:
-            s.proxies = {"http": self.proxy, "https": self.proxy}
-        if warmup:
-            try:
-                s.get(self.base + "/", timeout=30)
-            except Exception:
-                pass
-        return s
+        }
 
     # ---------- main ----------
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        sess = self._session(warmup=True)
+        fetcher = self.make_fetcher(kind="product", source="westelm")
 
-        urls = self._collect_pdp_urls(sess, result)
+        # Warmup：访问首页建立会话 / 预热 Akamai cookie（计入 api_calls）
+        try:
+            fetcher.get(
+                self.base + "/",
+                headers=self._headers(),
+                timeout=30,
+            )
+        except Exception:
+            pass
+
+        urls = self._collect_pdp_urls(fetcher, result)
         if not urls:
             result.notes.append("⚠ 未收集到任何 PDP URL —— 中止")
             return result
@@ -126,12 +131,12 @@ class WestElmCrawler(BaseCrawler):
 
         for i, url in enumerate(targets):
             if i > 0 and i % SESSION_ROTATE == 0:
-                sess = self._session(warmup=True)
+                fetcher = self.make_fetcher(kind="product", source="westelm")
                 result.notes.append(
-                    f"… 第 {i} 条，主动 rotate session（已抓 {ok}）")
+                    f"… 第 {i} 条，主动 rotate fetcher（已抓 {ok}）")
 
             try:
-                html, code = self._fetch_pdp(sess, url)
+                html, code = self._fetch_pdp(fetcher, url)
 
                 if code == 404:
                     consecutive_block = 0
@@ -151,16 +156,16 @@ class WestElmCrawler(BaseCrawler):
 
                     if consecutive_block == 1:
                         result.notes.append(
-                            f"  → sleep {BLOCK_COOLDOWN_S}s + 重建 session")
+                            f"  → sleep {BLOCK_COOLDOWN_S}s + 重建 fetcher")
                         _t.sleep(BLOCK_COOLDOWN_S)
-                        sess = self._session(warmup=True)
+                        fetcher = self.make_fetcher(kind="product", source="westelm")
                         fail += 1
                         continue
                     if consecutive_block == 2:
                         result.notes.append(
                             f"  → 连续 block，sleep {BLOCK_COOLDOWN_S*2}s")
                         _t.sleep(BLOCK_COOLDOWN_S * 2)
-                        sess = self._session(warmup=True)
+                        fetcher = self.make_fetcher(kind="product", source="westelm")
                         fail += 1
                         continue
                     if STEALTH_USE and stealth_used < STEALTH_BUDGET:
@@ -183,7 +188,7 @@ class WestElmCrawler(BaseCrawler):
                                 f"westelm 连续 {consecutive_block} 次封锁，熔断"
                                 f"（已抓 {ok}）")
                         _t.sleep(BLOCK_COOLDOWN_S * consecutive_block)
-                        sess = self._session(warmup=True)
+                        fetcher = self.make_fetcher(kind="product", source="westelm")
                         continue
                 elif code == 200:
                     consecutive_block = 0
@@ -223,15 +228,19 @@ class WestElmCrawler(BaseCrawler):
         return result
 
     # ---------- sitemap ----------
-    def _collect_pdp_urls(self, sess: creq.Session,
+    def _collect_pdp_urls(self, fetcher,
                           result: CrawlResult) -> list[str]:
         """读 product-sitemap-index → 子 sitemap (.gz) → 列出 product URL。"""
         try:
-            idx = sess.get(SITEMAP_INDEX, timeout=30)
-            self.guard(idx.status_code, "sitemap_index")
-            if idx.status_code != 200:
+            res = fetcher.get(
+                SITEMAP_INDEX,
+                headers=self._headers(),
+                timeout=30,
+            )
+            self.guard(res.status or 0, "sitemap_index")
+            if (res.status or 0) != 200:
                 result.notes.append(
-                    f"⚠ sitemap_index 返回 {idx.status_code}")
+                    f"⚠ sitemap_index 返回 {res.status}")
                 return []
         except BlockedError:
             raise
@@ -239,9 +248,9 @@ class WestElmCrawler(BaseCrawler):
             result.notes.append(f"⚠ sitemap_index 不可达: {exc}")
             return []
 
-        subs = _LOC_RE.findall(idx.text)
+        subs = _LOC_RE.findall(res.text)
         result.notes.append(f"sitemap_index: {len(subs)} 个子 sitemap")
-        self.snapshot("sitemap_index", idx.text)
+        self.snapshot("sitemap_index", res.text)
 
         urls: list[str] = []
         seen: set[str] = set()
@@ -249,10 +258,10 @@ class WestElmCrawler(BaseCrawler):
             if len(urls) >= self.limit:
                 break
             try:
-                r = sess.get(sm, timeout=60)
-                if r.status_code != 200:
+                r = fetcher.get(sm, headers=self._headers(), timeout=60)
+                if (r.status or 0) != 200:
                     result.notes.append(
-                        f"⚠ {sm.rsplit('/',1)[-1]} {r.status_code}")
+                        f"⚠ {sm.rsplit('/',1)[-1]} {r.status}")
                     continue
                 # 子 sitemap 大概率 .xml.gz
                 content = r.content
@@ -287,18 +296,25 @@ class WestElmCrawler(BaseCrawler):
         return urls
 
     # ---------- fetch ----------
-    def _fetch_pdp(self, sess: creq.Session,
+    def _fetch_pdp(self, fetcher,
                    url: str) -> tuple[str | None, int]:
         """返回 (html_or_None, status_code)。"""
         try:
-            r = sess.get(url, timeout=30)
+            res = fetcher.get(url, headers=self._headers(), timeout=30)
         except Exception:
             return None, 0
-        if r.status_code == 200:
-            return r.text, 200
-        return None, r.status_code
+        if (res.status or 0) == 200:
+            return res.text, 200
+        return None, res.status or 0
 
     def _fetch_via_stealth(self, url: str) -> str | None:
+        """curl_cffi 触发反爬时走 StealthyFetcher（Camoufox）。
+
+        批C：StealthyFetcher.fetch 调用用 count_browser_fetch 包裹，
+        成功时自动 browser_opens += 1。stealth kw 参数 / persist_profile /
+        solve_cloudflare=False（Akamai 非 Cloudflare）全部原样保留，
+        只在最外层套计数。
+        """
         try:
             from scrapling.fetchers import StealthyFetcher
             from ._stealth_config import stealth_kwargs
@@ -312,7 +328,21 @@ class WestElmCrawler(BaseCrawler):
                 timeout_ms=60000,
                 solve_cloudflare=False,    # Akamai 非 Cloudflare
             )
-            page = StealthyFetcher.fetch(url, **kw)
+
+            def _do_fetch():
+                return StealthyFetcher.fetch(url, **kw)
+
+            # 成功标准：status == 200 且有 html_content 或 body（westelm 原判断）
+            def _success(page) -> bool:
+                return (
+                    getattr(page, "status", None) == 200
+                    and bool(
+                        getattr(page, "html_content", None)
+                        or getattr(page, "body", None)
+                    )
+                )
+
+            page = self.count_browser_fetch(_do_fetch, success=_success)
             if getattr(page, "status", None) == 200:
                 return page.html_content or page.body or ""
         except Exception:
