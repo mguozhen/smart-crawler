@@ -35,6 +35,11 @@
   6. IKEA_USE_STEALTH=1 显式启用 StealthyFetcher 兜底
 
 字段对齐 VonHausCrawler._parse_product 输出 schema。
+
+批C 收编（2026-06）：
+  - curl 段改用 make_fetcher().get()，自动计 api_calls
+  - stealth 段用 count_browser_fetch 包裹，成功计 browser_opens
+  - 删 proxy 自管(_session 中 s.proxies)；保留 _headers() + guard / _is_blocked_body / parse
 """
 from __future__ import annotations
 
@@ -42,7 +47,6 @@ import json
 import os
 import re
 
-from curl_cffi import requests as creq
 from selectolax.parser import HTMLParser
 
 from ..antiban import BlockedError
@@ -96,11 +100,11 @@ class IkeaCrawler(BaseCrawler):
         self.delay = float(os.environ.get("IKEA_DELAY", "2.0"))
 
     # ------------------------------------------------------------------
-    # session
+    # headers  (replaces old _session — proxy handled by CrawlerFetcher)
     # ------------------------------------------------------------------
-    def _session(self, warmup: bool = False) -> creq.Session:
-        s = creq.Session(impersonate="chrome")
-        s.headers.update({
+    def _headers(self) -> dict:
+        """构造定制请求头（每请求透传给 make_fetcher().get()）。"""
+        return {
             "User-Agent": self.ua(),
             "Accept": "text/html,application/xhtml+xml,application/xml;"
                       "q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -112,16 +116,7 @@ class IkeaCrawler(BaseCrawler):
             "Sec-Fetch-Site": "same-origin",
             "Sec-Fetch-User": "?1",
             "Upgrade-Insecure-Requests": "1",
-        })
-        if self.proxy:
-            s.proxies = {"http": self.proxy, "https": self.proxy}
-        if warmup:
-            try:
-                # 拿首页 cookie，让 Cloudflare 把我们当老访客
-                s.get(f"{self.base}/{self._country_segment()}/", timeout=30)
-            except Exception:
-                pass
-        return s
+        }
 
     def _accept_language(self) -> str:
         c = self.country
@@ -152,9 +147,19 @@ class IkeaCrawler(BaseCrawler):
     # ------------------------------------------------------------------
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        sess = self._session(warmup=True)
+        fetcher = self.make_fetcher(kind="product", source="ikea")
 
-        urls = self._collect_pdp_urls(sess, result)
+        # Warmup：访问首页建立会话 / 预热 Cloudflare cookie（计入 api_calls）
+        try:
+            fetcher.get(
+                f"{self.base}/{self._country_segment()}/",
+                headers=self._headers(),
+                timeout=30,
+            )
+        except Exception:
+            pass
+
+        urls = self._collect_pdp_urls(fetcher, result)
         if not urls:
             result.notes.append("⚠ 未能收集到任何 PDP URL —— 中止")
             return result
@@ -177,14 +182,14 @@ class IkeaCrawler(BaseCrawler):
             url = entry["url"]
             sitemap_images: list[str] = entry.get("images") or []
 
-            # 周期性 session rotate
+            # 周期性 fetcher rotate（make_fetcher 每次创建新 CrawlerFetcher 实例）
             if i > 0 and i % SESSION_ROTATE == 0:
-                sess = self._session(warmup=True)
+                fetcher = self.make_fetcher(kind="product", source="ikea")
                 result.notes.append(
-                    f"… 第 {i} 条，主动 rotate session（已抓 {ok}）")
+                    f"… 第 {i} 条，主动 rotate fetcher（已抓 {ok}）")
 
             try:
-                html, code = self._fetch_pdp(sess, url)
+                html, code = self._fetch_pdp(fetcher, url)
 
                 if code == 404 or code == 410:
                     missing += 1
@@ -203,16 +208,16 @@ class IkeaCrawler(BaseCrawler):
                             f"@ ok={ok}/{i} {url[-50:]}")
                     if consecutive_block == 1:
                         result.notes.append(
-                            f"  → sleep {BLOCK_COOLDOWN_S}s + 重建 session")
+                            f"  → sleep {BLOCK_COOLDOWN_S}s + 重建 fetcher")
                         _t.sleep(BLOCK_COOLDOWN_S)
-                        sess = self._session(warmup=True)
+                        fetcher = self.make_fetcher(kind="product", source="ikea")
                         fail += 1
                         continue
                     if consecutive_block == 2:
                         result.notes.append(
                             f"  → 连续 block，sleep {BLOCK_COOLDOWN_S*2}s")
                         _t.sleep(BLOCK_COOLDOWN_S * 2)
-                        sess = self._session(warmup=True)
+                        fetcher = self.make_fetcher(kind="product", source="ikea")
                         fail += 1
                         continue
                     if STEALTH_USE and stealth_used < STEALTH_BUDGET:
@@ -236,7 +241,7 @@ class IkeaCrawler(BaseCrawler):
                                 f"ikea 连续 {consecutive_block} 次封锁，熔断"
                                 f"（已抓 {ok}）")
                         _t.sleep(BLOCK_COOLDOWN_S * consecutive_block)
-                        sess = self._session(warmup=True)
+                        fetcher = self.make_fetcher(kind="product", source="ikea")
                         continue
                 elif code == 200:
                     consecutive_block = 0
@@ -272,15 +277,19 @@ class IkeaCrawler(BaseCrawler):
     # ------------------------------------------------------------------
     # sitemap
     # ------------------------------------------------------------------
-    def _collect_pdp_urls(self, sess: creq.Session,
+    def _collect_pdp_urls(self, fetcher,
                           result: CrawlResult) -> list[dict]:
         """读 sitemap_index → 筛 country 分片 → 累积 (url, images) 字典直到 limit。"""
         try:
-            idx = sess.get(SITEMAP_INDEX, timeout=30)
-            self.guard(idx.status_code, "sitemap_index")
-            if idx.status_code != 200:
+            res = fetcher.get(
+                SITEMAP_INDEX,
+                headers=self._headers(),
+                timeout=30,
+            )
+            self.guard(res.status or 0, "sitemap_index")
+            if (res.status or 0) != 200:
                 result.notes.append(
-                    f"⚠ sitemap_index 返回 {idx.status_code}")
+                    f"⚠ sitemap_index 返回 {res.status}")
                 return []
         except BlockedError:
             raise
@@ -288,13 +297,13 @@ class IkeaCrawler(BaseCrawler):
             result.notes.append(f"⚠ sitemap_index 不可达: {exc}")
             return []
 
-        all_subs = _LOC_RE.findall(idx.text)
+        all_subs = _LOC_RE.findall(res.text)
         prefix = _COUNTRY_SHARD.get(self.country, _COUNTRY_SHARD["US"])
         subs = [u for u in all_subs if f"/sitemaps/{prefix}_" in u]
         result.notes.append(
             f"sitemap_index 共 {len(all_subs)} 分片，"
             f"country={self.country} 命中 {len(subs)} 个（前缀 {prefix}）")
-        self.snapshot("sitemap_index", idx.text[:500_000])
+        self.snapshot("sitemap_index", res.text[:500_000])
 
         out: list[dict] = []
         seen: set[str] = set()
@@ -303,10 +312,10 @@ class IkeaCrawler(BaseCrawler):
                 break
             try:
                 # 子 sitemap 体积大（US shard 1 ~ 50MB），加大超时
-                r = sess.get(sm, timeout=120)
-                if r.status_code != 200:
+                r = fetcher.get(sm, headers=self._headers(), timeout=120)
+                if (r.status or 0) != 200:
                     result.notes.append(
-                        f"⚠ {sm.rsplit('/',1)[-1]} {r.status_code}")
+                        f"⚠ {sm.rsplit('/',1)[-1]} {r.status}")
                     continue
             except Exception as exc:
                 result.notes.append(
@@ -342,18 +351,22 @@ class IkeaCrawler(BaseCrawler):
     # ------------------------------------------------------------------
     # fetch
     # ------------------------------------------------------------------
-    def _fetch_pdp(self, sess: creq.Session,
-                   url: str) -> tuple[str | None, int]:
+    def _fetch_pdp(self, fetcher, url: str) -> tuple[str | None, int]:
         try:
-            r = sess.get(url, timeout=30)
+            res = fetcher.get(url, headers=self._headers(), timeout=30)
         except Exception:
             return None, 0
-        if r.status_code == 200:
-            return r.text, 200
-        return None, r.status_code
+        if (res.status or 0) == 200:
+            return res.text, 200
+        return None, res.status or 0
 
     def _fetch_via_stealth(self, url: str) -> str | None:
-        """curl_cffi 触发反爬时走 StealthyFetcher（Camoufox）。"""
+        """curl_cffi 触发反爬时走 StealthyFetcher（Camoufox）。
+
+        批C：StealthyFetcher.fetch 调用用 count_browser_fetch 包裹，
+        成功时自动 browser_opens += 1。stealth kw 参数 / persist_profile /
+        profile 目录逻辑全部原样保留，只在最外层套计数。
+        """
         try:
             from scrapling.fetchers import StealthyFetcher
             from ._stealth_config import stealth_kwargs
@@ -366,7 +379,21 @@ class IkeaCrawler(BaseCrawler):
                 persist_profile_key=f"ikea_{self.site.site}",
                 timeout_ms=60000,
             )
-            page = StealthyFetcher.fetch(url, **kw)
+
+            def _do_fetch():
+                return StealthyFetcher.fetch(url, **kw)
+
+            # 成功标准：status == 200 且有 html_content 或 body（ikea 原判断）
+            def _success(page) -> bool:
+                return (
+                    getattr(page, "status", None) == 200
+                    and bool(
+                        getattr(page, "html_content", None)
+                        or getattr(page, "body", None)
+                    )
+                )
+
+            page = self.count_browser_fetch(_do_fetch, success=_success)
             if getattr(page, "status", None) == 200:
                 return page.html_content or page.body or ""
         except Exception:
