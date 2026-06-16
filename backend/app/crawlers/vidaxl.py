@@ -28,6 +28,7 @@ from .base import BaseCrawler, CrawlResult
 
 API_BASE = "https://b2b.vidaxl.com/api_customer/products"
 STOREFRONT_LIMIT = int(os.environ.get("VIDAXL_LIMIT", "999999"))
+DEFAULT_STOREFRONT_LIMIT = int(os.environ.get("VIDAXL_DEFAULT_LIMIT", "1000"))
 API_PAGE = 500
 _LD_RE = re.compile(
     r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
@@ -46,6 +47,8 @@ class VidaxlCrawler(BaseCrawler):
         self.api_email = os.environ.get("VIDAXL_API_EMAIL")
         self.api_token = os.environ.get("VIDAXL_API_TOKEN")
         self.limit = self._resolve_limit(STOREFRONT_LIMIT)
+        if self.limit <= 0:
+            self.limit = DEFAULT_STOREFRONT_LIMIT
 
     def crawl(self) -> CrawlResult:
         if self.api_email and self.api_token:
@@ -55,16 +58,20 @@ class VidaxlCrawler(BaseCrawler):
     # ---------- 路径1：官方 Dropshipping API ----------
     def _crawl_api(self) -> CrawlResult:
         result = CrawlResult()
-        sess = creq.Session(impersonate="chrome")
-        sess.auth = (self.api_email, self.api_token)      # email + token
+        fetcher = self.make_fetcher(kind="api", source="vidaxl", timeout=60,
+                                    use_proxy=False)
         offset, total = 0, 0
         while True:
             try:
-                resp = sess.get(API_BASE, params={"limit": API_PAGE,
-                                "offset": offset}, timeout=60)
-                resp.raise_for_status()
-                self.snapshot(f"api_offset{offset}", resp.text)
-                items = resp.json()
+                res = fetcher.get(API_BASE, params={"limit": API_PAGE,
+                                  "offset": offset},
+                                  auth=(self.api_email, self.api_token))
+                if not res.ok:
+                    result.notes.append(
+                        f"API 调用失败 offset={offset}: HTTP Error {res.status or 0}")
+                    break
+                self.snapshot(f"api_offset{offset}", res.text)
+                items = res.json()
             except Exception as exc:
                 result.notes.append(f"API 调用失败 offset={offset}: {exc}")
                 break
@@ -110,28 +117,71 @@ class VidaxlCrawler(BaseCrawler):
     # ---------- 路径2/3：storefront 爬取 ----------
     def _crawl_storefront(self) -> CrawlResult:
         result = CrawlResult()
-        sess = creq.Session(impersonate="chrome")
-        if self.proxy:
-            sess.proxies = {"http": self.proxy, "https": self.proxy}
+        # sitemap_index + sub-sitemap 用统一 fetcher；proxy_tier 由 ProxyMiddleware 处理
+        sitemap_fetcher = self.make_fetcher(kind="sitemap", source="vidaxl",
+                                            timeout=30)
+
+        sitemap_url = self.base + "/sitemap_index.xml"
+
+        # proxy precheck（路径3 住宅代理预检）—— 逻辑保留，仅把 sess 替换为 fetcher
+        _preflight_proxy: str | None = None
+        if self.site.proxy_tier not in (None, "", "none"):
+            try:
+                from ..proxy_probe import probe_proxy_for_url
+                probe = probe_proxy_for_url(
+                    tier=self.site.proxy_tier,
+                    site=self.site.site,
+                    url=sitemap_url,
+                    timeout=int(os.environ.get("PROXY_PREFLIGHT_TIMEOUT", "8")),
+                )
+                if not probe.ok and probe.failure:
+                    _record_site_failure(
+                        self.site.site,
+                        self.job_id,
+                        sitemap_url,
+                        probe.failure,
+                        http_status=probe.status_code,
+                    )
+                    result.notes.append(
+                        f"⚠ 代理预检失败: {probe.failure.code} · "
+                        f"{probe.failure.detail}")
+                    return result
+                if probe.proxy_url:
+                    _preflight_proxy = probe.proxy_url
+            except Exception as exc:
+                # Preflight must never break legacy crawl behavior.
+                result.notes.append(f"⚠ 代理预检跳过: {exc}")
 
         try:
-            idx = sess.get(self.base + "/sitemap_index.xml", timeout=30)
-            self.guard(idx.status_code, self.base)    # 熔断检查
-            if idx.status_code != 200:
+            # 若预检返回了指定 proxy，透传给 fetcher；否则由 ProxyMiddleware 按 proxy_tier 选
+            idx_kw = {}
+            if _preflight_proxy:
+                idx_kw["_proxy"] = _preflight_proxy
+            idx = sitemap_fetcher.get(sitemap_url, **idx_kw)
+            idx_status = idx.status or 0
+            if idx_status != 200:
                 # 路径 2.5：curl_cffi 被封 → fallback 到 StealthyFetcher（Camoufox patched playwright）
-                if idx.status_code in (401, 403, 451):
-                    stealth_text = self._fetch_via_stealth(self.base + "/sitemap_index.xml")
+                if idx_status in (401, 403, 451):
+                    stealth_text = self._fetch_via_stealth(sitemap_url)
                     if stealth_text:
                         result.notes.append(
-                            f"✅ curl_cffi {idx.status_code} → StealthyFetcher 解锁成功")
+                            f"✅ curl_cffi {idx_status} → StealthyFetcher 解锁成功")
                         subs = re.findall(r"<loc>\s*(.*?)\s*</loc>", stealth_text)
                     else:
                         result.notes.append(
-                            f"⚠ sitemap_index 不可达（{idx.status_code}）+ stealth 也失败")
+                            f"⚠ sitemap_index 不可达（{idx_status}）+ stealth 也失败")
+                        self.guard(idx_status, self.base)
                         return result
                 else:
+                    _record_site_status_failure(
+                        self.site.site,
+                        self.job_id,
+                        sitemap_url,
+                        idx_status,
+                    )
+                    self.guard(idx_status, self.base)    # 熔断检查
                     result.notes.append(
-                        f"⚠ sitemap_index 不可达（{idx.status_code}）—— "
+                        f"⚠ sitemap_index 不可达（{idx_status}）—— "
                         f"{'美国站需住宅代理（路径3）' if self.site.country=='US' else '站点封锁'}")
                     return result
             else:
@@ -139,6 +189,12 @@ class VidaxlCrawler(BaseCrawler):
         except BlockedError:
             raise                              # 熔断 —— 传播到 runner
         except Exception as exc:
+            _record_site_exception(
+                self.site.site,
+                self.job_id,
+                sitemap_url,
+                exc,
+            )
             result.notes.append(f"⚠ 站点不可达: {exc} —— 建议走路径1 官方 API")
             return result
 
@@ -163,7 +219,8 @@ class VidaxlCrawler(BaseCrawler):
         urls: list[str] = []
         for sm in prod_sitemaps:
             try:
-                raw = sess.get(sm, timeout=40).content
+                sm_res = sitemap_fetcher.get(sm, timeout=40)
+                raw = sm_res.content
                 xml = (gzip.decompress(raw) if sm.endswith(".gz")
                        else raw).decode("utf-8", "ignore")
                 for u in re.findall(r"<loc>\s*(.*?)\s*</loc>", xml):
@@ -184,6 +241,7 @@ class VidaxlCrawler(BaseCrawler):
         import random
         random.shuffle(fresh)
         targets = fresh[: self.limit]
+        _register_frontier_targets(self.site.site, targets)
         result.notes.append(
             f"路径2 storefront：{len(prod_sitemaps)} 个 sitemap · "
             f"sitemap 总 URL {len(urls)} · 已抓 URL {len(already)} · "
@@ -227,24 +285,31 @@ class VidaxlCrawler(BaseCrawler):
                 status, html = _try_fetch(url)
                 last_status = status
                 if status == 200 and html:
-                    _log_fetched(self.site.site, url, 200)
                     self.snapshot(url.rstrip("/").split("/")[-1], html)
                     row = self._parse_jsonld(html, url)
                     if row:
+                        _log_fetched(self.site.site, url, 200,
+                                     parsed=True, job_id=self.job_id)
                         with products_lock:
                             result.products.append(row)
+                        with counters_lock:
+                            self.counter.api_calls += 1
                         _inc("ok")
                         return
+                    _log_fetched(self.site.site, url, 200,
+                                 parse_failed=True, job_id=self.job_id)
                     _inc("parse_none")
                     return  # 解析失败不重试（页面就那样）
                 if status == -1 or status >= 500:
                     continue  # 临时错误，重试
                 if 400 <= status < 500:
-                    _log_fetched(self.site.site, url, status)
+                    _log_fetched(self.site.site, url, status,
+                                 job_id=self.job_id)
                     _inc("http_4xx")
                     return  # 4xx 不重试（除 429 已在内部 ban 代理）
             # 重试用尽 —— 即使失败也记录已尝试，避免下轮再抓
-            _log_fetched(self.site.site, url, last_status if last_status > 0 else 0)
+            _log_fetched(self.site.site, url, last_status if last_status > 0 else 0,
+                         job_id=self.job_id)
             if last_status == -1:
                 _inc("timeout")
             elif last_status >= 500:
@@ -341,7 +406,10 @@ class VidaxlCrawler(BaseCrawler):
                 persist_profile_key=f"vidaxl_{self.site.site}",
                 timeout_ms=45000,
             )
-            page = StealthyFetcher.fetch(url, **kw)
+            page = self.count_browser_fetch(
+                lambda: StealthyFetcher.fetch(url, **kw),
+                success=lambda p: getattr(p, "status", None) == 200,
+            )
             if getattr(page, "status", None) == 200:
                 return page.html_content or page.body or ""
         except Exception:
@@ -404,7 +472,41 @@ def _already_crawled_urls(site: str) -> set[str]:
         db.close()
 
 
-def _log_fetched(site: str, url: str, status_code: int) -> None:
+def _register_frontier_targets(site: str, urls: list[str]) -> None:
+    """Mirror this run's target URLs into the durable frontier.
+
+    Vidaxl sitemaps can contain hundreds of thousands of URLs, so we register
+    only the sampled targets for the current run here. The sidecar total still
+    records the full sitemap size for coverage math.
+    """
+    if not urls:
+        return
+    try:
+        from ..db import SessionLocal
+        from ..frontier import register_urls
+    except Exception:
+        return
+    db = SessionLocal()
+    try:
+        register_urls(
+            db,
+            site=site,
+            urls=urls,
+            kind="product",
+            source="vidaxl_sitemap",
+            priority=40,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _log_fetched(site: str, url: str, status_code: int, *,
+                 parsed: bool = False,
+                 parse_failed: bool = False,
+                 job_id: int | None = None) -> None:
     """记录每次 URL fetch · 即便 4xx / 5xx / parse_none 也记 · 防再抓.
 
     INSERT ... ON CONFLICT DO NOTHING · 同 URL 重复进表只算一次。
@@ -433,6 +535,136 @@ def _log_fetched(site: str, url: str, status_code: int) -> None:
             pass
     finally:
         db.close()
+    _record_frontier_fetch(site, url, status_code, parsed=parsed,
+                           parse_failed=parse_failed, job_id=job_id)
+
+
+def _record_frontier_fetch(site: str, url: str, status_code: int, *,
+                           parsed: bool = False,
+                           parse_failed: bool = False,
+                           job_id: int | None = None) -> None:
+    try:
+        from ..crawl_diagnostics import (
+            PARSE_NO_JSONLD,
+            STAGE_PARSE,
+            FailureInfo,
+            classify_exception,
+            classify_http_status,
+            record_failure,
+            record_url_state,
+        )
+        from ..db import SessionLocal
+    except Exception:
+        return
+    failure = None
+    status = "parsed" if parsed else "fetched"
+    if parse_failed:
+        failure = FailureInfo(
+            PARSE_NO_JSONLD,
+            STAGE_PARSE,
+            "Vidaxl 商品页 200 但未解析到 Product JSON-LD",
+            True,
+            "检查页面快照和 JSON-LD 结构；必要时增加解析 fallback",
+            status_code,
+        )
+        status = "failed"
+    elif status_code <= 0:
+        failure = classify_exception(TimeoutError("vidaxl product fetch timeout"))
+        status = "failed"
+    elif status_code >= 400:
+        failure = classify_http_status(status_code)
+        status = "blocked" if status_code in (401, 403, 429) else "failed"
+    db = SessionLocal()
+    try:
+        record_url_state(
+            db,
+            site=site,
+            url=url,
+            kind="product",
+            source="vidaxl_sitemap",
+            status=status,
+            http_status=status_code if status_code > 0 else None,
+            failure=failure,
+            fetcher="curl_cffi",
+        )
+        if failure:
+            record_failure(
+                db,
+                site=site,
+                job_id=job_id,
+                url=url,
+                info=failure,
+                fetcher="curl_cffi",
+                proxy_tier="residential",
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _record_site_exception(site: str, job_id: int | None, url: str,
+                           exc: Exception) -> None:
+    try:
+        from ..crawl_diagnostics import classify_exception
+    except Exception:
+        return
+    _record_site_failure(site, job_id, url, classify_exception(exc))
+
+
+def _record_site_failure(site: str, job_id: int | None, url: str,
+                         failure, http_status: int | None = None) -> None:
+    try:
+        from ..crawl_diagnostics import record_failure, record_url_state
+        from ..db import SessionLocal
+    except Exception:
+        return
+    db = SessionLocal()
+    try:
+        record_url_state(
+            db,
+            site=site,
+            url=url,
+            kind="sitemap",
+            source="vidaxl_sitemap_index",
+            status="blocked" if failure.code in ("http_401", "http_403", "http_429")
+            else "failed",
+            http_status=http_status or failure.http_status,
+            failure=failure,
+            fetcher="curl_cffi",
+        )
+        record_failure(
+            db,
+            site=site,
+            job_id=job_id,
+            url=url,
+            info=failure,
+            fetcher="curl_cffi",
+            proxy_tier="residential",
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _record_site_status_failure(site: str, job_id: int | None, url: str,
+                                status_code: int) -> None:
+    try:
+        from ..crawl_diagnostics import (
+            classify_http_status,
+            record_failure,
+            record_url_state,
+        )
+        from ..db import SessionLocal
+    except Exception:
+        return
+    failure = classify_http_status(status_code)
+    if not failure:
+        return
+    _record_site_failure(site, job_id, url, failure, http_status=status_code)
 
 
 def _already_crawled_skus(site: str) -> set[str]:

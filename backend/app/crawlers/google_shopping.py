@@ -13,16 +13,24 @@
    position；Bing-only 的从 Google 最大 position+1 起接续。
 
 字段对齐 ShoppingResult（规格 §4.4.4，15 字段）。
+
+批C 收编（2026-06）：
+  - 继承 BaseCrawler，从 keyword 合成 Site 供 super().__init__()
+  - __init__(keyword, max_results) / crawl() -> list[dict] 接口保持不变（shopping_runner 兼容）
+  - Google stealth 段：StealthyFetcher.fetch 调用用 count_browser_fetch 包裹
+    warm_then_search / 滚动模拟等定制全部原样保留
+  - Bing curl 段：make_fetcher(kind=, source="google_shopping").get() 替代 creq.Session
+  - 删 proxy 自管（curl 段）；解析逻辑 / _blocked / notes 全保留
 """
 from __future__ import annotations
 
-import os
 import re
 import urllib.parse
 
 from selectolax.parser import HTMLParser
 
-from ..proxy import get_proxy
+from .base import BaseCrawler, CrawlResult
+from ..models import Site
 
 _PRICE_RE = re.compile(r"[\$£€¥]\s?([\d,]+(?:\.\d{1,2})?)")
 _RATING_RE = re.compile(r"([0-5]\.\d)")
@@ -35,18 +43,30 @@ _MOBILE_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) "
               "Mobile/15E148 Safari/604.1")
 
 
-class GoogleShoppingCrawler:
-    """名为 GoogleShopping，实际"Google + Bing"合并采集。"""
+class GoogleShoppingCrawler(BaseCrawler):
+    """名为 GoogleShopping，实际"Google + Bing"合并采集。
+
+    继承 BaseCrawler 以接入统一计数（browser_opens / api_calls）；
+    保留原始接口：__init__(keyword, max_results) + crawl() -> list[dict]。
+    """
 
     platform = "google_shopping"
 
     def __init__(self, keyword: str, max_results: int = 60):
+        # 从 keyword 合成 Site 供 BaseCrawler 使用
+        site = Site(
+            site=f"google_shopping_{keyword[:20].replace(' ', '_')}",
+            url="https://www.google.com",
+            country="US",
+            platform="google_shopping",
+            proxy_tier="residential",
+        )
+        super().__init__(site)
         self.keyword = keyword
         self.max_results = max_results
-        self.proxy = get_proxy("residential")
         self.notes: list[str] = []
 
-    def crawl(self) -> list[dict]:
+    def crawl(self) -> list[dict]:                  # type: ignore[override]
         out: list[dict] = []
         seen: set[tuple] = set()       # (title_norm, merchant_norm)
 
@@ -85,7 +105,12 @@ class GoogleShoppingCrawler:
 
     # ==================== Google Shopping ====================
     def _crawl_google_stealth(self) -> list[dict]:
-        """用 scrapling StealthyFetcher 拿 Google Shopping 页。"""
+        """用 scrapling StealthyFetcher 拿 Google Shopping 页。
+
+        批C：StealthyFetcher.fetch 调用用 count_browser_fetch 包裹；
+        warm_then_search / 滚动模拟 / stealth_kwargs 定制全部原样保留。
+        成功标准：status == 200 且 html 中无 'captcha'。
+        """
         try:
             from scrapling.fetchers import StealthyFetcher
         except Exception as exc:
@@ -123,11 +148,26 @@ class GoogleShoppingCrawler:
                 "page_action": warm_then_search,
             },
         )
+
+        def _do_fetch():
+            return StealthyFetcher.fetch(url, **kw)
+
+        def _success(page) -> bool:
+            """成功标准：status 200 且 html 无 captcha 拦截。"""
+            if getattr(page, "status", None) != 200:
+                return False
+            try:
+                html = page.body if hasattr(page, "body") else page.html_content
+            except Exception:
+                html = str(page)
+            return "captcha" not in (html or "")[:5000].lower()
+
         try:
-            page = StealthyFetcher.fetch(url, **kw)
+            page = self.count_browser_fetch(_do_fetch, success=_success)
         except Exception as exc:
             self.notes.append(f"Google fetch 异常: {str(exc)[:120]}")
             return []
+
         status = getattr(page, "status", None)
         if status != 200:
             self.notes.append(f"Google HTTP {status}")
@@ -186,27 +226,24 @@ class GoogleShoppingCrawler:
 
     # ==================== Bing Shopping ====================
     def _crawl_bing(self) -> list[dict]:
-        """Bing Shopping 几乎不拦，curl_cffi 直拉即可。"""
-        try:
-            from curl_cffi import requests as creq
-        except Exception as exc:
-            self.notes.append(f"curl_cffi 未装: {exc}")
-            return []
-
+        """Bing Shopping 几乎不拦，make_fetcher().get() 直拉即可。"""
         url = ("https://www.bing.com/shop?q="
                + urllib.parse.quote(self.keyword) + "&cc=us&setlang=en-us")
+        fetcher = self.make_fetcher(kind="product", source="google_shopping")
         try:
-            sess = creq.Session(impersonate="chrome")
-            sess.headers.update({"User-Agent": _DESKTOP_UA,
-                                 "Accept-Language": "en-US,en;q=0.9"})
-            r = sess.get(url, timeout=20)
+            res = fetcher.get(
+                url,
+                headers={"User-Agent": _DESKTOP_UA,
+                         "Accept-Language": "en-US,en;q=0.9"},
+                timeout=20,
+            )
         except Exception as exc:
             self.notes.append(f"Bing fetch 异常: {str(exc)[:120]}")
             return []
-        if r.status_code != 200:
-            self.notes.append(f"Bing HTTP {r.status_code}")
+        if (res.status or 0) != 200:
+            self.notes.append(f"Bing HTTP {res.status or 0}")
             return []
-        return self._parse_bing(r.text)
+        return self._parse_bing(res.text)
 
     def _parse_bing(self, html: str) -> list[dict]:
         tree = HTMLParser(html)
