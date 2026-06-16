@@ -17,13 +17,9 @@
 """
 from __future__ import annotations
 
-import json
 import os
 import re
-import time
 import uuid
-
-from curl_cffi import requests as creq
 
 from ..antiban import BlockedError
 from .base import BaseCrawler, CrawlResult
@@ -57,22 +53,21 @@ class TargetCrawler(BaseCrawler):
         self.limit = self._resolve_limit(DEFAULT_LIMIT, limit)
         self.visitor = uuid.uuid4().hex.upper()
 
-    def _session(self) -> creq.Session:
-        s = creq.Session(impersonate="chrome131")
-        s.headers.update({
-            "User-Agent": self.ua(),
+    def _headers(self) -> dict:
+        return {
             "Accept": "application/json",
             "Origin": self.base,
             "Referer": self.base + "/",
             "Accept-Language": "en-US,en;q=0.9",
-        })
-        if self.proxy:
-            s.proxies = {"http": self.proxy, "https": self.proxy}
-        return s
+        }
 
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        sess = self._session()
+        fetcher = self.make_fetcher(
+            source="target_redsky",
+            timeout=30,
+            use_proxy=True,
+        )
         tcins: list[str] = []
         seen: set[str] = set()
 
@@ -95,18 +90,16 @@ class TargetCrawler(BaseCrawler):
                     "useragent": self.ua(),
                     "visitor_id": self.visitor,
                 }
-                try:
-                    r = sess.get(f"{API}/plp_search_v2", params=params,
-                                 timeout=30)
-                except Exception:
+                res = fetcher.get(
+                    f"{API}/plp_search_v2",
+                    headers=self._headers(),
+                    params=params,
+                )
+                if not res.ok:
+                    self.guard(res.status or 0, "target_srp")
+                    self.sleep()
                     break
-                if r.status_code != 200:
-                    time.sleep(30)
-                    break
-                try:
-                    js = r.json()
-                except json.JSONDecodeError:
-                    break
+                js = res.json() or {}
                 items = (js.get("data", {}).get("search", {})
                          .get("products") or [])
                 if not items:
@@ -128,43 +121,38 @@ class TargetCrawler(BaseCrawler):
         for tcin in tcins[: self.limit * 2]:
             if ok >= self.limit:
                 break
-            try:
-                r = sess.get(
-                    f"{API}/pdp_client_v1",
-                    timeout=30,
-                    params={
-                        "key": KEY,
-                        "tcin": tcin,
-                        "is_bot": "false",
-                        "store_id": STORE_ID,
-                        "pricing_store_id": STORE_ID,
-                        "has_pricing_store_id": "true",
-                        "visitor_id": self.visitor,
-                        "channel": "WEB",
-                        "page": f"/p/-/A-{tcin}",
-                    })
-                if r.status_code in (403, 429):
-                    denied += 1
-                    streak += 1
-                    if streak >= 8:
-                        raise BlockedError(
-                            f"target 连续 {streak} 次 403/429，熔断")
-                    time.sleep(min(15 * streak, 120))
-                    continue
-                if r.status_code != 200:
-                    self.sleep()
-                    continue
-                streak = 0
-                js = r.json()
-            except BlockedError:
-                raise
-            except Exception:
+            res = fetcher.get(
+                f"{API}/pdp_client_v1",
+                headers=self._headers(),
+                params={
+                    "key": KEY,
+                    "tcin": tcin,
+                    "is_bot": "false",
+                    "store_id": STORE_ID,
+                    "pricing_store_id": STORE_ID,
+                    "has_pricing_store_id": "true",
+                    "visitor_id": self.visitor,
+                    "channel": "WEB",
+                    "page": f"/p/-/A-{tcin}",
+                },
+            )
+            if res.status in (403, 429):
+                denied += 1
+                streak += 1
+                if streak >= 8:
+                    raise BlockedError(
+                        f"target 连续 {streak} 次 403/429，熔断")
                 self.sleep()
                 continue
+            if not res.ok:
+                self.sleep()
+                continue
+            streak = 0
+            js = res.json() or {}
             url = f"{self.base}/p/-/A-{tcin}"
             row = self._map_pdp(js, tcin, url)
             if row:
-                self.snapshot(tcin, r.text)
+                self.snapshot(tcin, res.text)
                 result.products.append(row)
                 ok += 1
             else:
