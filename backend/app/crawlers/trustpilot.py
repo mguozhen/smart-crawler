@@ -6,31 +6,45 @@ StealthyFetcher（Camoufox 隐身浏览器）突破，评论数据在页面 `__N
 注意：Trustpilot 对数据中心 / 被标记网段 IP 直接 403 —— 实测我方 AT&T 网段
 被拦（与 Vidaxl 同因）。须配住宅代理（proxies.txt 的 [residential] 段），
 见 docs/风控策略评估.md。代理到位后此采集器即可工作。
+
+批D 收编（2026-06）：
+  - 继承 BaseCrawler（从 channel 合成 Site，同 reviews_io/trustedshops 模式）
+  - 每页 StealthyFetcher.fetch 用 count_browser_fetch 包裹，成功（status==200）计 browser_opens
+  - stealth 定制参数（stealth_kwargs/persist_profile_key 等）原样保留
+  - 构造签名 / crawl 返回类型不变（向后兼容 review_runner）
 """
 from __future__ import annotations
 
 import json
 import re
 
-from ..proxy import get_proxy
+from .base import BaseCrawler
+from ..models import Site
 
 _ND_RE = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 
 
-class TrustpilotCrawler:
+class TrustpilotCrawler(BaseCrawler):
     platform = "trustpilot"
 
     def __init__(self, channel: dict, max_pages: int = 10):
+        # 从 channel 合成 Site，供 BaseCrawler 使用（同 reviews_io/trustedshops 模式）
+        site = Site(
+            site=channel.get("site") or "trustpilot",
+            url=f"https://{channel.get('host', 'www.trustpilot.com')}",
+            country=channel.get("country"),
+            platform="trustpilot",
+            proxy_tier="residential",
+        )
+        super().__init__(site)
         self.channel = channel
         self.domain = channel["domain"]
-        self.site = channel["site"]
         self.host = channel.get("host", "www.trustpilot.com")
         self.max_pages = channel.get("max_pages", max_pages)
-        self.proxy = get_proxy("residential")
         self.notes: list[str] = []
 
-    def crawl(self) -> list[dict]:
-        """返回标准化的评论 dict 列表。"""
+    def crawl(self) -> list[dict]:                  # type: ignore[override]
+        """返回标准化的评论 dict 列表（review_runner 直接调用此接口）。"""
         try:
             from scrapling.fetchers import StealthyFetcher
         except Exception as exc:
@@ -47,7 +61,13 @@ class TrustpilotCrawler:
                     country=getattr(self, "country", None),
                     persist_profile_key=f"trustpilot_{self.domain}",
                 )
-                fetched = StealthyFetcher.fetch(url, **kw)
+
+                # 批D：每页 StealthyFetcher.fetch 用 count_browser_fetch 包裹，
+                # 成功标准：status == 200；stealth 定制参数原样保留。
+                fetched = self.count_browser_fetch(
+                    lambda: StealthyFetcher.fetch(url, **kw),
+                    success=lambda p: getattr(p, "status", None) == 200,
+                )
             except Exception as exc:
                 self.notes.append(f"page{page} 抓取异常: {exc}")
                 break
@@ -92,7 +112,7 @@ class TrustpilotCrawler:
             out.append({
                 "review_id": str(rid),
                 "platform": "trustpilot",
-                "site": self.site,
+                "site": self.channel.get("site") or self.site.site,
                 "reviewer_name": consumer.get("displayName"),
                 "reviewer_country": consumer.get("countryCode"),
                 "rating": r.get("stars") or r.get("rating"),
