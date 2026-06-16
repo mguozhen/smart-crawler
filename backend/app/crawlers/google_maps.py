@@ -14,23 +14,35 @@ from __future__ import annotations
 import re
 import urllib.parse
 
+from .base import BaseCrawler
+from ..models import Site
 from ..proxy import get_proxy
 
 _REVIEW_RE = re.compile(r'data-review-id="([^"]+)"')
 
 
-class GoogleMapsCrawler:
+class GoogleMapsCrawler(BaseCrawler):
     platform = "google_map"
 
     def __init__(self, channel: dict, max_reviews: int = 200):
+        # 从 channel 合成 Site，供 BaseCrawler 使用
+        site = Site(
+            site=channel["site"],
+            url="https://www.google.com/maps",
+            country=None,
+            platform="google_map",
+            proxy_tier="residential",
+        )
+        super().__init__(site)
         self.channel = channel
         self.query = channel["query"]            # 商家名，如 "Aosom LLC"
-        self.site = channel["site"]
         self.max_reviews = channel.get("max_reviews", max_reviews)
+        # 覆盖 BaseCrawler 默认代理：residential 层
         self.proxy = get_proxy("residential")
         self.notes: list[str] = []
 
-    def crawl(self) -> list[dict]:
+    def crawl(self) -> list[dict]:              # type: ignore[override]
+        """执行评论采集，返回 review dict 列表（review_runner 直接调用）。"""
         try:
             from scrapling.fetchers import StealthyFetcher
         except Exception as exc:
@@ -83,7 +95,12 @@ class GoogleMapsCrawler:
                 persist_profile_key=f"google_maps_{getattr(self, 'place_id', 'default')}",
                 extra={"page_action": scroll_reviews},
             )
-            fetched = StealthyFetcher.fetch(url, **kw)
+            # 只把「打开浏览器渲染商家页」这一次 fetch 计数；
+            # scroll_reviews 是同一会话内的交互，不额外计数。
+            fetched = self.count_browser_fetch(
+                lambda: StealthyFetcher.fetch(url, **kw),
+                success=lambda r: getattr(r, "status", None) == 200,
+            )
         except Exception as exc:
             self.notes.append(f"抓取异常: {exc}")
             return []
@@ -133,7 +150,7 @@ class GoogleMapsCrawler:
             except Exception:
                 pass
             reviews.append({
-                "review_id": rid, "platform": "google_map", "site": self.site,
+                "review_id": rid, "platform": "google_map", "site": self.site.site,
                 "reviewer_name": name or None, "rating": stars,
                 "content": txt or None,
             })
