@@ -14,10 +14,9 @@ from __future__ import annotations
 
 import os
 
-from curl_cffi import requests as creq
-
 from ..antiban import BlockedError
 from .base import BaseCrawler, CrawlResult
+from ..fetching import CrawlerFetcher, FetchResult
 
 PAGE_SIZE = 48
 # 客户反馈 Costway CA 实际 >1W 商品，调高每分类页数上限
@@ -31,38 +30,37 @@ _CURRENCY = {"US": "USD", "UK": "GBP", "CA": "CAD", "DE": "EUR", "IT": "EUR",
 class CostwayCrawler(BaseCrawler):
     platform = "vue_spa"
 
-    def _session(self) -> creq.Session:
-        s = creq.Session(impersonate="chrome")
-        s.headers.update({
+    def _headers(self) -> dict:
+        """构造请求头（每请求透传给 CrawlerFetcher.get）。"""
+        return {
             "User-Agent": self.ua(),
             "Accept": "application/json",
             "Referer": self.site.url,
-        })
-        if self.proxy:
-            s.proxies = {"http": self.proxy, "https": self.proxy}
-        return s
+        }
 
-    def _api(self, sess: creq.Session, path: str) -> dict:
-        resp = sess.get(self.site.url.rstrip("/") + path, timeout=30)
-        self.guard(resp.status_code, path)        # 熔断检查
-        resp.raise_for_status()
-        self.snapshot(path, resp.text)            # 原始响应归档
-        return resp.json()
+    def _api(self, fetcher: CrawlerFetcher, path: str) -> dict:
+        url = self.site.url.rstrip("/") + path
+        res = fetcher.get(url, headers=self._headers(), timeout=30)
+        self.guard(res.status or 0, path)        # 熔断检查
+        if not res.ok:
+            raise RuntimeError(f"HTTP {res.status or 0} fetching {url}")
+        self.snapshot(path, res.text)            # 原始响应归档
+        return res.json() or {}
 
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        sess = self._session()
+        fetcher = self.make_fetcher(kind="product", source="costway")
         currency = _CURRENCY.get(self.site.country, "USD")
 
         # ---- 新品 / 热销标记 ----
-        new_skus = self._sku_set(sess, "/api/home-newarrivals")
-        best_skus = self._sku_set(sess, "/api/home-bestseller")
+        new_skus = self._sku_set(fetcher, "/api/home-newarrivals")
+        best_skus = self._sku_set(fetcher, "/api/home-bestseller")
         result.notes.append(f"新品 {len(new_skus)} 款 / 热销 {len(best_skus)} 款")
 
         # ---- 分类树 ----
         cats = []
         try:
-            for c in self._api(sess, "/api/category").get("result", []):
+            for c in self._api(fetcher, "/api/category").get("result", []):
                 cats.append({
                     "site": self.site.site,
                     "category_id": str(c.get("entity_id")),
@@ -85,7 +83,7 @@ class CostwayCrawler(BaseCrawler):
             for page in range(1, PAGES_PER_CAT + 1):
                 try:
                     data = self._api(
-                        sess, f"/api/products?category_id={cid}"
+                        fetcher, f"/api/products?category_id={cid}"
                         f"&page={page}&pagesize={PAGE_SIZE}")
                 except BlockedError:
                     raise                          # 熔断 —— 传播到 runner
@@ -105,9 +103,9 @@ class CostwayCrawler(BaseCrawler):
                             f"（每分类 {PAGES_PER_CAT} 页）")
         return result
 
-    def _sku_set(self, sess: creq.Session, path: str) -> set[str]:
+    def _sku_set(self, fetcher: CrawlerFetcher, path: str) -> set[str]:
         try:
-            res = self._api(sess, path).get("result")
+            res = self._api(fetcher, path).get("result")
             items = res if isinstance(res, list) else (res or {}).get("product", [])
             return {str(x.get("sku")) for x in items if x.get("sku")}
         except Exception:
