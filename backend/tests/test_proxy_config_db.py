@@ -206,6 +206,36 @@ def test_admin_proxy_pools_expose_effective_fallback_availability():
     s.close()
 
 
+def test_admin_proxy_pool_member_count_excludes_inactive_endpoints():
+    init_db()
+    from app.api import admin_spine
+    from app.proxy_config import upsert_proxy_endpoint
+    from app.proxy_pool import reload_pool
+
+    active_proxy = "http://u:p@10.0.4.10:3128"
+    inactive_proxy = "http://u:p@10.0.4.11:3128"
+    s = SessionLocal()
+    _clean_proxy_config(s)
+    upsert_proxy_endpoint(s, proxy_url=active_proxy,
+                          endpoint_type="residential", source="test")
+    inactive = upsert_proxy_endpoint(s, proxy_url=inactive_proxy,
+                                     endpoint_type="residential", source="test")
+    inactive.active = False
+    s.commit()
+    reload_pool()
+
+    out = admin_spine.proxies_status(user="admin", db=s)
+    pools = {row["slug"]: row for row in out["pools"]}
+
+    assert pools["residential"]["member_count"] == 1
+    assert pools["all"]["member_count"] == 1
+    inactive_endpoint = next(
+        row for row in out["endpoints"] if row["host"] == "10.0.4.11")
+    assert inactive_endpoint["pools"] == []
+
+    s.close()
+
+
 def test_admin_proxy_endpoint_check_records_endpoint_health(monkeypatch):
     init_db()
     from datetime import datetime, timedelta

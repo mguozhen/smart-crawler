@@ -2518,13 +2518,14 @@ def _proxy_admin_payload(db: Session) -> dict:
                            if row.get("endpoint_id")}
     health_rows = db.query(ProxyHealth).order_by(ProxyHealth.updated_at.desc()).all()
     health_by_hash = {row.proxy_hash: row for row in health_rows if row.proxy_hash}
-    members = (db.query(ProxyPoolMember, ProxyPoolConfig)
+    members = (db.query(ProxyPoolMember, ProxyPoolConfig, ProxyEndpoint)
                .join(ProxyPoolConfig, ProxyPoolConfig.id == ProxyPoolMember.pool_id)
+               .join(ProxyEndpoint, ProxyEndpoint.id == ProxyPoolMember.endpoint_id)
                .all())
     pools_by_endpoint: dict[int, list[str]] = {}
     pool_member_count: dict[int, int] = {}
-    for member, pool_cfg in members:
-        if member.active:
+    for member, pool_cfg, endpoint in members:
+        if member.active and pool_cfg.active and endpoint.active:
             pools_by_endpoint.setdefault(member.endpoint_id, []).append(pool_cfg.slug)
             pool_member_count[pool_cfg.id] = pool_member_count.get(pool_cfg.id, 0) + 1
     endpoints = db.query(ProxyEndpoint).order_by(ProxyEndpoint.id.asc()).all()
