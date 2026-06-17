@@ -32,6 +32,7 @@ services:
       - ./data:/app/data            # 数据持久化（迁移脚本 / SQLite 备份等）
       - ./backend:/app/backend:ro   # 热加载后端代码（不必 rebuild image）
       - ./frontend:/app/frontend:ro # 热加载前端（home.html / index.html）
+      - ./admin-app/dist:/app/admin-app/dist:ro # 热加载超管后台静态产物
       - ./deliverables:/app/deliverables   # /d/* 路由提供静态托管，替代外部 CDN
     environment:
       # 连接 postgres 服务；服务名 postgres 即容器网络内的主机名
