@@ -24,6 +24,7 @@ export const proxyAntiBotDiagnostics = (p: Dict<any> = {}) => apiJson(`/api/admi
 export const proxyAntiBotCheck = (payload: Dict<any> = {}) => apiJson('/api/admin/spine/proxies/anti-bot/check', { method: 'POST', ...jsonBody(payload) })
 export const proxyAntiBotApplyRules = (payload: Dict<any> = {}) => apiJson('/api/admin/spine/proxies/anti-bot/apply-rules', { method: 'POST', ...jsonBody(payload) })
 export const proxyEndpointCreate = (payload: Dict<any>) => apiJson('/api/admin/spine/proxies/endpoints', { method: 'POST', ...jsonBody(payload) })
+export const proxyEndpointBulkUpsert = (payload: Dict<any>) => apiJson('/api/admin/spine/proxies/endpoints/bulk', { method: 'POST', ...jsonBody(payload) })
 export const proxyEndpointUpdate = (id: number, payload: Dict<any>) => apiJson(`/api/admin/spine/proxies/endpoints/${id}`, { method: 'PATCH', ...jsonBody(payload) })
 export const proxyEndpointCheck = (id: number, payload: Dict<any> = {}) => apiJson(`/api/admin/spine/proxies/endpoints/${id}/check`, { method: 'POST', ...jsonBody(payload) })
 export const proxyEndpointCheckBatch = (payload: Dict<any> = {}) => apiJson('/api/admin/spine/proxies/endpoints/check-batch', { method: 'POST', ...jsonBody(payload) })

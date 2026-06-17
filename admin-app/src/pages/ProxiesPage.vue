@@ -11,6 +11,7 @@ import {
   proxyClear,
   proxyEndpointCheckBatch,
   proxyEndpointCheck,
+  proxyEndpointBulkUpsert,
   proxyEndpointCreate,
   proxyEndpointUpdate,
   proxyImportFile,
@@ -48,6 +49,18 @@ const endpointForm = ref({
   country: '',
   exclude_sites: '',
   notes: ''
+})
+const bulkForm = ref({
+  text: '',
+  endpoint_type: 'residential',
+  scheme: 'socks5h',
+  provider: '',
+  country: 'US',
+  name_prefix: '',
+  tags: '',
+  exclude_sites: '',
+  notes: '',
+  deactivate_duplicate_variants: true
 })
 const poolForm = ref({
   slug: '',
@@ -122,6 +135,7 @@ async function runAction(label: string, fn: () => Promise<any>, okText: string) 
     const data = await fn()
     info.value = data || {}
     message.value = okText
+    return data
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   } finally {
@@ -215,6 +229,17 @@ function createEndpoint() {
     endpointForm.value.country = ''
     endpointForm.value.exclude_sites = ''
     endpointForm.value.notes = ''
+  })
+}
+
+function bulkUpsertEndpoints() {
+  const payload = { ...bulkForm.value }
+  return runAction('endpoint:bulk', () => proxyEndpointBulkUpsert(payload), '代理端点已批量同步').then((data: any) => {
+    const detail = data?.bulk || {}
+    message.value = `批量同步完成：新增 ${fmtNumber(detail.added || 0)}，更新 ${fmtNumber(detail.updated || 0)}，停用重复 ${fmtNumber(detail.disabled_duplicate_variants || 0)}，跳过 ${fmtNumber(detail.skipped || 0)}`
+    if (!detail.error_count) {
+      bulkForm.value.text = ''
+    }
   })
 }
 
@@ -350,6 +375,15 @@ function failureSummary(row: Record<string, any>) {
     : '暂无失败码'
 }
 
+function sampleEndpointSummary(row: Record<string, any>) {
+  const samples = row.sample_endpoints || []
+  if (!samples.length) return '无样例端点'
+  return samples
+    .slice(0, 3)
+    .map((item: any) => `${item.host || item.proxy || item.endpoint_id}: ${item.last_failure_code || item.status || '-'}`)
+    .join(' · ')
+}
+
 function rulePoolSummary(row: Record<string, any>) {
   if (row.effective_status === 'direct') return '不使用代理'
   const primary = row.primary_pool_slug
@@ -425,11 +459,13 @@ watch(() => route.fullPath, applyRouteContext)
           <b>{{ row.pool_name || row.pool_slug }}</b>
           <span>{{ row.message }}</span>
           <span>{{ row.suggested_action }}</span>
+          <span>{{ sampleEndpointSummary(row) }}</span>
         </div>
         <div class="diagnostic-meta">
           <span>主池 {{ fmtNumber(row.available_count) }}/{{ fmtNumber(row.member_count) }}</span>
           <span v-if="row.fallback_pool_slug">备用 {{ row.fallback_pool_slug }}: {{ fmtNumber(row.fallback_available_count) }}</span>
           <span>{{ failureSummary(row) }}</span>
+          <span v-if="row.latest_checked_at">最近 {{ fmtDate(row.latest_checked_at) }}</span>
         </div>
       </div>
     </div>
@@ -529,6 +565,45 @@ watch(() => route.fullPath, applyRouteContext)
           <Plus class="size-4" />
           <span>保存端点</span>
         </button>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2 class="block-title">批量导入端点</h2>
+        <span class="meta">支持完整代理 URL 或 host:port:user:pass；可覆盖同 IP 的重复协议变体</span>
+      </div>
+      <div class="form-grid bulk-grid">
+        <textarea
+          v-model="bulkForm.text"
+          class="ctl textarea"
+          placeholder="socks5h://user:pass@108.95.61.130:1080&#10;108.95.61.131:1080:user:pass"
+        ></textarea>
+        <div class="bulk-side">
+          <select v-model="bulkForm.endpoint_type" class="ctl">
+            <option value="datacenter">普通 IP</option>
+            <option value="residential">住宅 IP</option>
+          </select>
+          <select v-model="bulkForm.scheme" class="ctl">
+            <option value="http">HTTP</option>
+            <option value="socks5h">SOCKS5H</option>
+            <option value="socks5">SOCKS5</option>
+          </select>
+          <input v-model="bulkForm.provider" class="ctl" placeholder="供应商" />
+          <input v-model="bulkForm.country" class="ctl" placeholder="国家/地区" />
+          <input v-model="bulkForm.name_prefix" class="ctl" placeholder="名称前缀" />
+          <input v-model="bulkForm.tags" class="ctl" placeholder="标签, 逗号分隔" />
+          <input v-model="bulkForm.exclude_sites" class="ctl" placeholder="排除站点, 逗号分隔" />
+          <label class="check-row">
+            <input v-model="bulkForm.deactivate_duplicate_variants" type="checkbox" />
+            <span>停用同 IP 的重复协议变体</span>
+          </label>
+          <input v-model="bulkForm.notes" class="ctl" placeholder="备注" />
+          <button class="btn small primary" :disabled="!!busy || !bulkForm.text.trim()" @click="bulkUpsertEndpoints">
+            <Database class="size-4" />
+            <span>{{ busy === 'endpoint:bulk' ? '同步中' : '批量同步' }}</span>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -905,6 +980,17 @@ watch(() => route.fullPath, applyRouteContext)
   grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
 }
 
+.bulk-grid {
+  grid-template-columns: minmax(360px, 1fr) minmax(280px, 360px);
+  align-items: stretch;
+}
+
+.bulk-side {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .pool-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
 }
@@ -928,6 +1014,27 @@ watch(() => route.fullPath, applyRouteContext)
 .ctl:focus {
   border-color: var(--ui-color-primary-500, #8b5cf6);
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.16);
+}
+
+.textarea {
+  height: auto;
+  min-height: 174px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.check-row {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-muted, #9ca3af);
+  font-size: 12px;
+}
+
+.check-row input {
+  width: 14px;
+  height: 14px;
 }
 
 .btn,
@@ -1176,8 +1283,13 @@ watch(() => route.fullPath, applyRouteContext)
   .probe-grid,
   .endpoint-grid,
   .rule-grid,
+  .bulk-grid,
   .pool-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bulk-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1204,7 +1316,12 @@ watch(() => route.fullPath, applyRouteContext)
   .probe-grid,
   .endpoint-grid,
   .rule-grid,
+  .bulk-grid,
   .pool-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bulk-side {
     grid-template-columns: 1fr;
   }
 

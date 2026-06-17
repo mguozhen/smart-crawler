@@ -210,6 +210,9 @@ def test_admin_proxy_pools_expose_effective_fallback_availability():
         proxy_redacted=redact_proxy(residential),
         tier="residential",
         status="down",
+        last_failure_code="network_timeout",
+        last_failure_detail="connect timed out",
+        last_checked_at=datetime.utcnow(),
         blocked_until=datetime.utcnow() + timedelta(minutes=10),
         updated_at=datetime.utcnow(),
     ))
@@ -234,6 +237,77 @@ def test_admin_proxy_pools_expose_effective_fallback_availability():
     assert residential_diag["member_count"] == 1
     assert residential_diag["fallback_pool_slug"] == "datacenter"
     assert residential_diag["fallback_available_count"] == 1
+    assert residential_diag["top_failure_code"] == "network_timeout"
+    assert residential_diag["latest_checked_at"]
+    assert residential_diag["latest_failure_detail"] == "connect timed out"
+    assert residential_diag["sample_endpoints"][0]["host"] == "10.0.4.1"
+    assert residential_diag["sample_endpoints"][0]["last_failure_code"] == "network_timeout"
+
+    s.close()
+
+
+def test_admin_proxy_endpoint_bulk_upsert_disables_duplicate_variants():
+    init_db()
+    from app.api import admin_spine
+    from app.models import ProxyEndpoint
+    from app.proxy_config import upsert_proxy_endpoint
+
+    s = SessionLocal()
+    _clean_proxy_config(s)
+    old_http = upsert_proxy_endpoint(
+        s,
+        proxy_url="http://u:p@108.95.61.130:3128",
+        endpoint_type="residential",
+        source="test",
+    )
+    existing = upsert_proxy_endpoint(
+        s,
+        proxy_url="socks5h://u:p@108.95.61.130:1080",
+        endpoint_type="residential",
+        source="test",
+        active=False,
+        provider="old-provider",
+    )
+    s.commit()
+
+    out = admin_spine.proxy_endpoint_bulk_upsert(
+        {
+            "text": """
+================================================================
+SOCKS5 端口 : 1080
+socks5h://u:p@108.95.61.130:1080
+108.95.61.131:1080:u:p
+""",
+            "endpoint_type": "residential",
+            "scheme": "socks5h",
+            "provider": "internal-us-office",
+            "country": "US",
+            "name_prefix": "US office residential",
+            "deactivate_duplicate_variants": True,
+            "active": True,
+        },
+        user="admin",
+        db=s,
+        ip="127.0.0.1",
+    )
+    s.expire_all()
+
+    assert out["bulk"]["added"] == 1
+    assert out["bulk"]["updated"] == 1
+    assert out["bulk"]["disabled_duplicate_variants"] == 1
+    assert out["bulk"]["error_count"] == 0
+    assert out["bulk"]["skipped"] >= 2
+    old_http = s.get(ProxyEndpoint, old_http.id)
+    existing = s.get(ProxyEndpoint, existing.id)
+    added = (s.query(ProxyEndpoint)
+             .filter(ProxyEndpoint.host == "108.95.61.131")
+             .one())
+    assert old_http.active is False
+    assert existing.active is True
+    assert existing.provider == "internal-us-office"
+    assert existing.name == "US office residential 108.95.61.130"
+    assert added.scheme == "socks5h"
+    assert added.provider == "internal-us-office"
 
     s.close()
 

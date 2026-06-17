@@ -2439,6 +2439,24 @@ def _proxy_pool_diagnostics(
             default=None,
         )
         top_failure_code = failure_counts.most_common(1)[0][0] if failure_counts else None
+        sample_endpoints = []
+        for endpoint in members[:5]:
+            health = health_by_hash.get(endpoint.proxy_hash)
+            sample_endpoints.append({
+                "endpoint_id": endpoint.id,
+                "name": endpoint.name,
+                "proxy": endpoint.proxy_redacted,
+                "host": endpoint.host,
+                "scheme": endpoint.scheme,
+                "provider": endpoint.provider,
+                "country": endpoint.country,
+                "status": health.status if health else "unknown",
+                "last_failure_code": health.last_failure_code if health else None,
+                "last_checked_at": (
+                    health.last_checked_at.isoformat()
+                    if health and health.last_checked_at else None
+                ),
+            })
         if top_failure_code == "proxy_auth_failed":
             suggested_action = "检查代理账号密码、协议类型和来源 IP 白名单。"
         elif top_failure_code in {"network_timeout", "proxy_unavailable", "dns_error"}:
@@ -2459,6 +2477,11 @@ def _proxy_pool_diagnostics(
             "status_counts": dict(status_counts),
             "failure_counts": dict(failure_counts),
             "top_failure_code": top_failure_code,
+            "sample_endpoints": sample_endpoints,
+            "latest_checked_at": (
+                latest_failure.last_checked_at.isoformat()
+                if latest_failure and latest_failure.last_checked_at else None
+            ),
             "latest_failure_detail": (
                 latest_failure.last_failure_detail if latest_failure else None
             ),
@@ -2750,6 +2773,85 @@ def _split_list(value) -> list[str]:
     return [str(x).strip() for x in raw if str(x).strip()]
 
 
+def _proxy_bulk_lines(payload: dict) -> list:
+    raw_items = payload.get("items")
+    if isinstance(raw_items, list):
+        items = list(raw_items)
+    elif raw_items:
+        items = [raw_items]
+    else:
+        items = []
+    text = payload.get("text") or payload.get("proxies") or payload.get("proxy_urls")
+    if text:
+        items.extend(str(text).splitlines())
+    return items
+
+
+def _looks_like_proxy_host(host: str) -> bool:
+    host = (host or "").strip()
+    if not host or any(ch.isspace() for ch in host):
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return "." in host
+
+
+def _normalize_proxy_bulk_item(item, *, default_scheme: str) -> str | None:
+    if isinstance(item, dict):
+        value = item.get("proxy_url") or item.get("url") or item.get("proxy")
+        if value:
+            return str(value).strip()
+        host = str(item.get("host") or "").strip()
+        port = str(item.get("port") or "").strip()
+        username = str(item.get("username") or item.get("user") or "").strip()
+        password = str(item.get("password") or item.get("pass") or "").strip()
+        scheme = str(item.get("scheme") or default_scheme or "http").strip()
+        if _looks_like_proxy_host(host) and port:
+            auth = f"{username}:{password}@" if username or password else ""
+            return f"{scheme}://{auth}{host}:{port}"
+        return None
+
+    line = str(item or "").strip()
+    if not line or line.startswith("#"):
+        return None
+    if set(line) <= {"=", "-", " "}:
+        return None
+    if "#" in line:
+        line = line.partition("#")[0].strip()
+    if not line:
+        return None
+    if "://" in line:
+        return line
+    parts = [part.strip() for part in line.split(":")]
+    scheme = (default_scheme or "http").strip()
+    if len(parts) >= 4:
+        host, port, username = parts[0], parts[1], parts[2]
+        if not _looks_like_proxy_host(host):
+            return None
+        password = ":".join(parts[3:])
+        return f"{scheme}://{username}:{password}@{host}:{port}"
+    if len(parts) == 2:
+        host, port = parts
+        if not _looks_like_proxy_host(host):
+            return None
+        return f"{scheme}://{host}:{port}"
+    return None
+
+
+def _proxy_duplicate_variant_filter(row: ProxyEndpoint):
+    return and_(
+        ProxyEndpoint.host == row.host,
+        ProxyEndpoint.endpoint_type == row.endpoint_type,
+        ProxyEndpoint.id != row.id,
+        or_(ProxyEndpoint.scheme != row.scheme,
+            ProxyEndpoint.port != row.port,
+            ProxyEndpoint.scheme.is_(None),
+            ProxyEndpoint.port.is_(None)),
+    )
+
+
 def _reload_pool_safely() -> None:
     try:
         from ..proxy_pool import reload_pool
@@ -2834,6 +2936,94 @@ def proxy_endpoint_create(payload: dict,
     db.commit()
     _reload_pool_safely()
     return {"endpoint_id": row.id, **_proxy_admin_payload(db)}
+
+
+@router.post("/proxies/endpoints/bulk")
+def proxy_endpoint_bulk_upsert(payload: dict,
+                               user: str = Depends(require_user),
+                               db: Session = Depends(get_db),
+                               ip: str = Header(default="", alias="X-Forwarded-For")) -> dict:
+    actor = _require_super_admin(user, db)
+    from ..proxy_config import upsert_proxy_endpoint
+    from ..proxy_health import proxy_hash
+
+    endpoint_type = payload.get("endpoint_type") or payload.get("tier") or "datacenter"
+    default_scheme = str(payload.get("scheme") or payload.get("default_scheme") or "http")
+    deactivate_variants = bool(payload.get("deactivate_duplicate_variants", False))
+    added = 0
+    updated = 0
+    disabled_variants = 0
+    skipped = 0
+    errors: list[dict] = []
+    endpoint_ids: list[int] = []
+
+    for index, item in enumerate(_proxy_bulk_lines(payload), start=1):
+        proxy_url = _normalize_proxy_bulk_item(item, default_scheme=default_scheme)
+        if not proxy_url:
+            skipped += 1
+            continue
+        parsed = urlparse(proxy_url)
+        if not parsed.scheme or not parsed.hostname or not parsed.port:
+            errors.append({"line": index, "proxy": proxy_url, "error": "invalid_proxy_url"})
+            continue
+        before = (db.query(ProxyEndpoint)
+                  .filter(ProxyEndpoint.proxy_hash == proxy_hash(proxy_url))
+                  .first())
+        try:
+            name_prefix = str(payload.get("name_prefix") or "").strip()
+            endpoint_name = (
+                payload.get("name")
+                or (f"{name_prefix} {parsed.hostname}" if name_prefix else None)
+            )
+            row = upsert_proxy_endpoint(
+                db,
+                proxy_url=proxy_url,
+                endpoint_type=endpoint_type,
+                name=endpoint_name,
+                provider=payload.get("provider"),
+                country=payload.get("country"),
+                active=bool(payload.get("active", True)),
+                exclude_sites=_split_list(payload.get("exclude_sites", payload.get("exclude"))),
+                tags=_split_list(payload.get("tags")),
+                max_concurrency=payload.get("max_concurrency"),
+                source="admin",
+                notes=payload.get("notes"),
+            )
+            endpoint_ids.append(row.id)
+            if before is None:
+                added += 1
+            else:
+                updated += 1
+            if deactivate_variants and row.host:
+                variants = (db.query(ProxyEndpoint)
+                            .filter(_proxy_duplicate_variant_filter(row))
+                            .all())
+                for variant in variants:
+                    if variant.active:
+                        disabled_variants += 1
+                    variant.active = False
+                    variant.notes = "同出口 IP 已由批量导入的首选协议端点覆盖，停用重复协议变体"
+                    variant.updated_at = datetime.utcnow()
+        except Exception as exc:
+            errors.append({"line": index, "proxy": proxy_url, "error": str(exc)})
+
+    detail = {
+        "added": added,
+        "updated": updated,
+        "skipped": skipped,
+        "disabled_duplicate_variants": disabled_variants,
+        "errors": errors[:20],
+        "error_count": len(errors),
+        "endpoint_ids": endpoint_ids[:200],
+        "endpoint_type": endpoint_type,
+        "scheme": default_scheme,
+    }
+    record_audit(db, actor_user_id=actor.id, actor_name=actor.username,
+                 action="proxy.endpoint.bulk_upsert", target_type="proxy_endpoint",
+                 target_id="bulk", detail=detail, ip=ip or None)
+    db.commit()
+    _reload_pool_safely()
+    return {"bulk": detail, **_proxy_admin_payload(db)}
 
 
 @router.patch("/proxies/endpoints/{endpoint_id}")
