@@ -9,6 +9,7 @@ import {
   proxyAntiBotDiagnostics,
   proxyCheck,
   proxyClear,
+  proxyEndpointCheckBatch,
   proxyEndpointCheck,
   proxyEndpointCreate,
   proxyEndpointUpdate,
@@ -221,6 +222,20 @@ function checkEndpoint(row: Record<string, any>) {
     url: probeForm.value.url,
     timeout: probeForm.value.timeout || 8
   }), '代理端点检测已完成')
+}
+
+function checkEndpoints(endpointType = '') {
+  return runAction(
+    `endpoint-check-batch:${endpointType || 'all'}`,
+    () => proxyEndpointCheckBatch({
+      url: probeForm.value.url || 'https://www.google.com/generate_204',
+      timeout: probeForm.value.timeout || 8,
+      endpoint_type: endpointType || undefined,
+      active_only: true,
+      limit: 50
+    }),
+    endpointType ? `${endpointType} 端点批量检测已完成` : '全部端点批量检测已完成'
+  )
 }
 
 function createPool() {
@@ -551,7 +566,18 @@ watch(() => route.fullPath, applyRouteContext)
     <section class="block">
       <div class="block-head">
         <h2 class="block-title">配置端点</h2>
-        <span class="meta">明文凭据不会在页面回显</span>
+        <div class="inline-actions">
+          <span class="meta">明文凭据不会在页面回显</span>
+          <button class="btn small" :disabled="!!busy || !endpoints.length" @click="checkEndpoints('residential')">
+            {{ busy === 'endpoint-check-batch:residential' ? '检测中' : '检测住宅' }}
+          </button>
+          <button class="btn small" :disabled="!!busy || !endpoints.length" @click="checkEndpoints('datacenter')">
+            {{ busy === 'endpoint-check-batch:datacenter' ? '检测中' : '检测普通' }}
+          </button>
+          <button class="btn small primary" :disabled="!!busy || !endpoints.length" @click="checkEndpoints()">
+            {{ busy === 'endpoint-check-batch:all' ? '检测中' : '检测全部' }}
+          </button>
+        </div>
       </div>
       <div class="table-wrap">
         <table class="tbl">
@@ -676,6 +702,14 @@ watch(() => route.fullPath, applyRouteContext)
 .page-head,
 .block-head {
   justify-content: space-between;
+}
+
+.inline-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .page-title {

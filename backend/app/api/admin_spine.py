@@ -2631,6 +2631,88 @@ def proxy_endpoint_update(endpoint_id: int, payload: dict,
     return {"endpoint_id": row.id, **_proxy_admin_payload(db)}
 
 
+def _proxy_endpoint_probe_detail(
+    row: ProxyEndpoint,
+    *,
+    url: str,
+    timeout: int,
+) -> dict:
+    from ..proxy_probe import probe_proxy_url
+
+    result = probe_proxy_url(
+        proxy_url=row.proxy_url,
+        tier=row.endpoint_type,
+        url=url,
+        timeout=timeout,
+    )
+    failure = result.failure
+    return {
+        "endpoint_id": row.id,
+        "endpoint_type": row.endpoint_type,
+        "proxy": row.proxy_redacted,
+        "url": url,
+        "ok": result.ok,
+        "status_code": result.status_code,
+        "failure_code": failure.code if failure else None,
+        "failure_stage": failure.stage if failure else None,
+        "failure_detail": failure.detail if failure else None,
+    }
+
+
+@router.post("/proxies/endpoints/check-batch")
+def proxy_endpoint_check_batch(payload: dict | None = None,
+                               user: str = Depends(require_user),
+                               db: Session = Depends(get_db),
+                               ip: str = Header(default="", alias="X-Forwarded-For")) -> dict:
+    """批量直接检测代理端点本身，不走站点规则或 fallback。"""
+    actor = _require_super_admin(user, db)
+    payload = payload or {}
+    url = payload.get("url") or "https://www.google.com/generate_204"
+    timeout = max(3, min(30, int(payload.get("timeout") or 8)))
+    limit = max(1, min(100, int(payload.get("limit") or 50)))
+    endpoint_type = (payload.get("endpoint_type") or payload.get("tier") or "").strip()
+    health_status = (payload.get("health_status") or "").strip()
+    active_only = bool(payload.get("active_only", True))
+
+    q = db.query(ProxyEndpoint).filter(ProxyEndpoint.proxy_url.isnot(None))
+    if active_only:
+        q = q.filter(ProxyEndpoint.active.is_(True))
+    if endpoint_type:
+        q = q.filter(ProxyEndpoint.endpoint_type == endpoint_type)
+    if health_status:
+        q = q.join(ProxyHealth, ProxyHealth.proxy_hash == ProxyEndpoint.proxy_hash)
+        q = q.filter(ProxyHealth.status == health_status)
+    rows = q.order_by(ProxyEndpoint.endpoint_type.asc(),
+                      ProxyEndpoint.id.asc()).limit(limit).all()
+
+    results = [
+        _proxy_endpoint_probe_detail(row, url=url, timeout=timeout)
+        for row in rows
+    ]
+    ok = sum(1 for row in results if row.get("ok"))
+    failed = len(results) - ok
+    detail = {
+        "url": url,
+        "timeout": timeout,
+        "limit": limit,
+        "endpoint_type": endpoint_type or None,
+        "health_status": health_status or None,
+        "active_only": active_only,
+        "checked": len(results),
+        "ok": ok,
+        "failed": failed,
+        "results": results,
+    }
+    record_audit(db, actor_user_id=actor.id, actor_name=actor.username,
+                 action="proxy.endpoint.check_batch", target_type="proxy_endpoint",
+                 target_id="batch", detail={k: v for k, v in detail.items()
+                                            if k != "results"}, ip=ip or None)
+    db.commit()
+    _reload_pool_safely()
+    db.expire_all()
+    return {"batch": detail, **_proxy_admin_payload(db)}
+
+
 @router.post("/proxies/endpoints/{endpoint_id}/check")
 def proxy_endpoint_check(endpoint_id: int, payload: dict | None = None,
                          user: str = Depends(require_user),
@@ -2645,26 +2727,7 @@ def proxy_endpoint_check(endpoint_id: int, payload: dict | None = None,
     payload = payload or {}
     url = payload.get("url") or "https://www.vidaxl.de/sitemap_index.xml"
     timeout = max(3, min(30, int(payload.get("timeout") or 8)))
-    from ..proxy_probe import probe_proxy_url
-
-    result = probe_proxy_url(
-        proxy_url=row.proxy_url,
-        tier=row.endpoint_type,
-        url=url,
-        timeout=timeout,
-    )
-    failure = result.failure
-    detail = {
-        "endpoint_id": row.id,
-        "endpoint_type": row.endpoint_type,
-        "proxy": row.proxy_redacted,
-        "url": url,
-        "ok": result.ok,
-        "status_code": result.status_code,
-        "failure_code": failure.code if failure else None,
-        "failure_stage": failure.stage if failure else None,
-        "failure_detail": failure.detail if failure else None,
-    }
+    detail = _proxy_endpoint_probe_detail(row, url=url, timeout=timeout)
     record_audit(db, actor_user_id=actor.id, actor_name=actor.username,
                  action="proxy.endpoint.check", target_type="proxy_endpoint",
                  target_id=str(row.id), detail=detail, ip=ip or None)

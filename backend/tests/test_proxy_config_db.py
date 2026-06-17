@@ -272,3 +272,71 @@ def test_admin_proxy_endpoint_check_records_endpoint_health(monkeypatch):
     assert endpoint_payload["health_status"] == "healthy"
 
     s.close()
+
+
+def test_admin_proxy_endpoint_check_batch_filters_and_records(monkeypatch):
+    init_db()
+    from app.api import admin_spine
+    from app.models import ProxyHealth
+    from app.proxy_config import upsert_proxy_endpoint
+    from app.proxy_health import proxy_hash
+    from app import proxy_probe
+
+    residential = "http://u:p@10.0.6.1:3128"
+    datacenter = "http://u:p@10.0.6.2:3128"
+    seen: list[str] = []
+
+    class FakeResponse:
+        status_code = 204
+
+    class FakeSession:
+        def __init__(self, *args, **kwargs):
+            self.proxies = {}
+
+        def get(self, url, timeout):
+            seen.append(self.proxies["http"])
+            assert url == "https://probe.example.test/batch"
+            assert timeout == 4
+            return FakeResponse()
+
+    monkeypatch.setattr(proxy_probe.creq, "Session", FakeSession)
+
+    s = SessionLocal()
+    _clean_proxy_config(s)
+    residential_row = upsert_proxy_endpoint(
+        s,
+        proxy_url=residential,
+        endpoint_type="residential",
+        source="test",
+    )
+    upsert_proxy_endpoint(
+        s,
+        proxy_url=datacenter,
+        endpoint_type="datacenter",
+        source="test",
+    )
+    s.commit()
+
+    out = admin_spine.proxy_endpoint_check_batch(
+        {
+            "endpoint_type": "residential",
+            "url": "https://probe.example.test/batch",
+            "timeout": 4,
+            "limit": 10,
+        },
+        user="admin",
+        db=s,
+        ip="127.0.0.1",
+    )
+
+    assert seen == [residential]
+    assert out["batch"]["checked"] == 1
+    assert out["batch"]["ok"] == 1
+    assert out["batch"]["failed"] == 0
+    assert out["batch"]["results"][0]["endpoint_id"] == residential_row.id
+    assert (s.query(ProxyHealth)
+            .filter(ProxyHealth.proxy_hash == proxy_hash(residential))
+            .one()
+            .status) == "healthy"
+
+    s.close()
