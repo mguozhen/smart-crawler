@@ -158,3 +158,49 @@ def test_admin_proxy_endpoint_create_redacts_secret():
     assert "secret" not in endpoint["proxy"]
     assert endpoint["proxy"] == "http://user:****@example.test:3128"
     s.close()
+
+
+def test_admin_proxy_pools_expose_effective_fallback_availability():
+    init_db()
+    from datetime import datetime, timedelta
+    from app.api import admin_spine
+    from app.models import ProxyHealth, ProxyPoolConfig
+    from app.proxy_config import upsert_proxy_endpoint
+    from app.proxy_health import proxy_hash, redact_proxy
+    from app.proxy_pool import reload_pool
+
+    residential = "http://u:p@10.0.4.1:3128"
+    datacenter = "http://u:p@10.0.4.2:3128"
+    s = SessionLocal()
+    _clean_proxy_config(s)
+    upsert_proxy_endpoint(s, proxy_url=residential,
+                          endpoint_type="residential", source="test")
+    upsert_proxy_endpoint(s, proxy_url=datacenter,
+                          endpoint_type="datacenter", source="test")
+    residential_pool = (s.query(ProxyPoolConfig)
+                        .filter(ProxyPoolConfig.slug == "residential")
+                        .one())
+    residential_pool.fallback_pool_slug = "datacenter"
+    s.add(ProxyHealth(
+        proxy_hash=proxy_hash(residential),
+        proxy_redacted=redact_proxy(residential),
+        tier="residential",
+        status="down",
+        blocked_until=datetime.utcnow() + timedelta(minutes=10),
+        updated_at=datetime.utcnow(),
+    ))
+    s.commit()
+    reload_pool()
+
+    out = admin_spine.proxies_status(user="admin", db=s)
+    pools = {row["slug"]: row for row in out["pools"]}
+
+    residential_payload = pools["residential"]
+    assert residential_payload["available_count"] == 0
+    assert residential_payload["primary_available_count"] == 0
+    assert residential_payload["fallback_pool_slug"] == "datacenter"
+    assert residential_payload["fallback_available_count"] == 1
+    assert residential_payload["effective_available_count"] == 1
+    assert residential_payload["effective_status"] == "fallback_available"
+
+    s.close()

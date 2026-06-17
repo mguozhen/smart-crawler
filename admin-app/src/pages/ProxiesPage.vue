@@ -292,6 +292,14 @@ function rulePoolSummary(row: Record<string, any>) {
   return `${primary} · ${fallback}`
 }
 
+function poolPoolSummary(row: Record<string, any>) {
+  const primary = `主池 ${row.slug}: ${fmtNumber(row.primary_available_count ?? row.available_count)}/${fmtNumber(row.primary_member_count ?? row.member_count)} 可用`
+  const fallback = row.fallback_pool_slug
+    ? `备用 ${row.fallback_pool_slug}: ${fmtNumber(row.fallback_available_count)}/${fmtNumber(row.fallback_member_count)} 可用`
+    : '无备用池'
+  return `${primary} · ${fallback} · 实际 ${fmtNumber(row.effective_available_count ?? row.available_count)}`
+}
+
 function shortHash(hash?: string) {
   return hash ? hash.slice(0, 12) : '-'
 }
@@ -452,9 +460,13 @@ watch(() => route.fullPath, applyRouteContext)
         </div>
         <div class="mini-table">
           <div v-for="p in pools" :key="p.id" class="mini-row">
-            <div>
-              <b>{{ p.name || p.slug }}</b>
-              <span>{{ p.slug }} · {{ p.pool_type }} · {{ fmtNumber(p.available_count) }}/{{ fmtNumber(p.member_count) }} 可用</span>
+            <div class="rule-info">
+              <div class="rule-title">
+                <b>{{ p.name || p.slug }}</b>
+                <span class="badge" :class="ruleStatusClass(p.effective_status)">{{ ruleStatusLabel(p.effective_status) }}</span>
+              </div>
+              <span>{{ p.slug }} · {{ p.pool_type }}</span>
+              <span>{{ poolPoolSummary(p) }}</span>
             </div>
             <button class="icon-btn" :disabled="!!busy" @click="togglePool(p)">
               <ToggleRight v-if="p.active" class="size-4" />

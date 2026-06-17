@@ -22,6 +22,7 @@ from .crawl_diagnostics import (
     HTTP_401,
     HTTP_403,
     HTTP_429,
+    PROXY_UNAVAILABLE,
     STAGE_FETCH,
     classify_exception,
     classify_http_status,
@@ -89,6 +90,8 @@ class FetchContext:
     retries: int = 1
     retry_statuses: tuple[int, ...] = (429, 500, 502, 503, 504)
     rotate_proxy_on_retry: bool = True
+    require_proxy: bool | None = None
+    max_blocked_events: int = 0
     counter: CrawlCounter | None = None
 
 
@@ -126,6 +129,7 @@ class CrawlerFetcher:
     def __init__(self, context: FetchContext,
                  middlewares: list[FetchMiddleware] | None = None):
         self.context = context
+        self._blocked_events = 0
         self.middlewares = middlewares or [
             ProxyMiddleware(),
             RetryMiddleware(),
@@ -155,16 +159,20 @@ class CrawlerFetcher:
                 mw.after_response(self, result)
             last = result
             if result.ok:
+                self._blocked_events = 0
                 self._count(result)
                 return result
+            self._raise_if_blocked_budget_exceeded(result)
             if with_stealth and self.context.allow_stealth and _should_stealth(result):
                 stealth = self._get_stealth(url, attempt=attempt)
                 for mw in self.middlewares:
                     mw.after_response(self, stealth)
                 if stealth.ok:
+                    self._blocked_events = 0
                     self._count(stealth)
                     return stealth
                 last = stealth
+                self._raise_if_blocked_budget_exceeded(stealth)
             if not _should_retry(self.context, result, attempt, attempts):
                 break
             if self.context.rotate_proxy_on_retry:
@@ -172,6 +180,20 @@ class CrawlerFetcher:
         return last or FetchResult(ok=False, url=url, failure=FailureInfo(
             "unknown", STAGE_FETCH, "fetch produced no result", True,
             "检查 fetcher 配置"))
+
+    def _raise_if_blocked_budget_exceeded(self, result: FetchResult) -> None:
+        if not _should_stealth(result):
+            return
+        self._blocked_events += 1
+        limit = int(self.context.max_blocked_events or 0)
+        if limit and self._blocked_events >= limit:
+            failure = result.failure
+            code = failure.code if failure else "blocked"
+            detail = failure.detail if failure else "blocked response"
+            raise BlockedError(
+                f"{self.context.site.site} 连续/累计 {self._blocked_events} 次反爬失败"
+                f"（{code}: {detail}）"
+            )
 
     def _request_once(self, method: str, url: str, *, attempt: int = 1, **kwargs) -> FetchResult:
         ctx = self.context
@@ -181,6 +203,25 @@ class CrawlerFetcher:
         sess = creq.Session(impersonate=kwargs.pop("impersonate", "chrome"))
         sess.headers.update(kwargs.pop("headers", {}) or {})
         proxy = kwargs.pop("_proxy", None)
+        missing_proxy_tier = kwargs.pop("_proxy_unavailable_tier", None)
+        if missing_proxy_tier:
+            failure = FailureInfo(
+                PROXY_UNAVAILABLE,
+                STAGE_FETCH,
+                f"无可用 {missing_proxy_tier} 代理",
+                True,
+                "检查代理池配置、冷却状态和代理余额/白名单",
+            )
+            result = FetchResult(
+                ok=False,
+                url=url,
+                proxy=None,
+                duration_ms=0,
+                failure=failure,
+                attempt=attempt,
+            )
+            _record_fetch(ctx, result, kind=kind, source=source)
+            return result
         if proxy:
             sess.proxies = {"http": proxy, "https": proxy}
         started = time.time()
@@ -306,8 +347,17 @@ class ProxyMiddleware:
             return
         if not ctx.use_proxy or ctx.site.proxy_tier in (None, "", "none"):
             return
-        kwargs["_proxy"] = proxy_pool.get_proxy(ctx.site.proxy_tier,
-                                                site=ctx.site.site)
+        proxy = proxy_pool.get_proxy(ctx.site.proxy_tier, site=ctx.site.site)
+        if proxy:
+            kwargs["_proxy"] = proxy
+            return
+        require_proxy = (
+            ctx.require_proxy
+            if ctx.require_proxy is not None
+            else ctx.site.proxy_tier not in (None, "", "none")
+        )
+        if require_proxy:
+            kwargs["_proxy_unavailable_tier"] = ctx.site.proxy_tier
 
     def after_response(self, fetcher: CrawlerFetcher,
                        result: FetchResult) -> None:
@@ -420,6 +470,8 @@ def _looks_like_anti_bot(text: str) -> bool:
 def _should_retry(ctx: FetchContext, result: FetchResult,
                   attempt: int, max_attempts: int) -> bool:
     if attempt >= max_attempts:
+        return False
+    if result.failure and result.failure.code == PROXY_UNAVAILABLE and not result.proxy:
         return False
     if result.status in ctx.retry_statuses:
         return True

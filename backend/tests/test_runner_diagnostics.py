@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import pytest
 
 from app.crawl_diagnostics import FailureInfo, STAGE_JOB, record_failure
 from app.crawlers.base import CrawlResult
 from app.db import SessionLocal, init_db
-from app.models import CrawlJob, Product, Site
-from app.runner import enqueue, execute_job
+from app.models import CrawlFailure, CrawlJob, Product, Site
+from app.runner import claim_job, enqueue, execute_job
 
 pytestmark = pytest.mark.unit
 
@@ -194,5 +196,86 @@ def test_execute_job_applies_configured_price_feed(monkeypatch, tmp_path):
         assert product.currency == "USD"
         assert any("configured_price_source: matched=1" in note
                    for note in result["notes"])
+    finally:
+        s.close()
+
+
+def test_enqueue_auto_job_skips_when_required_proxy_unavailable(monkeypatch):
+    init_db()
+    from app import proxy_pool
+
+    monkeypatch.setattr(proxy_pool, "has_available_proxy",
+                        lambda tier, site=None: False)
+    s = SessionLocal()
+    try:
+        s.query(CrawlJob).delete()
+        s.query(Site).filter(Site.site == "runner_proxy_probe").delete()
+        s.add(Site(site="runner_proxy_probe", brand="Probe", country="US",
+                   url="https://example.com", platform="generic",
+                   proxy_tier="residential"))
+        s.commit()
+    finally:
+        s.close()
+
+    job_id = enqueue("runner_proxy_probe", trigger="scheduled")
+
+    s = SessionLocal()
+    try:
+        job = s.get(CrawlJob, job_id)
+        failure = (s.query(CrawlFailure)
+                   .filter(CrawlFailure.job_id == job_id)
+                   .order_by(CrawlFailure.id.desc())
+                   .first())
+        assert job.status == "skipped"
+        assert job.failure_code == "proxy_unavailable"
+        assert failure is not None
+        assert failure.code == "proxy_unavailable"
+    finally:
+        s.close()
+
+
+def test_claim_job_skips_proxy_preflight_failure_and_claims_next(monkeypatch):
+    init_db()
+    from app import proxy_pool
+
+    def fake_available(tier, site=None):
+        return site != "runner_proxy_blocked"
+
+    monkeypatch.setattr(proxy_pool, "has_available_proxy", fake_available)
+    now = datetime.utcnow()
+    s = SessionLocal()
+    try:
+        s.query(CrawlJob).delete()
+        for site_name in ("runner_proxy_blocked", "runner_proxy_ready"):
+            s.query(Site).filter(Site.site == site_name).delete()
+        s.add(Site(site="runner_proxy_blocked", brand="Probe", country="US",
+                   url="https://example.com/blocked", platform="generic",
+                   proxy_tier="residential"))
+        s.add(Site(site="runner_proxy_ready", brand="Probe", country="US",
+                   url="https://example.com/ready", platform="generic",
+                   proxy_tier="none"))
+        s.flush()
+        blocked = CrawlJob(site="runner_proxy_blocked", status="pending",
+                           trigger="scheduled", created_at=now)
+        ready = CrawlJob(site="runner_proxy_ready", status="pending",
+                         trigger="scheduled",
+                         created_at=now + timedelta(seconds=1))
+        s.add_all([blocked, ready])
+        s.commit()
+        blocked_id = blocked.id
+        ready_id = ready.id
+    finally:
+        s.close()
+
+    assert claim_job("worker-test") == ready_id
+
+    s = SessionLocal()
+    try:
+        blocked = s.get(CrawlJob, blocked_id)
+        ready = s.get(CrawlJob, ready_id)
+        assert blocked.status == "skipped"
+        assert blocked.failure_code == "proxy_unavailable"
+        assert ready.status == "running"
+        assert ready.heartbeat_at is not None
     finally:
         s.close()

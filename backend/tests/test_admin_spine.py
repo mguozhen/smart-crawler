@@ -483,6 +483,10 @@ def test_jobs_stats_aggregates_all_queue_tables():
     s.add(CrawlJob(site="site_c", status="running",
                    created_at=datetime.utcnow(),
                    started_at=datetime.utcnow() - timedelta(hours=2)))
+    s.add(CrawlJob(site="site_e", status="running",
+                   created_at=datetime.utcnow(),
+                   started_at=datetime.utcnow() - timedelta(hours=2),
+                   heartbeat_at=datetime.utcnow()))
     s.add(CrawlJob(site="site_d", status="pending",
                    created_at=datetime.utcnow() - timedelta(hours=2)))
     s.add(OnDemandJob(url="https://x.test/1", platform="shop",
@@ -511,25 +515,28 @@ def test_jobs_stats_aggregates_all_queue_tables():
     assert stats["success"] == 1
     assert stats["blocked"] == 1
     assert stats["stuck"] == 1
+    assert stats["running"] == 1
     assert stats["pending"] == 2
     assert stats["stale_pending"] == 1
     assert stats["partial"] == 1
-    assert stats["status_meta"]["running_raw"] == 1
-    assert stats["status_meta"]["running_active"] == 0
+    assert stats["status_meta"]["running_raw"] == 2
+    assert stats["status_meta"]["running_active"] == 1
     assert stats["status_meta"]["stuck"] == 1
     assert stats["status_meta"]["stale_pending"] == 1
     assert "运行中统计" in stats["status_count_note"]
-    assert stats["by_queue"]["crawl"]["total"] == 4
+    assert stats["by_queue"]["crawl"]["total"] == 5
     assert stats["by_queue"]["crawl"]["stale_pending"] == 1
-    assert stats["by_queue"]["crawl"]["status_meta"]["running_raw"] == 1
-    assert stats["by_queue"]["crawl"]["status_meta"]["running_active"] == 0
+    assert stats["by_queue"]["crawl"]["status_meta"]["running_raw"] == 2
+    assert stats["by_queue"]["crawl"]["status_meta"]["running_active"] == 1
     assert stats["by_queue"]["ondemand"]["total"] == 2
     assert stats["breakdowns"]["crawl_blocked_by_site"] == [{"key": "site_b", "count": 1}]
-    assert stats["breakdowns"]["crawl_running_by_site"] == []
+    assert stats["breakdowns"]["crawl_running_by_site"] == [{"key": "site_e", "count": 1}]
     assert stats["breakdowns"]["crawl_stale_pending_by_site"] == [{"key": "site_d", "count": 1}]
     assert stats["breakdowns"]["crawl_failure_codes"] == [{"key": "anti_bot_challenge", "count": 1}]
     assert {row["source"] for row in listed["items"]} == {"crawl", "ondemand"}
-    assert running["total"] == 0
+    assert running["total"] == 1
+    assert running["items"][0]["site"] == "site_e"
+    assert running["items"][0]["heartbeat_at"] is not None
     assert stuck["total"] == 1
     assert stale_pending["total"] == 1
     assert stale_pending["items"][0]["site"] == "site_d"

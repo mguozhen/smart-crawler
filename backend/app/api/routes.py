@@ -3835,7 +3835,9 @@ def _build_data_quality_payload(
             .filter(CrawlJob.site.in_(site_codes),
                     CrawlJob.status == "running",
                     CrawlJob.started_at.isnot(None),
-                    CrawlJob.started_at < stuck_cutoff)
+                    CrawlJob.started_at < stuck_cutoff,
+                    or_(CrawlJob.heartbeat_at.is_(None),
+                        CrawlJob.heartbeat_at < stuck_cutoff))
             .group_by(CrawlJob.site)
             .all()):
         bucket = queue_by_site.setdefault(site, {"total": 0})

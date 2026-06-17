@@ -453,7 +453,9 @@ def _spine_stuck_filter(cutoff):
 def _crawl_stuck_filter(cutoff):
     return (CrawlJob.status == "running",
             CrawlJob.started_at.isnot(None),
-            CrawlJob.started_at < cutoff)
+            CrawlJob.started_at < cutoff,
+            or_(CrawlJob.heartbeat_at.is_(None),
+                CrawlJob.heartbeat_at < cutoff))
 
 
 def _ondemand_stuck_filter(cutoff):
@@ -569,7 +571,8 @@ def _queue_stats(db: Session) -> dict:
             db.query(CrawlJob.site, func.count(CrawlJob.id))
             .filter(CrawlJob.status == "running",
                     or_(CrawlJob.started_at.is_(None),
-                        CrawlJob.started_at >= crawl_cutoff))
+                        CrawlJob.started_at >= crawl_cutoff,
+                        CrawlJob.heartbeat_at >= crawl_cutoff))
             .group_by(CrawlJob.site),
             limit=25,
         ),
@@ -687,7 +690,8 @@ def _crawl_job_dict(j: CrawlJob, *, now: datetime | None = None) -> dict:
     cutoff = now - timedelta(seconds=_CRAWL_STUCK_SEC)
     pending_cutoff = now - timedelta(seconds=_CRAWL_STUCK_SEC)
     is_stuck = (j.status == "running" and j.started_at is not None
-                and j.started_at < cutoff)
+                and j.started_at < cutoff
+                and (j.heartbeat_at is None or j.heartbeat_at < cutoff))
     is_stale_pending = (
         j.status == "pending" and j.created_at is not None
         and j.created_at < pending_cutoff
@@ -715,7 +719,7 @@ def _crawl_job_dict(j: CrawlJob, *, now: datetime | None = None) -> dict:
         "created_at": _iso(j.created_at),
         "started_at": _iso(j.started_at),
         "finished_at": _iso(j.finished_at),
-        "heartbeat_at": None,
+        "heartbeat_at": _iso(j.heartbeat_at),
         "products_count": j.products_count or 0,
         "new_count": j.new_count or 0,
         "promotion_count": j.promotion_count or 0,
@@ -729,7 +733,7 @@ def _crawl_job_dict(j: CrawlJob, *, now: datetime | None = None) -> dict:
         "retryable": j.retryable,
         "suggested_action": j.suggested_action,
         "is_stale_pending": is_stale_pending,
-        "stuck_reason": "running_timeout" if is_stuck else (
+        "stuck_reason": "heartbeat_missing_or_expired" if is_stuck else (
             "pending_too_long" if is_stale_pending else None
         ),
     }
@@ -1281,7 +1285,16 @@ def admin_crawl_enqueue(
                                requested_by_user_id=actor.id)
         jobs.append(job_id)
         created.append(job_id)
-        by_site[site] = {"job_id": job_id, "status": "queued"}
+        created_job = db.get(CrawlJob, job_id)
+        if created_job and created_job.status == "skipped":
+            by_site[site] = {
+                "job_id": job_id,
+                "status": "skipped_precondition",
+                "failure_code": created_job.failure_code,
+                "suggested_action": created_job.suggested_action,
+            }
+        else:
+            by_site[site] = {"job_id": job_id, "status": "queued"}
 
     record_audit(db, actor_user_id=actor.id, actor_name=actor.username,
                  action="crawl.enqueue", target_type="site",
@@ -1290,14 +1303,20 @@ def admin_crawl_enqueue(
                          "promoted_jobs": promoted},
                  ip=ip or None)
     db.commit()
+    skipped_precondition = [
+        row["job_id"] for row in by_site.values()
+        if row.get("status") == "skipped_precondition"
+    ]
     return {
-        "status": "queued" if created and not reused and not promoted else (
+        "status": "skipped_precondition" if skipped_precondition and len(skipped_precondition) == len(jobs) else (
+            "queued" if created and not reused and not promoted and not skipped_precondition else (
             "already_running" if reused and not created and not promoted else "mixed"
-        ),
+        )),
         "jobs": jobs,
         "created_jobs": created,
         "existing_jobs": reused,
         "promoted_jobs": promoted,
+        "skipped_precondition_jobs": skipped_precondition,
         "by_site": by_site,
         "count": len(jobs),
         "queued_at": datetime.utcnow().isoformat(),
@@ -1588,7 +1607,8 @@ def job_retry(job_id: int, source: str = "spine",
         now = datetime.utcnow()
         crawl_cutoff = now - timedelta(seconds=_CRAWL_STUCK_SEC)
         is_stuck = (j.status == "running" and j.started_at is not None
-                    and j.started_at < crawl_cutoff)
+                    and j.started_at < crawl_cutoff
+                    and (j.heartbeat_at is None or j.heartbeat_at < crawl_cutoff))
         is_stale_pending = (
             j.status == "pending" and j.created_at is not None
             and j.created_at < crawl_cutoff
@@ -2190,6 +2210,46 @@ def _proxy_rule_availability(
     }
 
 
+def _proxy_pool_availability(
+    row: ProxyPoolConfig,
+    *,
+    pool_available_count: dict[str, int],
+    pool_member_count_by_slug: dict[str, int],
+) -> dict:
+    primary_available = int(pool_available_count.get(row.slug, 0) or 0)
+    fallback_slug = (row.fallback_pool_slug or "").strip() or None
+    fallback_available = (
+        int(pool_available_count.get(fallback_slug, 0) or 0)
+        if fallback_slug else 0
+    )
+    if not row.active:
+        effective_status = "disabled"
+    elif primary_available > 0:
+        effective_status = "primary_available"
+    elif fallback_slug and fallback_available > 0:
+        effective_status = "fallback_available"
+    elif pool_member_count_by_slug.get(row.slug, 0) > 0:
+        effective_status = "unavailable"
+    else:
+        effective_status = "empty"
+
+    return {
+        "primary_pool_slug": row.slug,
+        "primary_member_count": int(pool_member_count_by_slug.get(row.slug, 0) or 0),
+        "primary_available_count": primary_available,
+        "fallback_pool_slug": fallback_slug,
+        "fallback_member_count": (
+            int(pool_member_count_by_slug.get(fallback_slug, 0) or 0)
+            if fallback_slug else 0
+        ),
+        "fallback_available_count": fallback_available,
+        "effective_available_count": (
+            primary_available if primary_available > 0 else fallback_available
+        ),
+        "effective_status": effective_status,
+    }
+
+
 def _proxy_rule_matches_site(row: ProxyRule, site: str) -> bool:
     pattern = (row.site_pattern or "").strip().lower()
     value = (site or "").strip().lower()
@@ -2392,9 +2452,16 @@ def _proxy_admin_payload(db: Session) -> dict:
             for row in endpoints
         ],
         "pools": [
-            pool_dict(row,
-                      members=pool_member_count.get(row.id, 0),
-                      available=pool_available_count.get(row.slug, 0))
+            {
+                **pool_dict(row,
+                            members=pool_member_count.get(row.id, 0),
+                            available=pool_available_count.get(row.slug, 0)),
+                **_proxy_pool_availability(
+                    row,
+                    pool_available_count=pool_available_count,
+                    pool_member_count_by_slug=pool_member_count_by_slug,
+                ),
+            }
             for row in pool_configs
         ],
         "rules": [

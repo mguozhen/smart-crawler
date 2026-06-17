@@ -17,6 +17,9 @@ from sqlalchemy import case, or_, update
 from .antiban import BlockedError, in_cooldown, set_cooldown
 from .billing import record_usage
 from .crawl_diagnostics import (
+    FailureInfo,
+    PROXY_UNAVAILABLE,
+    STAGE_FETCH,
     classify_exception,
     record_failure,
     zero_products_failure,
@@ -70,6 +73,7 @@ _PROMO_END_KEYS = (
 )
 
 HIGH_PRIORITY_TRIGGERS = ("manual", "admin_quality_rerun", "admin_retry")
+AUTO_DEDUP_TRIGGERS = ("scheduled", "daily_refresh", "daily_delta")
 
 
 def enqueue(site_name: str, trigger: str = "manual",
@@ -77,44 +81,95 @@ def enqueue(site_name: str, trigger: str = "manual",
             requested_by_user_id: int | None = None) -> int:
     """入队一条采集任务，返回 job_id。"""
     with session_scope() as s:
-        if not s.query(Site).filter(Site.site == site_name).first():
+        site = s.query(Site).filter(Site.site == site_name).first()
+        if not site:
             raise ValueError(f"站点不存在: {site_name}")
+        if trigger in AUTO_DEDUP_TRIGGERS:
+            existing = (s.query(CrawlJob)
+                        .filter(CrawlJob.site == site_name,
+                                CrawlJob.status.in_(("pending", "running")),
+                                CrawlJob.trigger.in_(AUTO_DEDUP_TRIGGERS))
+                        .order_by(CrawlJob.id.desc())
+                        .first())
+            if existing is not None:
+                return existing.id
         job = CrawlJob(site=site_name, status="pending", trigger=trigger,
                        created_at=datetime.utcnow(),
                        requested_by_workspace_id=requested_by_workspace_id,
                        requested_by_user_id=requested_by_user_id)
         s.add(job)
         s.flush()
+        preflight = proxy_preflight_issue(site)
+        if preflight is not None:
+            job.status = "skipped"
+            job.finished_at = datetime.utcnow()
+            job.error = preflight.detail
+            record_failure(s, site=site_name, job_id=job.id, info=preflight)
         return job.id
+
+
+def proxy_preflight_issue(site: Site | None) -> FailureInfo | None:
+    """Return a failure when site-level proxy prerequisites are not met."""
+    if site is None:
+        return None
+    tier = (site.proxy_tier or "").strip().lower()
+    if not tier or tier == "none":
+        return None
+    from .proxy_pool import has_available_proxy
+
+    if has_available_proxy(tier, site=site.site):
+        return None
+    return FailureInfo(
+        PROXY_UNAVAILABLE,
+        STAGE_FETCH,
+        f"无可用 {tier} 代理，任务未入执行队列",
+        True,
+        "先在代理池补充/修复可用代理，再重跑该站点",
+    )
 
 
 def claim_job(worker_id: str,
               trigger_allowlist: tuple[str, ...] | None = None) -> int | None:
     """worker 原子领取最旧的 pending 任务，返回 job_id 或 None。"""
     with session_scope() as s:
-        priority = case(
-            (CrawlJob.trigger.in_(HIGH_PRIORITY_TRIGGERS), 0),
-            (CrawlJob.trigger == "tracking_add", 1),
-            else_=2,
-        )
-        query = s.query(CrawlJob).filter(CrawlJob.status == "pending")
-        if trigger_allowlist:
-            query = query.filter(CrawlJob.trigger.in_(trigger_allowlist))
-        high_priority_touched_at = case(
-            (CrawlJob.trigger.in_(HIGH_PRIORITY_TRIGGERS), CrawlJob.created_at),
-            else_=datetime(1970, 1, 1),
-        )
-        job = query.order_by(priority, high_priority_touched_at.desc(),
-                             CrawlJob.id).first()
-        if job is None:
-            return None
-        # 乐观锁：仅当仍为 pending 时领取，防多 worker 抢同一任务
-        res = s.execute(
-            update(CrawlJob)
-            .where(CrawlJob.id == job.id, CrawlJob.status == "pending")
-            .values(status="running", worker=worker_id,
-                    started_at=datetime.utcnow()))
-        return job.id if res.rowcount == 1 else None
+        skipped = 0
+        while True:
+            priority = case(
+                (CrawlJob.trigger.in_(HIGH_PRIORITY_TRIGGERS), 0),
+                (CrawlJob.trigger == "tracking_add", 1),
+                else_=2,
+            )
+            query = s.query(CrawlJob).filter(CrawlJob.status == "pending")
+            if trigger_allowlist:
+                query = query.filter(CrawlJob.trigger.in_(trigger_allowlist))
+            high_priority_touched_at = case(
+                (CrawlJob.trigger.in_(HIGH_PRIORITY_TRIGGERS), CrawlJob.created_at),
+                else_=datetime(1970, 1, 1),
+            )
+            job = query.order_by(priority, high_priority_touched_at.desc(),
+                                 CrawlJob.id).first()
+            if job is None:
+                return None
+            site = s.query(Site).filter(Site.site == job.site).first()
+            preflight = proxy_preflight_issue(site)
+            if preflight is not None:
+                job.status = "skipped"
+                job.finished_at = datetime.utcnow()
+                job.error = preflight.detail
+                record_failure(s, site=job.site, job_id=job.id, info=preflight)
+                s.flush()
+                skipped += 1
+                if skipped >= 50:
+                    return None
+                continue
+            # 乐观锁：仅当仍为 pending 时领取，防多 worker 抢同一任务
+            now = datetime.utcnow()
+            res = s.execute(
+                update(CrawlJob)
+                .where(CrawlJob.id == job.id, CrawlJob.status == "pending")
+                .values(status="running", worker=worker_id,
+                        started_at=now, heartbeat_at=now))
+            return job.id if res.rowcount == 1 else None
 
 
 def _record_crawl_usage(*, workspace_id, products_count, duration_sec,

@@ -104,7 +104,13 @@ class WayfairCrawler(BaseCrawler):
     # ---------- main ----------
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        fetcher = self.make_fetcher(kind="product", source="wayfair")
+        fetcher = self.make_fetcher(
+            kind="product",
+            source="wayfair",
+            fail_fast_blocked=True,
+            retries=0,
+            max_blocked_events=1,
+        )
 
         # Warmup：访问首页建立会话 / 预热 PerimeterX cookie（计入 api_calls）
         try:
@@ -142,7 +148,13 @@ class WayfairCrawler(BaseCrawler):
         for i, url in enumerate(targets):
             # 周期性 fetcher rotate（make_fetcher 每次创建新 CrawlerFetcher 实例）
             if i > 0 and i % SESSION_ROTATE == 0:
-                fetcher = self.make_fetcher(kind="product", source="wayfair")
+                fetcher = self.make_fetcher(
+                    kind="product",
+                    source="wayfair",
+                    fail_fast_blocked=True,
+                    retries=0,
+                    max_blocked_events=1,
+                )
                 result.notes.append(
                     f"… 第 {i} 条，主动 rotate fetcher（已抓 {ok}）")
 
@@ -171,7 +183,13 @@ class WayfairCrawler(BaseCrawler):
                         result.notes.append(
                             f"  → sleep {BLOCK_COOLDOWN_S}s + 重建 fetcher")
                         _t.sleep(BLOCK_COOLDOWN_S)
-                        fetcher = self.make_fetcher(kind="product", source="wayfair")
+                        fetcher = self.make_fetcher(
+                            kind="product",
+                            source="wayfair",
+                            fail_fast_blocked=True,
+                            retries=0,
+                            max_blocked_events=1,
+                        )
                         # 该 URL 不重试，继续向后扫描（容忍小漏）
                         fail += 1
                         continue
@@ -180,7 +198,13 @@ class WayfairCrawler(BaseCrawler):
                         result.notes.append(
                             f"  → 连续 block，sleep {BLOCK_COOLDOWN_S*2}s")
                         _t.sleep(BLOCK_COOLDOWN_S * 2)
-                        fetcher = self.make_fetcher(kind="product", source="wayfair")
+                        fetcher = self.make_fetcher(
+                            kind="product",
+                            source="wayfair",
+                            fail_fast_blocked=True,
+                            retries=0,
+                            max_blocked_events=1,
+                        )
                         fail += 1
                         continue
                     # 第 3+ 次 → 走 stealth（如果允许）否则熔断
@@ -206,7 +230,13 @@ class WayfairCrawler(BaseCrawler):
                                 f"（已抓 {ok}）")
                         # 还有 budget，继续长睡
                         _t.sleep(BLOCK_COOLDOWN_S * consecutive_block)
-                        fetcher = self.make_fetcher(kind="product", source="wayfair")
+                        fetcher = self.make_fetcher(
+                            kind="product",
+                            source="wayfair",
+                            fail_fast_blocked=True,
+                            retries=0,
+                            max_blocked_events=1,
+                        )
                         continue
                 elif code == 200:
                     consecutive_block = 0

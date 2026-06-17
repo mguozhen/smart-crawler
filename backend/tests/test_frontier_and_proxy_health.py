@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.crawl_diagnostics import FailureInfo, HTTP_403, STAGE_FETCH
 from app.db import Base
 from app.frontier import claim_urls, mark_failed, mark_parsed, register_urls, summary
+from app.models import ProxyEndpoint, ProxyHealth
 from app.proxy_health import (
     proxy_hash,
     proxy_health_summary,
@@ -58,7 +59,27 @@ def test_proxy_health_records_success_and_failure(session):
     data = proxy_health_summary(session)
     assert data["total"] == 1
     assert data["details"][0]["proxy"] == "http://user:****@127.0.0.1:3128"
-    assert data["details"][0]["failure_count"] == 1
+    assert data["details"][0]["failure_count"] == 0
+    assert data["details"][0]["status"] == "healthy"
+
+
+def test_proxy_health_uses_configured_endpoint_type(session):
+    proxy = "http://user:pass@127.0.0.10:3128"
+    session.add(ProxyEndpoint(
+        proxy_hash=proxy_hash(proxy),
+        proxy_url=proxy,
+        proxy_redacted="http://user:****@127.0.0.10:3128",
+        endpoint_type="datacenter",
+        active=True,
+    ))
+    session.commit()
+
+    record_proxy_result(session, proxy_url=proxy, tier="residential", success=True)
+    session.commit()
+
+    row = session.query(ProxyHealth).filter(
+        ProxyHealth.proxy_hash == proxy_hash(proxy)).one()
+    assert row.tier == "datacenter"
 
 
 def test_unhealthy_proxy_hashes_returns_blocked_proxy(session):
@@ -74,7 +95,6 @@ def test_unhealthy_proxy_hashes_returns_blocked_proxy(session):
 
 def test_unhealthy_proxy_hashes_keeps_down_proxy_out_after_cooldown(session):
     from datetime import datetime, timedelta
-    from app.models import ProxyHealth
 
     down_proxy = "http://user:pass@127.0.0.2:3128"
     degraded_proxy = "http://user:pass@127.0.0.3:3128"

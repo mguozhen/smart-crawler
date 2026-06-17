@@ -408,6 +408,7 @@ class CrawlJob(Base):
     worker = Column(String)                          # 领取该任务的 worker 标识
     created_at = Column(DateTime, default=datetime.utcnow)
     started_at = Column(DateTime)
+    heartbeat_at = Column(DateTime, index=True)
     finished_at = Column(DateTime)
     products_count = Column(Integer, default=0)
     new_count = Column(Integer, default=0)

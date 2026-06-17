@@ -10,8 +10,11 @@ import logging
 import os
 import signal
 import socket
+import threading
 import time
 from datetime import datetime, timedelta
+
+from sqlalchemy import or_
 
 from .analytics import recompute
 from .crawl_diagnostics import classify_exception, job_timeout_failure, record_failure
@@ -27,6 +30,7 @@ logger = logging.getLogger("smart-crawler.worker")
 WORKER_ID = os.environ.get("WORKER_ID") or f"{socket.gethostname()}-{os.getpid()}"
 POLL_INTERVAL = int(os.environ.get("WORKER_POLL", "10"))
 JOB_TIMEOUT = int(os.environ.get("WORKER_JOB_TIMEOUT", "1800"))  # 30 min 默认
+JOB_HEARTBEAT_INTERVAL = float(os.environ.get("WORKER_JOB_HEARTBEAT_INTERVAL", "30"))
 TRIGGER_ALLOWLIST = tuple(
     trigger.strip() for trigger in os.environ.get("TRIGGER_ALLOWLIST", "").split(",")
     if trigger.strip()
@@ -95,6 +99,26 @@ def _mark_job_failed(job_id: int, exc: Exception) -> None:
         logger.error("mark_job_failed 失败 job=%s: %s", job_id, mark_exc)
 
 
+def _start_crawl_job_heartbeat(job_id: int, interval: float | None = None):
+    """续约 crawl_jobs.heartbeat_at，避免活着的长任务被误判为卡死。"""
+    interval = interval or JOB_HEARTBEAT_INTERVAL
+    stop = threading.Event()
+
+    def beat() -> None:
+        while not stop.wait(interval):
+            try:
+                with session_scope() as s:
+                    job = s.get(CrawlJob, job_id)
+                    if job and job.status == "running":
+                        job.heartbeat_at = datetime.utcnow()
+            except Exception:
+                pass
+
+    thread = threading.Thread(target=beat, daemon=True)
+    thread.start()
+    return stop, thread
+
+
 def _reclaim_stale_crawl_jobs(timeout_sec: int = JOB_TIMEOUT) -> int:
     """Fail running crawl jobs that outlived the worker timeout.
 
@@ -107,7 +131,9 @@ def _reclaim_stale_crawl_jobs(timeout_sec: int = JOB_TIMEOUT) -> int:
             rows = (s.query(CrawlJob)
                     .filter(CrawlJob.status == "running",
                             CrawlJob.started_at.isnot(None),
-                            CrawlJob.started_at < cutoff)
+                            CrawlJob.started_at < cutoff,
+                            or_(CrawlJob.heartbeat_at.is_(None),
+                                CrawlJob.heartbeat_at < cutoff))
                     .all())
             for job in rows:
                 detail = f"auto-canceled: stuck running >{timeout_sec}s"
@@ -194,9 +220,12 @@ def run_loop(should_continue=None) -> None:
             continue
         try:
             _set_alarm(JOB_TIMEOUT)
+            stop_heartbeat, heartbeat_thread = _start_crawl_job_heartbeat(job_id)
             try:
                 result = execute_job(job_id)
             finally:
+                stop_heartbeat.set()
+                heartbeat_thread.join(timeout=2)
                 _set_alarm(0)
             if result["status"] == "success":
                 recompute(result["site"])

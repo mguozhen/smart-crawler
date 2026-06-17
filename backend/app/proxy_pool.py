@@ -206,8 +206,6 @@ class ProxyPool:
         if not candidate_tiers or candidate_tiers[0] in (None, "none", ""):
             return None
         self._ensure_loaded()
-        unhealthy = (_persistent_unhealthy_hashes()
-                     if self.use_persistent_health else set())
         with self._lock:
             # 显式 force_rotate：解除当前 site 粘性绑定
             if site and force_rotate:
@@ -216,21 +214,7 @@ class ProxyPool:
 
             # 找候选：tier 匹配 + 可用 + 未被该 site 排除。
             # 规则/池可配置 fallback_pool_slug；只有主池没有可用代理时才降级。
-            candidates = []
-            for tier_text in candidate_tiers:
-                tier_text = (tier_text or "").strip().lower()
-                if tier_text in ("", "none"):
-                    return None
-                pool_slug = (tier_text.split(":", 1)[1]
-                             if tier_text.startswith("pool:") else None)
-                candidates = [
-                    p for p in self._proxies
-                    if self._tier_matches(p, tier_text, pool_slug)
-                    and p.is_available and p.allows(site)
-                    and _proxy_hash(p.url) not in unhealthy
-                ]
-                if candidates:
-                    break
+            candidates = self._available_candidates(candidate_tiers, site)
             if not candidates:
                 return None
 
@@ -241,6 +225,40 @@ class ProxyPool:
             chosen.last_used = time.time()
             # 不再写入 _sticky，让每次调用都轮换
             return chosen.url
+
+    def available_count(self, tier: str | None = None,
+                        site: str | None = None) -> int:
+        """Return how many proxies are currently usable for the resolved route."""
+        candidate_tiers = _candidate_tiers_from_rules(site, tier)
+        if not candidate_tiers or candidate_tiers[0] in (None, "none", ""):
+            return 0
+        self._ensure_loaded()
+        with self._lock:
+            return len(self._available_candidates(candidate_tiers, site))
+
+    def has_available(self, tier: str | None = None,
+                      site: str | None = None) -> bool:
+        return self.available_count(tier, site) > 0
+
+    def _available_candidates(self, candidate_tiers: list[str | None],
+                              site: str | None) -> list[ProxyEntry]:
+        unhealthy = (_persistent_unhealthy_hashes()
+                     if self.use_persistent_health else set())
+        for tier_text in candidate_tiers:
+            tier_text = (tier_text or "").strip().lower()
+            if tier_text in ("", "none"):
+                return []
+            pool_slug = (tier_text.split(":", 1)[1]
+                         if tier_text.startswith("pool:") else None)
+            candidates = [
+                p for p in self._proxies
+                if self._tier_matches(p, tier_text, pool_slug)
+                and p.is_available and p.allows(site)
+                and _proxy_hash(p.url) not in unhealthy
+            ]
+            if candidates:
+                return candidates
+        return []
 
     def report_success(self, url: str):
         if not url:
@@ -471,3 +489,11 @@ def pool_status() -> dict:
 
 def reload_pool():
     _pool.reload()
+
+
+def available_count(tier: str | None = None, site: str | None = None) -> int:
+    return _pool.available_count(tier, site)
+
+
+def has_available_proxy(tier: str | None = None, site: str | None = None) -> bool:
+    return _pool.has_available(tier, site)

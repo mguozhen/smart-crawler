@@ -93,7 +93,13 @@ class WalmartCrawler(BaseCrawler):
 
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        fetcher = self.make_fetcher(kind="product", source="walmart")
+        fetcher = self.make_fetcher(
+            kind="product",
+            source="walmart",
+            fail_fast_blocked=True,
+            retries=0,
+            max_blocked_events=1,
+        )
         urls: list[str] = []
         seen: set[str] = set()
 

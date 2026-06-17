@@ -81,6 +81,32 @@ def test_fail_fast_blocked_raises_on_anti_bot_challenge(monkeypatch):
     assert "anti_bot_challenge" in str(exc.value)
 
 
+def test_required_proxy_missing_does_not_direct_connect(monkeypatch):
+    class FakeSession:
+        def __init__(self, **kwargs):
+            self.headers = {}
+            self.proxies = {}
+
+        def request(self, method, url, timeout=30, **kwargs):
+            raise AssertionError("request should not be sent without required proxy")
+
+    site = Site(site="needs_proxy", url="https://example.com", country="US",
+                proxy_tier="residential", platform="generic")
+    ctx = FetchContext(site=site, retries=2, use_proxy=True)
+    fetcher = CrawlerFetcher(ctx)
+    monkeypatch.setattr("app.fetching.proxy_pool.get_proxy",
+                        lambda tier, site=None: None)
+    monkeypatch.setattr("app.fetching.creq.Session", FakeSession)
+    monkeypatch.setattr("app.fetching._record_fetch", lambda *args, **kwargs: None)
+
+    result = fetcher.get("https://example.com/p/1")
+
+    assert not result.ok
+    assert result.failure is not None
+    assert result.failure.code == "proxy_unavailable"
+    assert result.attempt == 1
+
+
 def test_retry_to_success_counts_once(monkeypatch):
     c = CrawlCounter()
     fetcher = CrawlerFetcher(_ctx(c, retries=2), middlewares=[])

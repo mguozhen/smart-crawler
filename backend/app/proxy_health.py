@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
 from .crawl_diagnostics import FailureInfo
-from .models import ProxyHealth
+from .models import ProxyEndpoint, ProxyHealth
 
 _PROXY_HEALTH_FAILURE_CODES = {
     "proxy_auth_failed",
@@ -44,17 +44,21 @@ def record_proxy_result(
     if not proxy_url:
         return None
     now = datetime.utcnow()
+    h = proxy_hash(proxy_url)
+    endpoint_tier = _endpoint_tier(session, h)
+    health_tier = endpoint_tier or _normalized_health_tier(tier)
     row = (session.query(ProxyHealth)
-           .filter(ProxyHealth.proxy_hash == proxy_hash(proxy_url))
+           .filter(ProxyHealth.proxy_hash == h)
            .first())
     if row is None:
         row = ProxyHealth(
-            proxy_hash=proxy_hash(proxy_url),
+            proxy_hash=h,
             proxy_redacted=redact_proxy(proxy_url),
-            tier=tier,
+            tier=health_tier,
         )
         session.add(row)
-    row.tier = tier or row.tier
+    if health_tier:
+        row.tier = health_tier
     row.proxy_redacted = redact_proxy(proxy_url)
     row.last_checked_at = now
     row.updated_at = now
@@ -83,6 +87,32 @@ def record_proxy_result(
     else:
         row.status = "degraded"
     return row
+
+
+def _endpoint_tier(session: Session, proxy_hash_value: str) -> str | None:
+    row = (session.query(ProxyEndpoint.endpoint_type)
+           .filter(ProxyEndpoint.proxy_hash == proxy_hash_value)
+           .first())
+    if not row:
+        return None
+    value = (row[0] or "").strip().lower()
+    return value or None
+
+
+def _normalized_health_tier(tier: str | None) -> str | None:
+    """Normalize observed/requested proxy tier for legacy health rows.
+
+    ``tier`` historically came from the site request (for example
+    ``pool:residential``), not from the configured endpoint.  Keep it only as a
+    fallback when the endpoint is unknown, and avoid persisting pool routing
+    labels as if they were endpoint types.
+    """
+    value = (tier or "").strip().lower()
+    if not value:
+        return None
+    if value.startswith("pool:"):
+        value = value.split(":", 1)[1].strip()
+    return value or None
 
 
 def proxy_health_summary(session: Session) -> dict:

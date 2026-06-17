@@ -149,7 +149,13 @@ class IkeaCrawler(BaseCrawler):
     # ------------------------------------------------------------------
     def crawl(self) -> CrawlResult:
         result = CrawlResult()
-        fetcher = self.make_fetcher(kind="product", source="ikea")
+        fetcher = self.make_fetcher(
+            kind="product",
+            source="ikea",
+            fail_fast_blocked=True,
+            retries=0,
+            max_blocked_events=1,
+        )
         started = time.monotonic()
 
         # Warmup：访问首页建立会话 / 预热 Cloudflare cookie（计入 api_calls）
@@ -192,7 +198,13 @@ class IkeaCrawler(BaseCrawler):
 
             # 周期性 fetcher rotate（make_fetcher 每次创建新 CrawlerFetcher 实例）
             if i > 0 and i % SESSION_ROTATE == 0:
-                fetcher = self.make_fetcher(kind="product", source="ikea")
+                fetcher = self.make_fetcher(
+                    kind="product",
+                    source="ikea",
+                    fail_fast_blocked=True,
+                    retries=0,
+                    max_blocked_events=1,
+                )
                 result.notes.append(
                     f"… 第 {i} 条，主动 rotate fetcher（已抓 {ok}）")
 
@@ -218,14 +230,26 @@ class IkeaCrawler(BaseCrawler):
                         result.notes.append(
                             f"  → sleep {BLOCK_COOLDOWN_S}s + 重建 fetcher")
                         _t.sleep(BLOCK_COOLDOWN_S)
-                        fetcher = self.make_fetcher(kind="product", source="ikea")
+                        fetcher = self.make_fetcher(
+                            kind="product",
+                            source="ikea",
+                            fail_fast_blocked=True,
+                            retries=0,
+                            max_blocked_events=1,
+                        )
                         fail += 1
                         continue
                     if consecutive_block == 2:
                         result.notes.append(
                             f"  → 连续 block，sleep {BLOCK_COOLDOWN_S*2}s")
                         _t.sleep(BLOCK_COOLDOWN_S * 2)
-                        fetcher = self.make_fetcher(kind="product", source="ikea")
+                        fetcher = self.make_fetcher(
+                            kind="product",
+                            source="ikea",
+                            fail_fast_blocked=True,
+                            retries=0,
+                            max_blocked_events=1,
+                        )
                         fail += 1
                         continue
                     if STEALTH_USE and stealth_used < STEALTH_BUDGET:
@@ -249,7 +273,13 @@ class IkeaCrawler(BaseCrawler):
                                 f"ikea 连续 {consecutive_block} 次封锁，熔断"
                                 f"（已抓 {ok}）")
                         _t.sleep(BLOCK_COOLDOWN_S * consecutive_block)
-                        fetcher = self.make_fetcher(kind="product", source="ikea")
+                        fetcher = self.make_fetcher(
+                            kind="product",
+                            source="ikea",
+                            fail_fast_blocked=True,
+                            retries=0,
+                            max_blocked_events=1,
+                        )
                         continue
                 elif code == 200:
                     consecutive_block = 0

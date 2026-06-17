@@ -59,6 +59,34 @@ def test_reclaim_stale_crawl_jobs_writes_job_timeout():
         s.close()
 
 
+def test_reclaim_stale_crawl_jobs_keeps_fresh_heartbeat_running():
+    init_db()
+    s = SessionLocal()
+    try:
+        s.query(CrawlJob).filter(CrawlJob.status == "running").delete()
+        s.commit()
+        job = CrawlJob(
+            site="fresh_heartbeat_probe",
+            status="running",
+            started_at=datetime.utcnow() - timedelta(seconds=3600),
+            heartbeat_at=datetime.utcnow(),
+        )
+        s.add(job)
+        s.commit()
+        job_id = job.id
+    finally:
+        s.close()
+
+    assert _reclaim_stale_crawl_jobs(timeout_sec=1800) == 0
+
+    s = SessionLocal()
+    try:
+        job = s.get(CrawlJob, job_id)
+        assert job.status == "running"
+    finally:
+        s.close()
+
+
 def test_repair_missing_failure_diagnostics_backfills_old_failed_jobs():
     init_db()
     s = SessionLocal()
