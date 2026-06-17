@@ -162,19 +162,20 @@ def _repair_missing_failure_diagnostics(limit: int = 200) -> int:
         with session_scope() as s:
             rows = (s.query(CrawlJob)
                     .filter(CrawlJob.status.in_(("failed", "blocked")),
-                            CrawlJob.failure_code.is_(None))
+                            or_(CrawlJob.failure_code.is_(None),
+                                CrawlJob.failure_code == "unknown"))
                     .order_by(CrawlJob.id.desc())
                     .limit(limit)
                     .all())
+            repaired = 0
             for job in rows:
                 detail = job.error or f"{job.status} without structured diagnostic"
-                record_failure(
-                    s,
-                    site=job.site,
-                    job_id=job.id,
-                    info=classify_exception(RuntimeError(detail)),
-                )
-            return len(rows)
+                info = classify_exception(RuntimeError(detail))
+                if job.failure_code == info.code:
+                    continue
+                record_failure(s, site=job.site, job_id=job.id, info=info)
+                repaired += 1
+            return repaired
     except Exception as exc:
         logger.error("repair missing failure diagnostics 失败: %s", exc)
         return 0

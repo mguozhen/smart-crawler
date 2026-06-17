@@ -4,10 +4,12 @@ import pytest
 
 from app.crawl_diagnostics import (
     EMPTY_SITEMAP,
+    ANTI_BOT_CHALLENGE,
     HTTP_403,
     MARKET_PAUSED,
     NETWORK_TIMEOUT,
     JOB_TIMEOUT,
+    UNSUPPORTED_PLATFORM,
     classify_exception,
     classify_http_status,
     job_timeout_failure,
@@ -60,3 +62,17 @@ def test_classifies_auto_canceled_as_job_timeout():
 
     assert info.code == JOB_TIMEOUT
     assert info.stage == "job"
+
+
+def test_classifies_blocked_circuit_breaker_as_anti_bot():
+    info = classify_exception(RuntimeError("sephora PDP 连续被拦截，熔断 ok=0"))
+
+    assert info.code == ANTI_BOT_CHALLENGE
+    assert info.retryable is True
+
+
+def test_classifies_unknown_platform_as_configuration_issue():
+    info = classify_exception(ValueError("未知平台: sephora"))
+
+    assert info.code == UNSUPPORTED_PLATFORM
+    assert info.retryable is False

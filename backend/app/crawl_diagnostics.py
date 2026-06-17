@@ -33,6 +33,7 @@ VALIDATION_FAILED = "validation_failed"
 ZERO_PRODUCTS = "zero_products"
 JOB_TIMEOUT = "job_timeout"
 BROWSER_DEPENDENCY_MISSING = "browser_dependency_missing"
+UNSUPPORTED_PLATFORM = "unsupported_platform"
 UNKNOWN = "unknown"
 
 STAGE_DISCOVER = "discover"
@@ -104,6 +105,11 @@ def classify_exception(exc: Exception, *, stage: str = STAGE_JOB) -> FailureInfo
         return FailureInfo(
             BROWSER_DEPENDENCY_MISSING, STAGE_JOB, text, False,
             "运行 playwright install chromium 安装浏览器依赖后重跑")
+    if ("未知平台" in text or "unknown platform" in low
+            or "unsupported platform" in low):
+        return FailureInfo(
+            UNSUPPORTED_PLATFORM, STAGE_JOB, text, False,
+            "修正站点 platform 配置，或在 crawler registry 中补充平台适配")
     if "timed out" in low or "timeout" in low:
         return FailureInfo(
             NETWORK_TIMEOUT, stage, text, True,
@@ -116,7 +122,16 @@ def classify_exception(exc: Exception, *, stage: str = STAGE_JOB) -> FailureInfo
         return FailureInfo(
             PROXY_UNAVAILABLE, STAGE_FETCH, text, True,
             "检查代理服务、端口、防火墙和来源 IP 白名单")
-    if "anti_bot_challenge" in low or "verify you are human" in low:
+    if (
+        "anti_bot_challenge" in low
+        or "verify you are human" in low
+        or "challenge" in low
+        or "captcha" in low
+        or "access denied" in low
+        or "连续被拦截" in text
+        or ("连续" in text and "封锁" in text)
+        or "熔断 ok=0" in low
+    ):
         return FailureInfo(
             ANTI_BOT_CHALLENGE, STAGE_FETCH, text, True,
             "切换可用住宅代理或启用浏览器/外部数据源")
