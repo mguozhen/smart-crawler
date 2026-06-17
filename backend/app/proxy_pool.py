@@ -123,9 +123,14 @@ class ProxyPool:
                     current_tier = line[1:-1].strip().lower()
                     continue
                 proxies.append(_parse_proxy_line(line, current_tier))
-        # 环境变量也加进来
+        # Legacy single-proxy env vars are only a bootstrap fallback. Once the
+        # DB has endpoints for a tier, the admin-controlled pool must be the
+        # single source of truth so stale env values cannot bypass health/rules.
+        loaded_tiers = {p.tier for p in proxies}
         for tier in ("residential", "datacenter"):
             env = os.environ.get(f"{tier.upper()}_PROXY")
+            if tier in loaded_tiers:
+                continue
             if env:
                 if not any(p.url == env for p in proxies):
                     proxies.insert(0, ProxyEntry(url=env, tier=tier))

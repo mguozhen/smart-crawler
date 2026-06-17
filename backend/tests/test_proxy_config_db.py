@@ -63,6 +63,30 @@ def test_proxy_pool_uses_db_and_rule_override(tmp_path):
     assert pool.get("residential", site="vidaxl_ca") == "http://u:p@10.0.1.1:3128"
 
 
+def test_proxy_pool_env_proxy_does_not_override_configured_db_tier(monkeypatch):
+    init_db()
+    from app.proxy_config import upsert_proxy_endpoint
+    from app.proxy_pool import ProxyPool
+
+    db_proxy = "http://u:p@10.0.1.20:3128"
+    env_proxy = "http://u:p@10.0.1.21:3128"
+    monkeypatch.setenv("RESIDENTIAL_PROXY", env_proxy)
+    s = SessionLocal()
+    _clean_proxy_config(s)
+    upsert_proxy_endpoint(s, proxy_url=db_proxy,
+                          endpoint_type="residential", source="test")
+    s.commit()
+    s.close()
+
+    pool = ProxyPool(prefer_db=True)
+    status = pool.status()
+    urls = {row["url"] for row in status["details"]}
+
+    assert "http://u:****@10.0.1.20:3128" in urls
+    assert "http://u:****@10.0.1.21:3128" not in urls
+    assert pool.get("residential", site="vidaxl_ca") == db_proxy
+
+
 def test_proxy_pool_excludes_persistently_down_endpoint(tmp_path):
     init_db()
     from datetime import datetime, timedelta
