@@ -114,7 +114,7 @@ class MagentoCrawler(BaseCrawler):
             kind="product",
             source="magento",
             fail_fast_blocked=False,
-            retries=0,
+            retries=2,
         )
 
         sitemap = self.sitemap_hint or self._discover_sitemap(fetcher)
