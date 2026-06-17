@@ -81,3 +81,14 @@ def test_new_instance_resets(monkeypatch):
     assert f1.effective_tier() == "residential"
     f2 = _fetcher(monkeypatch)
     assert f2.effective_tier() == "none"
+
+
+def test_pool_empty_logs_diag_only_once(monkeypatch):
+    """住宅池持续空 + 失败持续来 → 诊断每 job 至多记一次。"""
+    f = _fetcher(monkeypatch, residential_available=False)
+    calls = []
+    monkeypatch.setattr(f, "_record_no_proxy_diag", lambda: calls.append(1))
+    fail = FailureInfo(HTTP_429, STAGE_FETCH, "429", True, "慢")
+    for _ in range(20):
+        f.note_failure(FetchResult(ok=False, url="u", status=429, failure=fail))
+    assert len(calls) == 1

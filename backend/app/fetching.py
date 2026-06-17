@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random as _random
+import threading
 import time
 from dataclasses import dataclass
 from typing import Protocol
@@ -141,24 +142,29 @@ class CrawlerFetcher:
         ]
         self._fail_count = 0
         self._upgraded_tier: str | None = None
+        self._no_proxy_diag_logged = False
+        self._fail_lock = threading.Lock()
 
     def effective_tier(self) -> str | None:
         """当前生效的代理 tier：升级后为 residential，否则站点配置值。"""
         return self._upgraded_tier or self.context.site.proxy_tier
 
     def note_failure(self, result: "FetchResult") -> None:
-        """累计 429/anti_bot 失败；达阈值且住宅可用则升级。"""
+        """累计 429/anti_bot 失败；达阈值且住宅可用则升级。线程安全。"""
         if not (result.failure and result.failure.code in (HTTP_429, ANTI_BOT_CHALLENGE)):
             return
-        self._fail_count += 1
-        if self._upgraded_tier is not None:
-            return
-        if self._fail_count < self.context.residential_fallback_threshold:
-            return
-        if proxy_pool.has_available_proxy("residential", site=self.context.site.site):
-            self._upgraded_tier = "residential"
-        else:
-            self._record_no_proxy_diag()
+        with self._fail_lock:
+            # 已升级 or 已记过池空诊断 → 终态，不再累加/查池/写库
+            if self._upgraded_tier is not None or self._no_proxy_diag_logged:
+                return
+            self._fail_count += 1
+            if self._fail_count < self.context.residential_fallback_threshold:
+                return
+            if proxy_pool.has_available_proxy("residential", site=self.context.site.site):
+                self._upgraded_tier = "residential"
+            else:
+                self._record_no_proxy_diag()
+                self._no_proxy_diag_logged = True
 
     def _record_no_proxy_diag(self) -> None:
         """达升级阈值但住宅代理池空 —— 记一条诊断，不静默裸打。"""
