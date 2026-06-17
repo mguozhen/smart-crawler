@@ -815,24 +815,14 @@ def _queue_jobs_list(db: Session, *, status: str | None, dataset: str | None,
             return q
         return q.filter(or_(*filters)) if filters else q.filter(False)
 
-    def append_page(query, mapper):
+    def append_page(query, mapper, model):
         nonlocal total
         total += int(query.count() or 0)
-        for job in (query.order_by(job_created_expr(query).desc().nullslast(),
-                                   job_id_expr(query).desc())
+        for job in (query.order_by(model.created_at.desc().nullslast(),
+                                   model.id.desc())
                     .limit(fetch_limit)
                     .all()):
             rows.append(mapper(job, now=now))
-
-    def job_created_expr(query):
-        column_descriptions = getattr(query, "column_descriptions", [])
-        entity = column_descriptions[0].get("entity") if column_descriptions else None
-        return getattr(entity, "created_at")
-
-    def job_id_expr(query):
-        column_descriptions = getattr(query, "column_descriptions", [])
-        entity = column_descriptions[0].get("entity") if column_descriptions else None
-        return getattr(entity, "id")
 
     if source in ("all", "spine"):
         q = db.query(SpineJob)
@@ -859,7 +849,7 @@ def _queue_jobs_list(db: Session, *, status: str | None, dataset: str | None,
             if raw:
                 filters.append(SpineJob.status.in_(tuple(raw)))
             q = apply_status_filter(q, filters)
-            append_page(q, _spine_job_dict)
+            append_page(q, _spine_job_dict, SpineJob)
 
     if source in ("all", "crawl"):
         q = db.query(CrawlJob)
@@ -896,7 +886,7 @@ def _queue_jobs_list(db: Session, *, status: str | None, dataset: str | None,
         if raw:
             filters.append(CrawlJob.status.in_(tuple(raw)))
         q = apply_status_filter(q, filters)
-        append_page(q, _crawl_job_dict)
+        append_page(q, _crawl_job_dict, CrawlJob)
 
     if source in ("all", "ondemand"):
         q = db.query(OnDemandJob)
@@ -926,7 +916,7 @@ def _queue_jobs_list(db: Session, *, status: str | None, dataset: str | None,
             if raw:
                 filters.append(OnDemandJob.status.in_(tuple(raw)))
             q = apply_status_filter(q, filters)
-            append_page(q, _ondemand_job_dict)
+            append_page(q, _ondemand_job_dict, OnDemandJob)
 
     rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
     start = max(0, (page - 1) * size)

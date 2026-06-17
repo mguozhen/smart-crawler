@@ -565,6 +565,50 @@ def test_jobs_stats_aggregates_all_queue_tables():
     s.close()
 
 
+def test_jobs_list_paginates_across_sources_by_created_at():
+    init_db()
+    from datetime import datetime, timedelta
+    from app.api import admin_spine
+    from app.db import SessionLocal
+    from app.models import CrawlJob, OnDemandJob, SpineJob
+
+    s = SessionLocal()
+    try:
+        s.query(SpineJob).delete()
+        s.query(CrawlJob).delete()
+        s.query(OnDemandJob).delete()
+        s.commit()
+        now = datetime.utcnow()
+        s.add(CrawlJob(site="crawl-new", status="success",
+                       created_at=now - timedelta(minutes=1)))
+        s.add(SpineJob(url="https://x.test/new", dataset="spine-new",
+                       status="success", created_at=now - timedelta(minutes=2)))
+        s.add(OnDemandJob(url="https://x.test/mid", platform="lazada",
+                          status="success", created_at=now - timedelta(minutes=3)))
+        s.add(CrawlJob(site="crawl-old", status="failed",
+                       created_at=now - timedelta(minutes=4)))
+        s.add(SpineJob(url="https://x.test/old", dataset="spine-old",
+                       status="failed", created_at=now - timedelta(minutes=5)))
+        s.commit()
+
+        first = admin_spine.jobs_list(status=None, dataset=None, tenant=None,
+                                      source="all", page=1, size=2,
+                                      user="admin", db=s)
+        second = admin_spine.jobs_list(status=None, dataset=None, tenant=None,
+                                       source="all", page=2, size=2,
+                                       user="admin", db=s)
+        third = admin_spine.jobs_list(status=None, dataset=None, tenant=None,
+                                      source="all", page=3, size=2,
+                                      user="admin", db=s)
+
+        assert first["total"] == 5
+        assert [row["target"] for row in first["items"]] == ["crawl-new", "spine-new"]
+        assert [row["target"] for row in second["items"]] == ["lazada", "crawl-old"]
+        assert [row["target"] for row in third["items"]] == ["spine-old"]
+    finally:
+        s.close()
+
+
 def test_jobs_maintenance_dry_run_and_apply(monkeypatch):
     init_db()
     from datetime import datetime, timedelta
