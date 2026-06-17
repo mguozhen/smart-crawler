@@ -14,6 +14,7 @@ from .models import ProxyEndpoint, ProxyHealth
 _PROXY_HEALTH_FAILURE_CODES = {
     "proxy_auth_failed",
     "proxy_unavailable",
+    "proxy_egress_mismatch",
     "network_timeout",
     "dns_error",
 }

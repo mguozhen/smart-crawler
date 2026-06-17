@@ -32,6 +32,7 @@ const busy = ref('')
 const error = ref('')
 const message = ref('')
 const antiBot = ref<Record<string, any>>({})
+const EGRESS_CHECK_URL = 'https://api.ipify.org'
 
 const probeForm = ref({
   tier: 'residential',
@@ -223,8 +224,9 @@ function toggleEndpoint(row: Record<string, any>) {
 
 function checkEndpoint(row: Record<string, any>) {
   return runAction(`endpoint-check:${row.id}`, () => proxyEndpointCheck(row.id, {
-    url: probeForm.value.url,
-    timeout: probeForm.value.timeout || 8
+    url: EGRESS_CHECK_URL,
+    timeout: probeForm.value.timeout || 8,
+    verify_egress: true
   }), '代理端点检测已完成')
 }
 
@@ -232,11 +234,12 @@ function checkEndpoints(endpointType = '') {
   return runAction(
     `endpoint-check-batch:${endpointType || 'all'}`,
     () => proxyEndpointCheckBatch({
-      url: probeForm.value.url || 'https://www.google.com/generate_204',
+      url: EGRESS_CHECK_URL,
       timeout: probeForm.value.timeout || 8,
       endpoint_type: endpointType || undefined,
       active_only: true,
-      limit: 100
+      limit: 100,
+      verify_egress: true
     }),
     endpointType ? `${endpointType} 端点批量检测已完成` : '全部端点批量检测已完成'
   )
@@ -246,11 +249,12 @@ function recheckUnhealthyEndpoints(endpointType = '') {
   return runAction(
     `proxy-maintenance:${endpointType || 'all'}`,
     () => proxyMaintenance({
-      url: probeForm.value.url || 'https://www.google.com/generate_204',
+      url: EGRESS_CHECK_URL,
       timeout: probeForm.value.timeout || 6,
       endpoint_type: endpointType || undefined,
       active_only: true,
-      limit: 50
+      limit: 100,
+      verify_egress: true
     }),
     endpointType ? `${endpointType} 不可用端点复检完成` : '不可用端点复检完成'
   )
@@ -629,7 +633,7 @@ watch(() => route.fullPath, applyRouteContext)
       <div class="block-head">
         <h2 class="block-title">配置端点</h2>
         <div class="inline-actions">
-          <span class="meta">明文凭据不会在页面回显</span>
+          <span class="meta">端点检测会校验 api.ipify.org 返回的出口 IP；明文凭据不会回显</span>
           <button class="btn small" :disabled="!!busy || !endpoints.length" @click="checkEndpoints('residential')">
             {{ busy === 'endpoint-check-batch:residential' ? '检测中' : '检测住宅' }}
           </button>

@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import date, datetime, timedelta
 import csv
+import ipaddress
 import io
 import time
 from types import SimpleNamespace
@@ -2871,14 +2872,17 @@ def _proxy_endpoint_probe_detail(
     *,
     url: str,
     timeout: int,
+    verify_egress: bool = False,
 ) -> dict:
     from ..proxy_probe import probe_proxy_url
 
+    expected_egress_ip = _ip_literal(row.host) if verify_egress else None
     result = probe_proxy_url(
         proxy_url=row.proxy_url,
         tier=row.endpoint_type,
         url=url,
         timeout=timeout,
+        expected_egress_ip=expected_egress_ip,
     )
     failure = result.failure
     return {
@@ -2886,12 +2890,25 @@ def _proxy_endpoint_probe_detail(
         "endpoint_type": row.endpoint_type,
         "proxy": row.proxy_redacted,
         "url": url,
+        "verify_egress": verify_egress,
+        "expected_egress_ip": result.expected_egress_ip,
+        "observed_egress_ip": result.observed_egress_ip,
         "ok": result.ok,
         "status_code": result.status_code,
         "failure_code": failure.code if failure else None,
         "failure_stage": failure.stage if failure else None,
         "failure_detail": failure.detail if failure else None,
     }
+
+
+def _ip_literal(value: str | None) -> str | None:
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        return str(ipaddress.ip_address(text))
+    except ValueError:
+        return None
 
 
 @router.post("/proxies/endpoints/check-batch")
@@ -2908,6 +2925,7 @@ def proxy_endpoint_check_batch(payload: dict | None = None,
     endpoint_type = (payload.get("endpoint_type") or payload.get("tier") or "").strip()
     health_status = (payload.get("health_status") or "").strip()
     active_only = bool(payload.get("active_only", True))
+    verify_egress = bool(payload.get("verify_egress", False))
 
     q = db.query(ProxyEndpoint).filter(ProxyEndpoint.proxy_url.isnot(None))
     if active_only:
@@ -2921,7 +2939,12 @@ def proxy_endpoint_check_batch(payload: dict | None = None,
                       ProxyEndpoint.id.asc()).limit(limit).all()
 
     results = [
-        _proxy_endpoint_probe_detail(row, url=url, timeout=timeout)
+        _proxy_endpoint_probe_detail(
+            row,
+            url=url,
+            timeout=timeout,
+            verify_egress=verify_egress,
+        )
         for row in rows
     ]
     ok = sum(1 for row in results if row.get("ok"))
@@ -2933,6 +2956,7 @@ def proxy_endpoint_check_batch(payload: dict | None = None,
         "endpoint_type": endpoint_type or None,
         "health_status": health_status or None,
         "active_only": active_only,
+        "verify_egress": verify_egress,
         "checked": len(results),
         "ok": ok,
         "failed": failed,
@@ -2962,7 +2986,13 @@ def proxy_endpoint_check(endpoint_id: int, payload: dict | None = None,
     payload = payload or {}
     url = payload.get("url") or "https://www.vidaxl.de/sitemap_index.xml"
     timeout = max(3, min(30, int(payload.get("timeout") or 8)))
-    detail = _proxy_endpoint_probe_detail(row, url=url, timeout=timeout)
+    verify_egress = bool(payload.get("verify_egress", False))
+    detail = _proxy_endpoint_probe_detail(
+        row,
+        url=url,
+        timeout=timeout,
+        verify_egress=verify_egress,
+    )
     record_audit(db, actor_user_id=actor.id, actor_name=actor.username,
                  action="proxy.endpoint.check", target_type="proxy_endpoint",
                  target_id=str(row.id), detail=detail, ip=ip or None)
@@ -2987,6 +3017,7 @@ def proxy_maintenance(payload: dict | None = None,
     endpoint_type = (payload.get("endpoint_type") or payload.get("tier") or "").strip()
     include_blocked = bool(payload.get("include_blocked", False))
     active_only = bool(payload.get("active_only", True))
+    verify_egress = bool(payload.get("verify_egress", False))
     statuses = ["down", "degraded"]
     if include_blocked:
         statuses.append("blocked")
@@ -3009,7 +3040,12 @@ def proxy_maintenance(payload: dict | None = None,
             .all())
 
     results = [
-        _proxy_endpoint_probe_detail(row, url=url, timeout=timeout)
+        _proxy_endpoint_probe_detail(
+            row,
+            url=url,
+            timeout=timeout,
+            verify_egress=verify_egress,
+        )
         for row in rows
     ]
     ok = sum(1 for row in results if row.get("ok"))
@@ -3021,6 +3057,7 @@ def proxy_maintenance(payload: dict | None = None,
         "endpoint_type": endpoint_type or None,
         "active_only": active_only,
         "include_blocked": include_blocked,
+        "verify_egress": verify_egress,
         "checked": len(results),
         "ok": ok,
         "failed": failed,

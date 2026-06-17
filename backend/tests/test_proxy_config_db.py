@@ -312,6 +312,64 @@ def test_admin_proxy_endpoint_check_records_endpoint_health(monkeypatch):
     s.close()
 
 
+def test_admin_proxy_endpoint_check_can_verify_egress_ip(monkeypatch):
+    init_db()
+    from app.api import admin_spine
+    from app.proxy_config import upsert_proxy_endpoint
+    from app.proxy_health import proxy_hash
+    from app.models import ProxyHealth
+    from app import proxy_probe
+
+    proxy = "http://u:p@10.0.5.9:3128"
+
+    class FakeResponse:
+        status_code = 200
+        text = "10.0.5.9"
+
+    class FakeSession:
+        def __init__(self, *args, **kwargs):
+            self.proxies = {}
+
+        def get(self, url, timeout):
+            assert url == "https://api.ipify.org"
+            return FakeResponse()
+
+    monkeypatch.setattr(proxy_probe.creq, "Session", FakeSession)
+
+    s = SessionLocal()
+    _clean_proxy_config(s)
+    endpoint = upsert_proxy_endpoint(
+        s,
+        proxy_url=proxy,
+        endpoint_type="datacenter",
+        source="test",
+    )
+    s.commit()
+
+    out = admin_spine.proxy_endpoint_check(
+        endpoint.id,
+        {
+            "url": "https://api.ipify.org",
+            "timeout": 5,
+            "verify_egress": True,
+        },
+        user="admin",
+        db=s,
+        ip="127.0.0.1",
+    )
+    health = (s.query(ProxyHealth)
+              .filter(ProxyHealth.proxy_hash == proxy_hash(proxy))
+              .one())
+
+    assert out["probe"]["ok"] is True
+    assert out["probe"]["verify_egress"] is True
+    assert out["probe"]["expected_egress_ip"] == "10.0.5.9"
+    assert out["probe"]["observed_egress_ip"] == "10.0.5.9"
+    assert health.status == "healthy"
+
+    s.close()
+
+
 def test_admin_proxy_endpoint_check_batch_filters_and_records(monkeypatch):
     init_db()
     from app.api import admin_spine

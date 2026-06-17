@@ -27,6 +27,8 @@ class ProxyProbeResult:
     proxy_url: str | None = None
     failure: FailureInfo | None = None
     status_code: int | None = None
+    expected_egress_ip: str | None = None
+    observed_egress_ip: str | None = None
 
 
 def probe_proxy_for_url(
@@ -57,6 +59,7 @@ def probe_proxy_url(
     tier: str | None,
     url: str,
     timeout: int = 8,
+    expected_egress_ip: str | None = None,
 ) -> ProxyProbeResult:
     """Verify a specific proxy endpoint, bypassing route fallback selection."""
     proxy = (proxy_url or "").strip()
@@ -75,9 +78,35 @@ def probe_proxy_url(
     try:
         resp = sess.get(url, timeout=timeout)
         if 200 <= resp.status_code < 400:
+            observed_egress_ip = _response_text(resp).strip() or None
+            expected_ip = (expected_egress_ip or "").strip() or None
+            if expected_ip and observed_egress_ip != expected_ip:
+                failure = FailureInfo(
+                    "proxy_egress_mismatch",
+                    STAGE_FETCH,
+                    f"代理出口 IP 不匹配: expected={expected_ip}, observed={observed_egress_ip or '-'}",
+                    True,
+                    "检查代理出口映射、供应商配置或代理链路",
+                )
+                proxy_pool.report_failure(proxy)
+                _record(proxy, tier, False, failure)
+                return ProxyProbeResult(
+                    False,
+                    proxy,
+                    failure,
+                    status_code=resp.status_code,
+                    expected_egress_ip=expected_ip,
+                    observed_egress_ip=observed_egress_ip,
+                )
             proxy_pool.report_success(proxy)
             _record(proxy, tier, True, None)
-            return ProxyProbeResult(True, proxy, status_code=resp.status_code)
+            return ProxyProbeResult(
+                True,
+                proxy,
+                status_code=resp.status_code,
+                expected_egress_ip=expected_ip,
+                observed_egress_ip=observed_egress_ip,
+            )
         failure = classify_http_status(
             resp.status_code,
             f"目标预检返回 HTTP {resp.status_code}",
@@ -99,7 +128,18 @@ def probe_proxy_url(
         proxy_pool.report_success(proxy)
     _record(proxy, tier, not proxy_failed, failure)
     return ProxyProbeResult(False, proxy, failure,
-                            status_code=failure.http_status)
+                            status_code=failure.http_status,
+                            expected_egress_ip=(expected_egress_ip or "").strip() or None)
+
+
+def _response_text(resp) -> str:
+    value = getattr(resp, "text", "")
+    if isinstance(value, str):
+        return value
+    try:
+        return str(value)
+    except Exception:
+        return ""
 
 
 def _record(proxy_url: str | None, tier: str | None,

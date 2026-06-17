@@ -87,3 +87,41 @@ def test_proxy_probe_treats_target_401_as_not_ok(monkeypatch):
     assert result.failure.code == "http_401"
     assert successes
     assert not failures
+
+
+def test_proxy_probe_rejects_egress_mismatch(monkeypatch):
+    init_db()
+    import app.proxy_probe as probe
+
+    failures = []
+    monkeypatch.setattr(probe.proxy_pool, "report_failure",
+                        lambda proxy, hard=False: failures.append((proxy, hard)))
+
+    class FakeResp:
+        status_code = 200
+        text = "10.0.0.99"
+
+    class FakeSession:
+        def __init__(self, *args, **kwargs):
+            self.proxies = {}
+
+        def get(self, url, timeout):
+            assert url == "https://api.ipify.org"
+            return FakeResp()
+
+    monkeypatch.setattr(probe.creq, "Session", FakeSession)
+
+    result = probe.probe_proxy_url(
+        proxy_url="http://u:p@10.0.0.1:3128",
+        tier="datacenter",
+        url="https://api.ipify.org",
+        timeout=1,
+        expected_egress_ip="10.0.0.1",
+    )
+
+    assert result.ok is False
+    assert result.expected_egress_ip == "10.0.0.1"
+    assert result.observed_egress_ip == "10.0.0.99"
+    assert result.failure is not None
+    assert result.failure.code == "proxy_egress_mismatch"
+    assert failures == [("http://u:p@10.0.0.1:3128", False)]
