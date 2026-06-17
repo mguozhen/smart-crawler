@@ -197,6 +197,8 @@ class CrawlerFetcher:
     def _retry_loop(self, method: str, url: str, *, with_stealth: bool, **kwargs) -> FetchResult:
         attempts = max(1, self.context.retries + 1)
         last: FetchResult | None = None
+        record_kind = kwargs.get("kind", self.context.kind)
+        record_source = kwargs.get("source", self.context.source)
         for attempt in range(1, attempts + 1):
             request_kwargs = dict(kwargs)
             acquire_rate(self.context.site.site,
@@ -206,6 +208,8 @@ class CrawlerFetcher:
             result = self._request_once(method, url, attempt=attempt, **request_kwargs)
             for mw in self.middlewares:
                 mw.after_response(self, result)
+            _record_fetch(self.context, result, kind=record_kind,
+                          source=record_source, apply_to_job=False)
             last = result
             if result.ok:
                 self._blocked_events = 0
@@ -217,6 +221,8 @@ class CrawlerFetcher:
                 stealth = self._get_stealth(url, attempt=attempt)
                 for mw in self.middlewares:
                     mw.after_response(self, stealth)
+                _record_fetch(self.context, stealth, kind=self.context.kind,
+                              source="stealth", apply_to_job=False)
                 if stealth.ok:
                     self._blocked_events = 0
                     self._count(stealth)
@@ -226,9 +232,16 @@ class CrawlerFetcher:
             if not _should_retry(self.context, result, attempt, attempts):
                 break
             time.sleep(_backoff_seconds(result, attempt))
-        return last or FetchResult(ok=False, url=url, failure=FailureInfo(
+        if last is not None:
+            if last.failure:
+                _apply_fetch_failure_to_job(self.context, last)
+            return last
+        fallback = FetchResult(ok=False, url=url, failure=FailureInfo(
             "unknown", STAGE_FETCH, "fetch produced no result", True,
             "检查 fetcher 配置"))
+        _record_fetch(self.context, fallback, kind=record_kind,
+                      source=record_source, apply_to_job=True)
+        return fallback
 
     def _raise_if_blocked_budget_exceeded(self, result: FetchResult) -> None:
         if not _should_stealth(result):
@@ -269,7 +282,6 @@ class CrawlerFetcher:
                 failure=failure,
                 attempt=attempt,
             )
-            _record_fetch(ctx, result, kind=kind, source=source)
             return result
         if proxy:
             sess.proxies = {"http": proxy, "https": proxy}
@@ -304,7 +316,6 @@ class CrawlerFetcher:
                     getattr(resp, "headers", None) and resp.headers.get("Retry-After")
                 ),
             )
-            _record_fetch(ctx, result, kind=kind, source=source)
             if failure and ctx.fail_fast_blocked and (
                 resp.status_code in (401, 403, 429)
                 or failure.code == ANTI_BOT_CHALLENGE
@@ -324,7 +335,6 @@ class CrawlerFetcher:
                 failure=failure,
                 attempt=attempt,
             )
-            _record_fetch(ctx, result, kind=kind, source=source)
             return result
 
     def _get_stealth(self, url: str, *, attempt: int = 1) -> FetchResult:
@@ -363,8 +373,6 @@ class CrawlerFetcher:
                 failure=failure,
                 attempt=attempt,
             )
-            _record_fetch(self.context, result, kind=self.context.kind,
-                          source="stealth")
             return result
         except Exception as exc:
             failure = classify_exception(exc, stage=STAGE_FETCH)
@@ -376,8 +384,6 @@ class CrawlerFetcher:
                 failure=failure,
                 attempt=attempt,
             )
-            _record_fetch(self.context, result, kind=self.context.kind,
-                          source="stealth")
             return result
 
     def _count(self, result: FetchResult) -> None:
@@ -469,7 +475,8 @@ class SnapshotMetricsMiddleware:
 
 
 def _record_fetch(ctx: FetchContext, result: FetchResult,
-                  *, kind: str, source: str) -> None:
+                  *, kind: str, source: str,
+                  apply_to_job: bool = True) -> None:
     db = SessionLocal()
     try:
         content_hash = (hashlib.sha256(result.content).hexdigest()
@@ -498,7 +505,30 @@ def _record_fetch(ctx: FetchContext, result: FetchResult,
                 info=result.failure,
                 fetcher=result.fetcher,
                 proxy_tier=ctx.site.proxy_tier,
+                apply_to_job=apply_to_job,
             )
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _apply_fetch_failure_to_job(ctx: FetchContext, result: FetchResult) -> None:
+    if not result.failure:
+        return
+    db = SessionLocal()
+    try:
+        record_failure(
+            db,
+            site=ctx.site.site,
+            job_id=ctx.job_id,
+            url=result.url,
+            info=result.failure,
+            fetcher=result.fetcher,
+            proxy_tier=ctx.site.proxy_tier,
+            apply_to_job=True,
+        )
         db.commit()
     except Exception:
         db.rollback()

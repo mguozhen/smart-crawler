@@ -225,6 +225,7 @@ def record_failure(
     url: str | None = None,
     fetcher: str | None = None,
     proxy_tier: str | None = None,
+    apply_to_job: bool = True,
 ) -> CrawlFailure:
     row = CrawlFailure(
         site=site,
@@ -240,7 +241,8 @@ def record_failure(
         proxy_tier=proxy_tier,
     )
     session.add(row)
-    _apply_to_job(session, job_id, info)
+    if apply_to_job:
+        _apply_to_job(session, job_id, info)
     return row
 
 

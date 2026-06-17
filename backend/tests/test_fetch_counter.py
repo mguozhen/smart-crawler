@@ -4,7 +4,8 @@ import pytest
 
 from app.antiban import BlockedError
 from app.fetching import CrawlCounter, CrawlerFetcher, FetchContext, FetchResult
-from app.models import Site
+from app.db import SessionLocal, init_db
+from app.models import CrawlFailure, CrawlJob, Site
 
 pytestmark = pytest.mark.unit
 
@@ -184,3 +185,94 @@ def test_post_retry_to_success_counts_once(monkeypatch):
     monkeypatch.setattr("app.fetching.time.sleep", lambda *_: None)
     fetcher.post("https://example.com/api", data="{}")
     assert c.api_calls == 1
+
+
+def test_retry_failure_event_does_not_mark_job_when_later_success(monkeypatch):
+    init_db()
+    site = Site(site="retry_success_site", url="https://example.com",
+                country="US", proxy_tier="none", platform="generic")
+    s = SessionLocal()
+    try:
+        job = CrawlJob(site=site.site, status="running")
+        s.add(job)
+        s.commit()
+        job_id = job.id
+    finally:
+        s.close()
+
+    class OkResponse:
+        status_code = 200
+        text = "ok"
+        content = b"ok"
+        url = "https://example.com/p/1"
+        headers = {}
+
+    class FlakySession:
+        calls = 0
+
+        def __init__(self, **kwargs):
+            self.headers = {}
+            self.proxies = {}
+
+        def request(self, method, url, timeout=30, **kwargs):
+            FlakySession.calls += 1
+            if FlakySession.calls == 1:
+                raise TimeoutError("Connection timed out after 30002 milliseconds")
+            return OkResponse()
+
+    ctx = FetchContext(site=site, job_id=job_id, use_proxy=False, retries=1)
+    fetcher = CrawlerFetcher(ctx, middlewares=[])
+    monkeypatch.setattr("app.fetching.creq.Session", FlakySession)
+    monkeypatch.setattr("app.fetching.time.sleep", lambda *_: None)
+
+    result = fetcher.get("https://example.com/p/1")
+
+    s = SessionLocal()
+    try:
+        job = s.get(CrawlJob, job_id)
+        failures = (s.query(CrawlFailure)
+                    .filter(CrawlFailure.job_id == job_id)
+                    .all())
+        assert result.ok is True
+        assert job.failure_code is None
+        assert [row.code for row in failures] == ["network_timeout"]
+    finally:
+        s.close()
+
+
+def test_terminal_retry_failure_marks_job(monkeypatch):
+    init_db()
+    site = Site(site="retry_failed_site", url="https://example.com",
+                country="US", proxy_tier="none", platform="generic")
+    s = SessionLocal()
+    try:
+        job = CrawlJob(site=site.site, status="running")
+        s.add(job)
+        s.commit()
+        job_id = job.id
+    finally:
+        s.close()
+
+    class FailingSession:
+        def __init__(self, **kwargs):
+            self.headers = {}
+            self.proxies = {}
+
+        def request(self, method, url, timeout=30, **kwargs):
+            raise TimeoutError("Connection timed out after 30002 milliseconds")
+
+    ctx = FetchContext(site=site, job_id=job_id, use_proxy=False, retries=1)
+    fetcher = CrawlerFetcher(ctx, middlewares=[])
+    monkeypatch.setattr("app.fetching.creq.Session", FailingSession)
+    monkeypatch.setattr("app.fetching.time.sleep", lambda *_: None)
+
+    result = fetcher.get("https://example.com/p/1")
+
+    s = SessionLocal()
+    try:
+        job = s.get(CrawlJob, job_id)
+        assert result.ok is False
+        assert result.failure and result.failure.code == "network_timeout"
+        assert job.failure_code == "network_timeout"
+    finally:
+        s.close()
