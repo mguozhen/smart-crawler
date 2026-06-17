@@ -14,6 +14,7 @@ import {
   proxyEndpointCreate,
   proxyEndpointUpdate,
   proxyImportFile,
+  proxyMaintenance,
   proxyPoolCreate,
   proxyPoolMemberUpsert,
   proxyPoolUpdate,
@@ -84,6 +85,7 @@ const available = computed(() => Object.values(pool.value?.by_tier || {}).reduce
   0
 ))
 const problemCount = computed(() => Number(byStatus.value.degraded || 0) + Number(byStatus.value.down || 0) + Number(byStatus.value.blocked || 0))
+const recheckReadyCount = computed(() => endpoints.value.filter((row: any) => row?.health?.recheck_ready).length)
 const routeIssue = computed(() => String(route.query.issue || ''))
 const routeSite = computed(() => String(route.query.site || ''))
 const routeIssueLabel = computed(() => ({
@@ -238,6 +240,20 @@ function checkEndpoints(endpointType = '') {
   )
 }
 
+function recheckUnhealthyEndpoints(endpointType = '') {
+  return runAction(
+    `proxy-maintenance:${endpointType || 'all'}`,
+    () => proxyMaintenance({
+      url: probeForm.value.url || 'https://www.google.com/generate_204',
+      timeout: probeForm.value.timeout || 6,
+      endpoint_type: endpointType || undefined,
+      active_only: true,
+      limit: 50
+    }),
+    endpointType ? `${endpointType} 不可用端点复检完成` : '不可用端点复检完成'
+  )
+}
+
 function createPool() {
   const payload = { ...poolForm.value }
   return runAction('pool:create', () => proxyPoolCreate(payload), '代理池已保存').then(() => {
@@ -285,6 +301,15 @@ function statusClass(row: Record<string, any>) {
   if (status === 'healthy') return 'ok'
   if (status === 'degraded' || status === 'unknown') return 'warn'
   return 'bad'
+}
+
+function healthHint(row: Record<string, any>) {
+  const health = row.health || {}
+  if (health.recheck_ready) return '可复检'
+  const remain = Number(health.cooldown_remaining_sec || 0)
+  if (remain > 0) return `冷却 ${Math.ceil(remain / 60)}m`
+  if (health.last_failure_code) return health.last_failure_code
+  return ''
 }
 
 function ruleStatusLabel(status?: string) {
@@ -372,7 +397,7 @@ watch(() => route.fullPath, applyRouteContext)
       <StatCard label="池内代理" :value="fmtNumber(pool.total)" />
       <StatCard label="当前可用" :value="fmtNumber(available)" />
       <StatCard label="配置端点" :value="fmtNumber(endpoints.length)" />
-      <StatCard label="异常代理" :value="fmtNumber(problemCount)" />
+      <StatCard label="异常代理" :value="`${fmtNumber(problemCount)} / 可复检 ${fmtNumber(recheckReadyCount)}`" />
     </div>
 
     <section class="block">
@@ -574,6 +599,9 @@ watch(() => route.fullPath, applyRouteContext)
           <button class="btn small" :disabled="!!busy || !endpoints.length" @click="checkEndpoints('datacenter')">
             {{ busy === 'endpoint-check-batch:datacenter' ? '检测中' : '检测普通' }}
           </button>
+          <button class="btn small" :disabled="!!busy || !recheckReadyCount" @click="recheckUnhealthyEndpoints()">
+            {{ busy === 'proxy-maintenance:all' ? '复检中' : '复检不可用' }}
+          </button>
           <button class="btn small primary" :disabled="!!busy || !endpoints.length" @click="checkEndpoints()">
             {{ busy === 'endpoint-check-batch:all' ? '检测中' : '检测全部' }}
           </button>
@@ -607,10 +635,11 @@ watch(() => route.fullPath, applyRouteContext)
               <td>{{ (row.exclude || []).join(', ') || '-' }}</td>
               <td>{{ row.source || '-' }}</td>
               <td>
-                <div class="state-stack">
-                  <span class="badge" :class="row.active ? 'ok' : 'warn'">{{ row.active ? '启用' : '停用' }}</span>
-                  <span class="badge" :class="statusClass(row.health || {})">{{ statusLabel(row.health_status || row.health?.status) }}</span>
-                </div>
+	                <div class="state-stack">
+	                  <span class="badge" :class="row.active ? 'ok' : 'warn'">{{ row.active ? '启用' : '停用' }}</span>
+	                  <span class="badge" :class="statusClass(row.health || {})">{{ statusLabel(row.health_status || row.health?.status) }}</span>
+	                  <span v-if="healthHint(row)" class="state-hint">{{ healthHint(row) }}</span>
+	                </div>
               </td>
               <td>
                 <button class="icon-btn" :disabled="!!busy" @click="toggleEndpoint(row)">
@@ -1008,6 +1037,11 @@ watch(() => route.fullPath, applyRouteContext)
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.state-hint {
+  font-size: 11px;
+  color: var(--ui-muted, #9ca3af);
 }
 
 .badge {

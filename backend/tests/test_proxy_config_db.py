@@ -340,3 +340,92 @@ def test_admin_proxy_endpoint_check_batch_filters_and_records(monkeypatch):
             .status) == "healthy"
 
     s.close()
+
+
+def test_admin_proxy_maintenance_rechecks_ready_unhealthy_endpoints(monkeypatch):
+    init_db()
+    from datetime import datetime, timedelta
+    from app.api import admin_spine
+    from app.models import ProxyHealth
+    from app.proxy_config import upsert_proxy_endpoint
+    from app.proxy_health import proxy_hash, redact_proxy
+    from app import proxy_probe
+
+    ready_proxy = "http://u:p@10.0.7.1:3128"
+    cooling_proxy = "http://u:p@10.0.7.2:3128"
+    seen: list[str] = []
+
+    class FakeResponse:
+        status_code = 204
+
+    class FakeSession:
+        def __init__(self, *args, **kwargs):
+            self.proxies = {}
+
+        def get(self, url, timeout):
+            seen.append(self.proxies["http"])
+            assert url == "https://probe.example.test/maintenance"
+            assert timeout == 4
+            return FakeResponse()
+
+    monkeypatch.setattr(proxy_probe.creq, "Session", FakeSession)
+
+    s = SessionLocal()
+    _clean_proxy_config(s)
+    ready = upsert_proxy_endpoint(
+        s, proxy_url=ready_proxy, endpoint_type="residential", source="test")
+    cooling = upsert_proxy_endpoint(
+        s, proxy_url=cooling_proxy, endpoint_type="residential", source="test")
+    s.add(ProxyHealth(
+        proxy_hash=proxy_hash(ready_proxy),
+        proxy_redacted=redact_proxy(ready_proxy),
+        tier="residential",
+        status="down",
+        blocked_until=datetime.utcnow() - timedelta(minutes=1),
+        consecutive_failures=3,
+        updated_at=datetime.utcnow(),
+    ))
+    s.add(ProxyHealth(
+        proxy_hash=proxy_hash(cooling_proxy),
+        proxy_redacted=redact_proxy(cooling_proxy),
+        tier="residential",
+        status="down",
+        blocked_until=datetime.utcnow() + timedelta(minutes=10),
+        consecutive_failures=3,
+        updated_at=datetime.utcnow(),
+    ))
+    s.commit()
+
+    before = admin_spine.proxies_status(user="admin", db=s)
+    before_ready = next(row for row in before["endpoints"] if row["id"] == ready.id)
+    before_cooling = next(row for row in before["endpoints"] if row["id"] == cooling.id)
+    assert before_ready["health"]["recheck_ready"] is True
+    assert before_cooling["health"]["recheck_ready"] is False
+
+    out = admin_spine.proxy_maintenance(
+        {
+            "endpoint_type": "residential",
+            "url": "https://probe.example.test/maintenance",
+            "timeout": 4,
+        },
+        user="admin",
+        db=s,
+        ip="127.0.0.1",
+    )
+    s.expire_all()
+
+    assert seen == [ready_proxy]
+    assert out["maintenance"]["checked"] == 1
+    assert out["maintenance"]["ok"] == 1
+    assert out["maintenance"]["failed"] == 0
+    assert out["maintenance"]["results"][0]["endpoint_id"] == ready.id
+    assert (s.query(ProxyHealth)
+            .filter(ProxyHealth.proxy_hash == proxy_hash(ready_proxy))
+            .one()
+            .status) == "healthy"
+    assert (s.query(ProxyHealth)
+            .filter(ProxyHealth.proxy_hash == proxy_hash(cooling_proxy))
+            .one()
+            .status) == "down"
+
+    s.close()

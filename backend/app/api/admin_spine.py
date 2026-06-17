@@ -2044,6 +2044,7 @@ def _dt(value: datetime | None) -> str | None:
 
 
 def _proxy_health_dict(row: ProxyHealth | None) -> dict:
+    now = datetime.utcnow()
     if row is None:
         return {
             "status": "unknown",
@@ -2057,7 +2058,16 @@ def _proxy_health_dict(row: ProxyHealth | None) -> dict:
             "last_failure_detail": None,
             "blocked_until": None,
             "updated_at": None,
+            "recheck_ready": False,
+            "cooldown_remaining_sec": 0,
         }
+    cooldown_remaining_sec = 0
+    if row.blocked_until:
+        cooldown_remaining_sec = max(0, int((row.blocked_until - now).total_seconds()))
+    recheck_ready = (
+        (row.status or "") in ("down", "degraded")
+        and cooldown_remaining_sec == 0
+    )
     return {
         "status": row.status or "unknown",
         "success_count": row.success_count or 0,
@@ -2070,6 +2080,8 @@ def _proxy_health_dict(row: ProxyHealth | None) -> dict:
         "last_failure_detail": row.last_failure_detail,
         "blocked_until": _dt(row.blocked_until),
         "updated_at": _dt(row.updated_at),
+        "recheck_ready": recheck_ready,
+        "cooldown_remaining_sec": cooldown_remaining_sec,
     }
 
 
@@ -2867,6 +2879,71 @@ def proxy_endpoint_check(endpoint_id: int, payload: dict | None = None,
     _reload_pool_safely()
     db.expire_all()
     return {"probe": detail, **_proxy_admin_payload(db)}
+
+
+@router.post("/proxies/maintenance")
+def proxy_maintenance(payload: dict | None = None,
+                      user: str = Depends(require_user),
+                      db: Session = Depends(get_db),
+                      ip: str = Header(default="", alias="X-Forwarded-For")) -> dict:
+    """Re-check unhealthy proxy endpoints whose cooldown has expired."""
+    actor = _require_super_admin(user, db)
+    payload = payload or {}
+    now = datetime.utcnow()
+    url = payload.get("url") or "https://www.google.com/generate_204"
+    timeout = max(3, min(30, int(payload.get("timeout") or 6)))
+    limit = max(1, min(100, int(payload.get("limit") or 50)))
+    endpoint_type = (payload.get("endpoint_type") or payload.get("tier") or "").strip()
+    include_blocked = bool(payload.get("include_blocked", False))
+    active_only = bool(payload.get("active_only", True))
+    statuses = ["down", "degraded"]
+    if include_blocked:
+        statuses.append("blocked")
+
+    q = (db.query(ProxyEndpoint)
+         .join(ProxyHealth, ProxyHealth.proxy_hash == ProxyEndpoint.proxy_hash)
+         .filter(ProxyEndpoint.proxy_url.isnot(None),
+                 ProxyHealth.status.in_(tuple(statuses))))
+    if active_only:
+        q = q.filter(ProxyEndpoint.active.is_(True))
+    if endpoint_type:
+        q = q.filter(ProxyEndpoint.endpoint_type == endpoint_type)
+    if not include_blocked:
+        q = q.filter(or_(ProxyHealth.blocked_until.is_(None),
+                         ProxyHealth.blocked_until <= now))
+    rows = (q.order_by(ProxyHealth.blocked_until.asc().nullsfirst(),
+                       ProxyEndpoint.endpoint_type.asc(),
+                       ProxyEndpoint.id.asc())
+            .limit(limit)
+            .all())
+
+    results = [
+        _proxy_endpoint_probe_detail(row, url=url, timeout=timeout)
+        for row in rows
+    ]
+    ok = sum(1 for row in results if row.get("ok"))
+    failed = len(results) - ok
+    detail = {
+        "url": url,
+        "timeout": timeout,
+        "limit": limit,
+        "endpoint_type": endpoint_type or None,
+        "active_only": active_only,
+        "include_blocked": include_blocked,
+        "checked": len(results),
+        "ok": ok,
+        "failed": failed,
+        "results": results,
+    }
+    record_audit(db, actor_user_id=actor.id, actor_name=actor.username,
+                 action="proxy.maintenance", target_type="proxy_endpoint",
+                 target_id="recheck_ready", detail={k: v for k, v in detail.items()
+                                                    if k != "results"},
+                 ip=ip or None)
+    db.commit()
+    _reload_pool_safely()
+    db.expire_all()
+    return {"maintenance": detail, **_proxy_admin_payload(db)}
 
 
 @router.post("/proxies/pools")

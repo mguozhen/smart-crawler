@@ -27,6 +27,7 @@ export const proxyEndpointCreate = (payload: Dict<any>) => apiJson('/api/admin/s
 export const proxyEndpointUpdate = (id: number, payload: Dict<any>) => apiJson(`/api/admin/spine/proxies/endpoints/${id}`, { method: 'PATCH', ...jsonBody(payload) })
 export const proxyEndpointCheck = (id: number, payload: Dict<any> = {}) => apiJson(`/api/admin/spine/proxies/endpoints/${id}/check`, { method: 'POST', ...jsonBody(payload) })
 export const proxyEndpointCheckBatch = (payload: Dict<any> = {}) => apiJson('/api/admin/spine/proxies/endpoints/check-batch', { method: 'POST', ...jsonBody(payload) })
+export const proxyMaintenance = (payload: Dict<any> = {}) => apiJson('/api/admin/spine/proxies/maintenance', { method: 'POST', ...jsonBody(payload) })
 export const proxyPoolCreate = (payload: Dict<any>) => apiJson('/api/admin/spine/proxies/pools', { method: 'POST', ...jsonBody(payload) })
 export const proxyPoolUpdate = (id: number, payload: Dict<any>) => apiJson(`/api/admin/spine/proxies/pools/${id}`, { method: 'PATCH', ...jsonBody(payload) })
 export const proxyPoolMemberUpsert = (poolId: number, payload: Dict<any>) => apiJson(`/api/admin/spine/proxies/pools/${poolId}/members`, { method: 'POST', ...jsonBody(payload) })
